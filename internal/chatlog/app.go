@@ -2,6 +2,7 @@ package chatlog
 
 import (
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/sjzar/chatlog/internal/chatlog/ctx"
@@ -109,7 +110,7 @@ func (a *App) refresh() {
 			return
 		case <-tick.C:
 			a.infoBar.UpdateAccount(a.ctx.Account)
-			a.infoBar.UpdateBasicInfo(a.ctx.PID, a.ctx.Version, a.ctx.ExePath)
+			a.infoBar.UpdateBasicInfo(a.ctx.PID, a.ctx.FullVersion, a.ctx.ExePath)
 			a.infoBar.UpdateStatus(a.ctx.Status)
 			a.infoBar.UpdateDataKey(a.ctx.DataKey)
 			a.infoBar.UpdateDataUsageDir(a.ctx.DataUsage, a.ctx.DataDir)
@@ -159,11 +160,36 @@ func (a *App) initMenu() {
 		Name:        "获取数据密钥",
 		Description: "从进程获取数据密钥",
 		Selected: func(i *menu.Item) {
-			if err := a.m.GetDataKey(); err != nil {
-				a.showError(err)
-				return
+			modal := tview.NewModal()
+			if runtime.GOOS == "darwin" {
+				modal.SetText("获取数据密钥中...\n预计需要 20 秒左右的时间，期间微信会卡住，请耐心等待")
+			} else {
+				modal.SetText("获取数据密钥中...")
 			}
-			a.showInfo("获取数据密钥成功")
+			a.mainPages.AddPage("modal", modal, true, true)
+			a.SetFocus(modal)
+
+			go func() {
+				err := a.m.GetDataKey()
+
+				// 在主线程中更新UI
+				a.QueueUpdateDraw(func() {
+					if err != nil {
+						// 解密失败
+						modal.SetText("获取数据密钥失败: " + err.Error())
+					} else {
+						// 解密成功
+						modal.SetText("获取数据密钥成功")
+					}
+
+					// 添加确认按钮
+					modal.AddButtons([]string{"OK"})
+					modal.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+						a.mainPages.RemovePage("modal")
+					})
+					a.SetFocus(modal)
+				})
+			}()
 		},
 	}
 
@@ -264,7 +290,7 @@ func (a *App) initMenu() {
 							modal.SetText("已停止 HTTP 服务")
 							// 更改菜单项名称
 							i.Name = "启动 HTTP 服务"
-							i.Description = "启动本地 HTTP 服务器"
+							i.Description = "启动本地 HTTP & MCP 服务器"
 						}
 
 						// 添加确认按钮

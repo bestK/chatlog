@@ -6,10 +6,13 @@ endif
 LDFLAGS := -ldflags '-X "github.com/sjzar/chatlog/pkg/version.Version=$(VERSION)" -w -s'
 
 PLATFORMS := \
+	darwin/amd64 \
+	darwin/arm64 \
 	windows/amd64 \
 	windows/arm64
 
 UPX_PLATFORMS := \
+	darwin/amd64 \
 	windows/386 \
 	windows/amd64
 

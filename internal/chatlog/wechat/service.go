@@ -1,14 +1,19 @@
 package wechat
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/sjzar/chatlog/internal/chatlog/ctx"
+	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/wechat"
+	"github.com/sjzar/chatlog/internal/wechat/decrypt"
 	"github.com/sjzar/chatlog/pkg/util"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Service struct {
@@ -22,18 +27,18 @@ func NewService(ctx *ctx.Context) *Service {
 }
 
 // GetWeChatInstances returns all running WeChat instances
-func (s *Service) GetWeChatInstances() []*wechat.Info {
+func (s *Service) GetWeChatInstances() []*wechat.Account {
 	wechat.Load()
-	return wechat.Items
+	return wechat.GetAccounts()
 }
 
 // GetDataKey extracts the encryption key from a WeChat process
-func (s *Service) GetDataKey(info *wechat.Info) (string, error) {
+func (s *Service) GetDataKey(info *wechat.Account) (string, error) {
 	if info == nil {
 		return "", fmt.Errorf("no WeChat instance selected")
 	}
 
-	key, err := info.GetKey()
+	key, err := info.GetKey(context.Background())
 	if err != nil {
 		return "", err
 	}
@@ -89,9 +94,16 @@ func (s *Service) FindDBFiles(rootDir string, recursive bool) ([]string, error) 
 	return dbFiles, nil
 }
 
-func (s *Service) DecryptDBFiles(dataDir string, workDir string, key string, version int) error {
+func (s *Service) DecryptDBFiles(dataDir string, workDir string, key string, platform string, version int) error {
+
+	ctx := context.Background()
 
 	dbfiles, err := s.FindDBFiles(dataDir, true)
+	if err != nil {
+		return err
+	}
+
+	decryptor, err := decrypt.NewDecryptor(platform, version)
 	if err != nil {
 		return err
 	}
@@ -101,11 +113,23 @@ func (s *Service) DecryptDBFiles(dataDir string, workDir string, key string, ver
 		if err := util.PrepareDir(filepath.Dir(output)); err != nil {
 			return err
 		}
-		if err := wechat.DecryptDBFileToFile(dbfile, output, key, version); err != nil {
-			if err == wechat.ErrAlreadyDecrypted {
+
+		outputFile, err := os.Create(output)
+		if err != nil {
+			return fmt.Errorf("failed to create output file: %v", err)
+		}
+		defer outputFile.Close()
+
+		if err := decryptor.Decrypt(ctx, dbfile, key, outputFile); err != nil {
+			log.Debugf("failed to decrypt %s: %v", dbfile, err)
+			if err == errors.ErrAlreadyDecrypted {
+				if data, err := os.ReadFile(dbfile); err == nil {
+					outputFile.Write(data)
+				}
 				continue
 			}
-			return err
+			continue
+			// return err
 		}
 	}
 

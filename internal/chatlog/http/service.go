@@ -14,6 +14,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	DefalutHTTPAddr = "127.0.0.1:5030"
+)
+
 type Service struct {
 	ctx *ctx.Context
 	db  *database.Service
@@ -34,7 +38,8 @@ func NewService(ctx *ctx.Context, db *database.Service, mcp *mcp.Service) *Servi
 
 	// Middleware
 	router.Use(
-		gin.Recovery(),
+		errors.RecoveryMiddleware(),
+		errors.ErrorHandlerMiddleware(),
 		gin.LoggerWithWriter(log.StandardLogger().Out),
 	)
 
@@ -50,6 +55,11 @@ func NewService(ctx *ctx.Context, db *database.Service, mcp *mcp.Service) *Servi
 }
 
 func (s *Service) Start() error {
+
+	if s.ctx.HTTPAddr == "" {
+		s.ctx.HTTPAddr = DefalutHTTPAddr
+	}
+
 	s.server = &http.Server{
 		Addr:    s.ctx.HTTPAddr,
 		Handler: s.router,

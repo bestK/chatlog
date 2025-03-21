@@ -1,17 +1,38 @@
+<div align="center">
+
 # Chatlog
 
-Chatlog 是一个聊天记录收集、分析的开源工具，旨在帮助用户更好地利用自己的聊天数据。  
-目前支持微信聊天记录的解密和查询，提供 Terminal UI 界面和 HTTP API 服务，让您可以方便地访问和分析聊天数据。
+![chatlog](https://socialify.git.ci/sjzar/chatlog/image?font=Rokkitt&name=1&pattern=Diagonal+Stripes&theme=Auto)
 
-## 功能特点
+_聊天记录工具，帮助大家轻松使用自己的聊天数据_
 
-- **数据收集**：从本地数据库文件中获取聊天数据
-- **终端界面**：提供简洁的 Terminal UI，方便直接操作
-- **HTTP API**：提供 API 接口，支持查询聊天记录、联系人和群聊信息
-- **MCP 支持**：实现 Model Context Protocol，可与支持 MCP 的 AI 助手无缝集成
-- **多格式输出**：支持 JSON、CSV、纯文本等多种输出格式
+[![Go Report Card](https://goreportcard.com/badge/github.com/sjzar/chatlog)](https://goreportcard.com/report/github.com/sjzar/chatlog)
+[![GoDoc](https://godoc.org/github.com/sjzar/chatlog?status.svg)](https://godoc.org/github.com/sjzar/chatlog)
+[![GitHub release](https://img.shields.io/github/release/sjzar/chatlog.svg)](https://github.com/sjzar/chatlog/releases)
+[![GitHub license](https://img.shields.io/github/license/sjzar/chatlog.svg)](https://github.com/sjzar/chatlog/blob/main/LICENSE)
 
-## 安装
+</div>
+
+![chatlog](https://github.com/user-attachments/assets/746717b8-9b39-4a45-97f3-f0ae8fc5a344)
+
+## Feature
+
+- 从本地数据库文件获取聊天数据
+- 支持 Windows / macOS 系统
+- 支持微信 3.x / 4.0 版本
+- 提供 Terminal UI 界面 & 命令行工具
+- 提供 HTTP API 服务，支持查询聊天记录、联系人、群聊、最近会话等信息
+- 支持 MCP SSE 协议，可与支持 MCP 的 AI 助手无缝集成
+
+
+## TODO
+
+- 支持多媒体数据
+- 聊天数据全文索引
+- 聊天数据统计 & Dashboard
+
+
+## Install
 
 ### 从源码安装
 
@@ -23,9 +44,39 @@ go install github.com/sjzar/chatlog@latest
 
 访问 [Releases](https://github.com/sjzar/chatlog/releases) 页面下载适合您系统的预编译版本。
 
-## 快速开始
+## Quick Start
 
-### 终端 UI 模式
+### 操作流程
+
+1. 下载并安装微信客户端
+
+2. 手机微信上操作 `我 - 设置 - 通用 - 聊天记录迁移与备份 - 迁移 - 迁移到电脑`，这一步的目的是将手机中的聊天记录传输到电脑上。可以放心操作，不会影响到手机上的聊天记录。
+
+3. 下载 `chatlog` 预编译版本或从源码安装，推荐使用 go 进行安装。
+
+4. 运行 `chatlog`，按照提示进行操作，解密数据后开启 HTTP 服务后，即可通过浏览器或 AI 助手访问聊天记录。
+
+### macOS 版本提示
+
+1. macOS 用户在获取密钥前，需要确认已经关闭 SIP 并安装 Xcode。由于 macOS 的安全机制，在正常情况在无法读取微信进程的内存数据，所以需要临时关闭 SIP。关闭 SIP 的方法：
+
+```shell
+# 1. 进入恢复模式
+  Apple Intel Mac: 关机后，按住 Command + R 键开机，直到出现苹果标志和进度条。
+  Apple Silicon Mac: 关机后，按住开机键不松开，直到出现苹果标志和进度条。
+# 2. 打开终端
+  选项 - 实用工具 - 终端
+# 3. 关闭 SIP
+  输入以下命令关闭 SIP：
+  csrutil disable
+# 4. 重启系统
+```
+
+2. 目前的 macOS 版本方案依赖 `lldb` 工具，所以需要安装 Xcode，可以从 App Store 进行下载。
+
+3. 仅获取数据密钥步骤需要关闭 SIP；获取数据密钥后即可重新打开 SIP，不影响解密数据和 HTTP 服务的运行。
+
+### Terminal UI 模式
 
 1. 启动程序：
 
@@ -35,13 +86,13 @@ go install github.com/sjzar/chatlog@latest
 
 2. 使用界面操作：
    - 使用方向键导航菜单
-   - 按 Enter 选择菜单项
-   - 按 Esc 返回上一级菜单
-   - 按 Ctrl+C 退出程序
+   - 按 `Enter` 选择菜单项
+   - 按 `Esc` 返回上一级菜单
+   - 按 `Ctrl+C` 退出程序
 
 ### 命令行模式
 
-获取微信进程密钥：
+获取微信数据密钥：
 
 ```bash
 ./chatlog key
@@ -50,7 +101,7 @@ go install github.com/sjzar/chatlog@latest
 解密数据库文件：
 
 ```bash
-./chatlog decrypt --data-dir "微信数据目录" --work-dir "输出目录" --key "密钥" --version 3
+./chatlog decrypt
 ```
 
 ## HTTP API
@@ -73,68 +124,63 @@ GET /api/v1/chatlog?time=2023-01-01&talker=wxid_xxx&limit=100&offset=0&format=js
 ### 联系人列表
 
 ```
-GET /api/v1/contact?format=json
+GET /api/v1/contact
 ```
 
 ### 群聊列表
 
 ```
-GET /api/v1/chatroom?format=json
+GET /api/v1/chatroom
 ```
 
 ### 会话列表
 
 ```
-GET /api/v1/session?limit=100&format=json
+GET /api/v1/session
 ```
 
-## MCP 集成
+## MCP
 
-Chatlog 实现了 Model Context Protocol (MCP)，可以与支持 MCP 的 AI 助手集成。通过 MCP，AI 助手可以：
+支持 MCP SSE 协议，启动 HTTP 服务后，通过 SSE Endpoint 访问服务：
 
-1. 查询联系人信息
-2. 获取群聊列表和成员
-3. 检索最近的聊天记录
-4. 按时间和联系人搜索聊天记录
+```
+GET /sse
+```
 
-## 未来规划
+提供了 4 个 tool 用于与 AI 助手集成：
+- `chatlog`: 查询聊天记录
+- `query_contact`: 查询联系人
+- `query_chat_room`: 查询群聊
+- `query_recent_chat`: 查询最近会话
 
-Chatlog 希望成为最好用的聊天记录工具，帮助用户充分挖掘自己聊天数据的价值。我们的路线图包括：
+### 示例
 
-- **多平台支持**：计划支持 MacOS 平台的微信聊天记录解密
-- **全文索引**：实现聊天记录的全文检索，提供更快速的搜索体验
-- **统计与可视化**：提供聊天数据的统计分析和可视化 Dashboard
-- **CS 架构**：将数据收集和统计分析功能分离，支持将服务部署在 NAS 或家庭服务器上
-- **增量更新**：支持聊天记录的增量采集和更新，减少资源消耗
-- **关键词监控**：提供关键词监控和实时提醒功能
-- **更多聊天工具支持**：计划支持更多主流聊天工具的数据采集和分析
+以 [ChatWise](https://chatwise.app/) 工具为例，在 `设置 - 工具` 下新建工具，类型为 `sse`，ID 为 `chatlog`，URL 为 `http://127.0.0.1:5030/sse`，勾选自动执行工具，即可使用。
 
-## 数据安全声明
+部分 AI 聊天工具暂时不支持 MCP SSE 协议，可以通过 [`mcp-proxy`](https://github.com/sparfenyuk/mcp-proxy) 工具转发请求，以 [Claude Desktop](https://claude.ai/download) 为例，在安装好 `mcp-proxy` 后，将 `mcp-proxy` 配置到 `Claude Desktop` 的 `config.json` 文件中，即可使用：
 
-Chatlog 高度重视用户数据安全和隐私保护：
+```json
+{
+  "mcpServers": {
+    "mcp-proxy": {
+      "command": "/Users/sarv/.local/bin/mcp-proxy",
+      "args": [
+        "http://localhost:5030/sse"
+      ],
+      "env": {}
+    }
+  },
+  "globalShortcut": ""
+}
+```
 
-- 所有数据处理均在本地完成，不会上传到任何外部服务器
-- 解密后的数据存储在用户指定的工作目录中，用户对数据有完全控制权
-- 建议定期备份重要的聊天记录，并妥善保管解密后的数据
-- 请勿将本工具用于未经授权访问他人聊天记录等非法用途
+## License
 
-## 贡献
+`chatlog` 是在 Apache-2.0 许可下的开源软件。
 
-我们欢迎社区的贡献！无论是代码贡献、问题报告还是功能建议，都将帮助 Chatlog 变得更好：
+## Thanks
 
-1. Fork 本仓库
-2. 创建您的特性分支 (`git checkout -b feature/amazing-feature`)
-3. 提交您的更改 (`git commit -m 'Add some amazing feature'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 打开一个 Pull Request
-
-## 许可证
-
-本项目采用 Apache-2.0 许可证 - 详见 [LICENSE](LICENSE) 文件。
-
-## 致谢
-
-- [tview](https://github.com/rivo/tview) - 终端 UI 库
-- [gin](https://github.com/gin-gonic/gin) - HTTP 框架
-- [Model Context Protocol](https://github.com/modelcontextprotocol) - AI 助手集成协议
-- 以及所有贡献者和用户的支持与反馈
+- [@0xlane](https://github.com/0xlane) 的 [wechat-dump-rs](https://github.com/0xlane/wechat-dump-rs) 项目
+- [@xaoyaoo](https://github.com/xaoyaoo) 的 [PyWxDump](https://github.com/xaoyaoo/PyWxDump) 项目
+- [Anthropic](https://www.anthropic.com/) 的 [MCP]((https://github.com/modelcontextprotocol) ) 协议
+- 各个 Go 开源库的贡献者们

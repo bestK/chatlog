@@ -17,29 +17,30 @@ type Context struct {
 	History map[string]conf.ProcessConfig
 
 	// 微信账号相关状态
-	Account      string
-	Version      string
-	MajorVersion int
-	DataKey      string
-	DataUsage    string
-	DataDir      string
+	Account     string
+	Platform    string
+	Version     int
+	FullVersion string
+	DataDir     string
+	DataKey     string
+	DataUsage   string
 
 	// 工作目录相关状态
-	WorkUsage string
 	WorkDir   string
+	WorkUsage string
 
 	// HTTP服务相关状态
 	HTTPEnabled bool
 	HTTPAddr    string
 
 	// 当前选中的微信实例
-	Current *wechat.Info
+	Current *wechat.Account
 	PID     int
 	ExePath string
 	Status  string
 
 	// 所有可用的微信实例
-	WeChatInstances []*wechat.Info
+	WeChatInstances []*wechat.Account
 }
 
 func New(conf *conf.Service) *Context {
@@ -65,8 +66,9 @@ func (c *Context) SwitchHistory(account string) {
 	history, ok := c.History[account]
 	if ok {
 		c.Account = history.Account
+		c.Platform = history.Platform
 		c.Version = history.Version
-		c.MajorVersion = history.MajorVersion
+		c.FullVersion = history.FullVersion
 		c.DataKey = history.DataKey
 		c.DataDir = history.DataDir
 		c.WorkDir = history.WorkDir
@@ -75,8 +77,8 @@ func (c *Context) SwitchHistory(account string) {
 	}
 }
 
-func (c *Context) SwitchCurrent(info *wechat.Info) {
-	c.SwitchHistory(info.AccountName)
+func (c *Context) SwitchCurrent(info *wechat.Account) {
+	c.SwitchHistory(info.Name)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.Current = info
@@ -85,9 +87,10 @@ func (c *Context) SwitchCurrent(info *wechat.Info) {
 }
 func (c *Context) Refresh() {
 	if c.Current != nil {
-		c.Account = c.Current.AccountName
-		c.Version = c.Current.Version.FileVersion
-		c.MajorVersion = c.Current.Version.FileMajorVersion
+		c.Account = c.Current.Name
+		c.Platform = c.Current.Platform
+		c.Version = c.Current.Version
+		c.FullVersion = c.Current.FullVersion
 		c.PID = int(c.Current.PID)
 		c.ExePath = c.Current.ExePath
 		c.Status = c.Current.Status
@@ -143,15 +146,16 @@ func (c *Context) SetDataDir(dir string) {
 // 更新配置
 func (c *Context) UpdateConfig() {
 	pconf := conf.ProcessConfig{
-		Type:         "wechat",
-		Version:      c.Version,
-		MajorVersion: c.MajorVersion,
-		Account:      c.Account,
-		DataKey:      c.DataKey,
-		DataDir:      c.DataDir,
-		WorkDir:      c.WorkDir,
-		HTTPEnabled:  c.HTTPEnabled,
-		HTTPAddr:     c.HTTPAddr,
+		Type:        "wechat",
+		Account:     c.Account,
+		Platform:    c.Platform,
+		Version:     c.Version,
+		FullVersion: c.FullVersion,
+		DataDir:     c.DataDir,
+		DataKey:     c.DataKey,
+		WorkDir:     c.WorkDir,
+		HTTPEnabled: c.HTTPEnabled,
+		HTTPAddr:    c.HTTPAddr,
 	}
 	conf := c.conf.GetConfig()
 	conf.UpdateHistory(c.Account, pconf)

@@ -34,7 +34,7 @@ func New() *Footer {
 		SetTextAlign(tview.AlignLeft)
 	footer.copyRight.
 		SetBackgroundColor(tview.Styles.PrimitiveBackgroundColor)
-	footer.copyRight.SetText(fmt.Sprintf("[%s::b]%s[-:-:-]", style.GetColorHex(style.PageHeaderFgColor), fmt.Sprintf(" @ Sarv's Chatlog (%s)", version.Version)))
+	footer.copyRight.SetText(fmt.Sprintf("[%s::b]%s[-:-:-]", style.GetColorHex(style.PageHeaderFgColor), fmt.Sprintf(" @ Sarv's Chatlog %s", version.Version)))
 
 	footer.help.
 		SetDynamicColors(true).

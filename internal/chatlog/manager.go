@@ -1,6 +1,7 @@
 package chatlog
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
@@ -67,7 +68,7 @@ func (m *Manager) Run() error {
 	if m.ctx.HTTPEnabled {
 		// 启动HTTP服务
 		if err := m.StartService(); err != nil {
-			return err
+			m.StopService()
 		}
 	}
 	// 启动终端UI
@@ -152,7 +153,7 @@ func (m *Manager) DecryptDBFiles() error {
 		m.ctx.WorkDir = util.DefaultWorkDir(m.ctx.Account)
 	}
 
-	if err := m.wechat.DecryptDBFiles(m.ctx.DataDir, m.ctx.WorkDir, m.ctx.DataKey, m.ctx.MajorVersion); err != nil {
+	if err := m.wechat.DecryptDBFiles(m.ctx.DataDir, m.ctx.WorkDir, m.ctx.DataKey, m.ctx.Platform, m.ctx.Version); err != nil {
 		return err
 	}
 	m.ctx.Refresh()
@@ -166,24 +167,24 @@ func (m *Manager) CommandKey(pid int) (string, error) {
 		return "", fmt.Errorf("wechat process not found")
 	}
 	if len(instances) == 1 {
-		return instances[0].GetKey()
+		return instances[0].GetKey(context.Background())
 	}
 	if pid == 0 {
 		str := "Select a process:\n"
 		for _, ins := range instances {
-			str += fmt.Sprintf("PID: %d. %s[Version: %s Data Dir: %s ]\n", ins.PID, ins.AccountName, ins.Version.FileVersion, ins.DataDir)
+			str += fmt.Sprintf("PID: %d. %s[Version: %s Data Dir: %s ]\n", ins.PID, ins.Name, ins.FullVersion, ins.DataDir)
 		}
 		return str, nil
 	}
 	for _, ins := range instances {
 		if ins.PID == uint32(pid) {
-			return ins.GetKey()
+			return ins.GetKey(context.Background())
 		}
 	}
 	return "", fmt.Errorf("wechat process not found")
 }
 
-func (m *Manager) CommandDecrypt(dataDir string, workDir string, key string, version int) error {
+func (m *Manager) CommandDecrypt(dataDir string, workDir string, key string, platform string, version int) error {
 	if dataDir == "" {
 		return fmt.Errorf("dataDir is required")
 	}
@@ -194,7 +195,7 @@ func (m *Manager) CommandDecrypt(dataDir string, workDir string, key string, ver
 		workDir = util.DefaultWorkDir(filepath.Base(filepath.Dir(dataDir)))
 	}
 
-	if err := m.wechat.DecryptDBFiles(dataDir, workDir, key, version); err != nil {
+	if err := m.wechat.DecryptDBFiles(dataDir, workDir, key, platform, version); err != nil {
 		return err
 	}
 

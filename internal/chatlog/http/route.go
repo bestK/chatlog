@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/sjzar/chatlog/internal/errors"
@@ -19,8 +18,6 @@ import (
 //go:embed static
 var EFS embed.FS
 
-// initRouter sets up routes and static file servers for the web service.
-// It defines endpoints for API as well as serving static content.
 func (s *Service) initRouter() {
 
 	router := s.GetRouter()
@@ -43,9 +40,9 @@ func (s *Service) initRouter() {
 	api := router.Group("/api/v1")
 	{
 		api.GET("/chatlog", s.GetChatlog)
-		api.GET("/contact", s.ListContact)
-		api.GET("/chatroom", s.ListChatRoom)
-		api.GET("/session", s.GetSession)
+		api.GET("/contact", s.GetContacts)
+		api.GET("/chatroom", s.GetChatRooms)
+		api.GET("/session", s.GetSessions)
 	}
 
 	router.NoRoute(s.NoRoute)
@@ -66,47 +63,39 @@ func (s *Service) NoRoute(c *gin.Context) {
 
 func (s *Service) GetChatlog(c *gin.Context) {
 
+	q := struct {
+		Time   string `form:"time"`
+		Talker string `form:"talker"`
+		Limit  int    `form:"limit"`
+		Offset int    `form:"offset"`
+		Format string `form:"format"`
+	}{}
+
+	if err := c.BindQuery(&q); err != nil {
+		errors.Err(c, err)
+		return
+	}
+
 	var err error
-	start, end, ok := util.TimeRangeOf(c.Query("time"))
+	start, end, ok := util.TimeRangeOf(q.Time)
 	if !ok {
 		errors.Err(c, errors.ErrInvalidArg("time"))
 	}
-
-	var limit int
-	if _limit := c.Query("limit"); len(_limit) > 0 {
-		limit, err = strconv.Atoi(_limit)
-		if err != nil {
-			errors.Err(c, errors.ErrInvalidArg("limit"))
-			return
-		}
+	if q.Limit < 0 {
+		q.Limit = 0
 	}
 
-	var offset int
-	if _offset := c.Query("offset"); len(_offset) > 0 {
-		offset, err = strconv.Atoi(_offset)
-		if err != nil {
-			errors.Err(c, errors.ErrInvalidArg("offset"))
-			return
-		}
+	if q.Offset < 0 {
+		q.Offset = 0
 	}
 
-	talker := c.Query("talker")
-
-	if limit < 0 {
-		limit = 0
-	}
-
-	if offset < 0 {
-		offset = 0
-	}
-
-	messages, err := s.db.GetMessages(start, end, talker, limit, offset)
+	messages, err := s.db.GetMessages(start, end, q.Talker, q.Limit, q.Offset)
 	if err != nil {
 		errors.Err(c, err)
 		return
 	}
 
-	switch strings.ToLower(c.Query("format")) {
+	switch strings.ToLower(q.Format) {
 	case "csv":
 	case "json":
 		// json
@@ -119,21 +108,34 @@ func (s *Service) GetChatlog(c *gin.Context) {
 		c.Writer.Flush()
 
 		for _, m := range messages {
-			c.Writer.WriteString(m.PlainText(len(talker) == 0))
+			c.Writer.WriteString(m.PlainText(len(q.Talker) == 0))
 			c.Writer.WriteString("\n")
 			c.Writer.Flush()
 		}
 	}
 }
 
-func (s *Service) ListContact(c *gin.Context) {
-	list, err := s.db.ListContact()
+func (s *Service) GetContacts(c *gin.Context) {
+
+	q := struct {
+		Key    string `form:"key"`
+		Limit  int    `form:"limit"`
+		Offset int    `form:"offset"`
+		Format string `form:"format"`
+	}{}
+
+	if err := c.BindQuery(&q); err != nil {
+		errors.Err(c, err)
+		return
+	}
+
+	list, err := s.db.GetContacts(q.Key, q.Limit, q.Offset)
 	if err != nil {
 		errors.Err(c, err)
 		return
 	}
 
-	format := strings.ToLower(c.Query("format"))
+	format := strings.ToLower(q.Format)
 	switch format {
 	case "json":
 		// json
@@ -158,22 +160,26 @@ func (s *Service) ListContact(c *gin.Context) {
 	}
 }
 
-func (s *Service) ListChatRoom(c *gin.Context) {
+func (s *Service) GetChatRooms(c *gin.Context) {
 
-	if query := c.Query("query"); len(query) > 0 {
-		chatRoom := s.db.GetChatRoom(query)
-		if chatRoom != nil {
-			c.JSON(http.StatusOK, chatRoom)
-			return
-		}
+	q := struct {
+		Key    string `form:"key"`
+		Limit  int    `form:"limit"`
+		Offset int    `form:"offset"`
+		Format string `form:"format"`
+	}{}
+
+	if err := c.BindQuery(&q); err != nil {
+		errors.Err(c, err)
+		return
 	}
 
-	list, err := s.db.ListChatRoom()
+	list, err := s.db.GetChatRooms(q.Key, q.Limit, q.Offset)
 	if err != nil {
 		errors.Err(c, err)
 		return
 	}
-	format := strings.ToLower(c.Query("format"))
+	format := strings.ToLower(q.Format)
 	switch format {
 	case "json":
 		// json
@@ -190,32 +196,34 @@ func (s *Service) ListChatRoom(c *gin.Context) {
 		c.Writer.Header().Set("Connection", "keep-alive")
 		c.Writer.Flush()
 
-		c.Writer.WriteString("Name,Owner,UserCount\n")
+		c.Writer.WriteString("Name,Remark,NickName,Owner,UserCount\n")
 		for _, chatRoom := range list.Items {
-			c.Writer.WriteString(fmt.Sprintf("%s,%s,%d\n", chatRoom.Name, chatRoom.Owner, len(chatRoom.Users)))
+			c.Writer.WriteString(fmt.Sprintf("%s,%s,%s,%s,%d\n", chatRoom.Name, chatRoom.Remark, chatRoom.NickName, chatRoom.Owner, len(chatRoom.Users)))
 		}
 		c.Writer.Flush()
 	}
 }
 
-func (s *Service) GetSession(c *gin.Context) {
+func (s *Service) GetSessions(c *gin.Context) {
 
-	var err error
-	var limit int
-	if _limit := c.Query("limit"); len(_limit) > 0 {
-		limit, err = strconv.Atoi(_limit)
-		if err != nil {
-			errors.Err(c, errors.ErrInvalidArg("limit"))
-			return
-		}
+	q := struct {
+		Key    string `form:"key"`
+		Limit  int    `form:"limit"`
+		Offset int    `form:"offset"`
+		Format string `form:"format"`
+	}{}
+
+	if err := c.BindQuery(&q); err != nil {
+		errors.Err(c, err)
+		return
 	}
 
-	sessions, err := s.db.GetSession(limit)
+	sessions, err := s.db.GetSessions(q.Key, q.Limit, q.Offset)
 	if err != nil {
 		errors.Err(c, err)
 		return
 	}
-	format := strings.ToLower(c.Query("format"))
+	format := strings.ToLower(q.Format)
 	switch format {
 	case "csv":
 		c.Writer.Header().Set("Content-Type", "text/csv; charset=utf-8")

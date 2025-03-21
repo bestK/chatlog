@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/sjzar/chatlog/internal/chatlog/ctx"
+	"github.com/sjzar/chatlog/internal/model"
 	"github.com/sjzar/chatlog/internal/wechatdb"
-	"github.com/sjzar/chatlog/pkg/model"
 )
 
 type Service struct {
@@ -20,7 +20,7 @@ func NewService(ctx *ctx.Context) *Service {
 }
 
 func (s *Service) Start() error {
-	db, err := wechatdb.New(s.ctx.WorkDir, s.ctx.MajorVersion)
+	db, err := wechatdb.New(s.ctx.WorkDir, s.ctx.Platform, s.ctx.Version)
 	if err != nil {
 		return err
 	}
@@ -36,42 +36,29 @@ func (s *Service) Stop() error {
 	return nil
 }
 
-// GetDB returns the underlying database
 func (s *Service) GetDB() *wechatdb.DB {
 	return s.db
 }
 
-// GetMessages retrieves messages based on criteria
 func (s *Service) GetMessages(start, end time.Time, talker string, limit, offset int) ([]*model.Message, error) {
 	return s.db.GetMessages(start, end, talker, limit, offset)
 }
 
-// GetContact retrieves contact information
-func (s *Service) GetContact(userName string) *model.Contact {
-	return s.db.GetContact(userName)
+func (s *Service) GetContacts(key string, limit, offset int) (*wechatdb.GetContactsResp, error) {
+	return s.db.GetContacts(key, limit, offset)
 }
 
-// ListContact retrieves all contacts
-func (s *Service) ListContact() (*wechatdb.ListContactResp, error) {
-	return s.db.ListContact()
-}
-
-// GetChatRoom retrieves chat room information
-func (s *Service) GetChatRoom(name string) *model.ChatRoom {
-	return s.db.GetChatRoom(name)
-}
-
-// ListChatRoom retrieves all chat rooms
-func (s *Service) ListChatRoom() (*wechatdb.ListChatRoomResp, error) {
-	return s.db.ListChatRoom()
+func (s *Service) GetChatRooms(key string, limit, offset int) (*wechatdb.GetChatRoomsResp, error) {
+	return s.db.GetChatRooms(key, limit, offset)
 }
 
 // GetSession retrieves session information
-func (s *Service) GetSession(limit int) (*wechatdb.GetSessionResp, error) {
-	return s.db.GetSession(limit)
+func (s *Service) GetSessions(key string, limit, offset int) (*wechatdb.GetSessionsResp, error) {
+	return s.db.GetSessions(key, limit, offset)
 }
 
 // Close closes the database connection
 func (s *Service) Close() {
 	// Add cleanup code if needed
+	s.db.Close()
 }

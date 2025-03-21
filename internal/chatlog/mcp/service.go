@@ -134,53 +134,39 @@ func (s *Service) toolsCall(session *mcp.Session, req *mcp.Request) error {
 		if v, ok := callReq.Arguments["query"]; ok {
 			query = v.(string)
 		}
-		if len(query) == 0 {
-			list, err := s.db.ListContact()
-			if err != nil {
-				return fmt.Errorf("无法获取联系人列表: %v", err)
-			}
-			buf.WriteString("UserName,Alias,Remark,NickName\n")
-			for _, contact := range list.Items {
-				buf.WriteString(fmt.Sprintf("%s,%s,%s,%s\n", contact.UserName, contact.Alias, contact.Remark, contact.NickName))
-			}
-		} else {
-			contact := s.db.GetContact(query)
-			if contact == nil {
-				return fmt.Errorf("无法获取联系人: %s", query)
-			}
-			b, err := json.Marshal(contact)
-			if err != nil {
-				return fmt.Errorf("无法序列化联系人: %v", err)
-			}
-			buf.Write(b)
+		limit := util.MustAnyToInt(callReq.Arguments["limit"])
+		offset := util.MustAnyToInt(callReq.Arguments["offset"])
+		list, err := s.db.GetContacts(query, limit, offset)
+		if err != nil {
+			return fmt.Errorf("无法获取联系人列表: %v", err)
+		}
+		buf.WriteString("UserName,Alias,Remark,NickName\n")
+		for _, contact := range list.Items {
+			buf.WriteString(fmt.Sprintf("%s,%s,%s,%s\n", contact.UserName, contact.Alias, contact.Remark, contact.NickName))
 		}
 	case "query_chat_room":
 		query := ""
 		if v, ok := callReq.Arguments["query"]; ok {
 			query = v.(string)
 		}
-		if len(query) == 0 {
-			list, err := s.db.ListChatRoom()
-			if err != nil {
-				return fmt.Errorf("无法获取群聊列表: %v", err)
-			}
-			buf.WriteString("Name,Remark,NickName,Owner,UserCount\n")
-			for _, chatRoom := range list.Items {
-				buf.WriteString(fmt.Sprintf("%s,%s,%s,%s,%d\n", chatRoom.Name, chatRoom.Remark, chatRoom.NickName, chatRoom.Owner, len(chatRoom.Users)))
-			}
-		} else {
-			chatRoom := s.db.GetChatRoom(query)
-			if chatRoom == nil {
-				return fmt.Errorf("无法获取群聊: %s", query)
-			}
-			b, err := json.Marshal(chatRoom)
-			if err != nil {
-				return fmt.Errorf("无法序列化群聊: %v", err)
-			}
-			buf.Write(b)
+		limit := util.MustAnyToInt(callReq.Arguments["limit"])
+		offset := util.MustAnyToInt(callReq.Arguments["offset"])
+		list, err := s.db.GetChatRooms(query, limit, offset)
+		if err != nil {
+			return fmt.Errorf("无法获取群聊列表: %v", err)
+		}
+		buf.WriteString("Name,Remark,NickName,Owner,UserCount\n")
+		for _, chatRoom := range list.Items {
+			buf.WriteString(fmt.Sprintf("%s,%s,%s,%s,%d\n", chatRoom.Name, chatRoom.Remark, chatRoom.NickName, chatRoom.Owner, len(chatRoom.Users)))
 		}
 	case "query_recent_chat":
-		data, err := s.db.GetSession(0)
+		query := ""
+		if v, ok := callReq.Arguments["query"]; ok {
+			query = v.(string)
+		}
+		limit := util.MustAnyToInt(callReq.Arguments["limit"])
+		offset := util.MustAnyToInt(callReq.Arguments["offset"])
+		data, err := s.db.GetSessions(query, limit, offset)
 		if err != nil {
 			return fmt.Errorf("无法获取会话列表: %v", err)
 		}
@@ -245,49 +231,26 @@ func (s *Service) resourcesRead(session *mcp.Session, req *mcp.Request) error {
 	buf := &bytes.Buffer{}
 	switch u.Scheme {
 	case "contact":
-		if len(u.Host) == 0 {
-			list, err := s.db.ListContact()
-			if err != nil {
-				return fmt.Errorf("无法获取联系人列表: %v", err)
-			}
-			buf.WriteString("UserName,Alias,Remark,NickName\n")
-			for _, contact := range list.Items {
-				buf.WriteString(fmt.Sprintf("%s,%s,%s,%s\n", contact.UserName, contact.Alias, contact.Remark, contact.NickName))
-			}
-		} else {
-			contact := s.db.GetContact(u.Host)
-			if contact == nil {
-				return fmt.Errorf("无法获取联系人: %s", u.Host)
-			}
-			b, err := json.Marshal(contact)
-			if err != nil {
-				return fmt.Errorf("无法序列化联系人: %v", err)
-			}
-			buf.Write(b)
+
+		list, err := s.db.GetContacts(u.Host, 0, 0)
+		if err != nil {
+			return fmt.Errorf("无法获取联系人列表: %v", err)
+		}
+		buf.WriteString("UserName,Alias,Remark,NickName\n")
+		for _, contact := range list.Items {
+			buf.WriteString(fmt.Sprintf("%s,%s,%s,%s\n", contact.UserName, contact.Alias, contact.Remark, contact.NickName))
 		}
 	case "chatroom":
-		if len(u.Host) == 0 {
-			list, err := s.db.ListChatRoom()
-			if err != nil {
-				return fmt.Errorf("无法获取群聊列表: %v", err)
-			}
-			buf.WriteString("Name,Remark,NickName,Owner,UserCount\n")
-			for _, chatRoom := range list.Items {
-				buf.WriteString(fmt.Sprintf("%s,%s,%s,%s,%d\n", chatRoom.Name, chatRoom.Remark, chatRoom.NickName, chatRoom.Owner, len(chatRoom.Users)))
-			}
-		} else {
-			chatRoom := s.db.GetChatRoom(u.Host)
-			if chatRoom == nil {
-				return fmt.Errorf("无法获取群聊: %s", u.Host)
-			}
-			b, err := json.Marshal(chatRoom)
-			if err != nil {
-				return fmt.Errorf("无法序列化群聊: %v", err)
-			}
-			buf.Write(b)
+		list, err := s.db.GetChatRooms(u.Host, 0, 0)
+		if err != nil {
+			return fmt.Errorf("无法获取群聊列表: %v", err)
+		}
+		buf.WriteString("Name,Remark,NickName,Owner,UserCount\n")
+		for _, chatRoom := range list.Items {
+			buf.WriteString(fmt.Sprintf("%s,%s,%s,%s,%d\n", chatRoom.Name, chatRoom.Remark, chatRoom.NickName, chatRoom.Owner, len(chatRoom.Users)))
 		}
 	case "session":
-		data, err := s.db.GetSession(0)
+		data, err := s.db.GetSessions("", 0, 0)
 		if err != nil {
 			return fmt.Errorf("无法获取会话列表: %v", err)
 		}

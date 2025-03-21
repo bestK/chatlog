@@ -2,6 +2,7 @@ package chatlog
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/sjzar/chatlog/internal/chatlog"
 
@@ -14,13 +15,17 @@ func init() {
 	decryptCmd.Flags().StringVarP(&dataDir, "data-dir", "d", "", "data dir")
 	decryptCmd.Flags().StringVarP(&workDir, "work-dir", "w", "", "work dir")
 	decryptCmd.Flags().StringVarP(&key, "key", "k", "", "key")
+	decryptCmd.Flags().StringVarP(&decryptPlatform, "platform", "p", runtime.GOOS, "platform")
 	decryptCmd.Flags().IntVarP(&decryptVer, "version", "v", 3, "version")
 }
 
-var dataDir string
-var workDir string
-var key string
-var decryptVer int
+var (
+	dataDir         string
+	workDir         string
+	key             string
+	decryptPlatform string
+	decryptVer      int
+)
 
 var decryptCmd = &cobra.Command{
 	Use:   "decrypt",
@@ -31,7 +36,7 @@ var decryptCmd = &cobra.Command{
 			log.Error(err)
 			return
 		}
-		if err := m.CommandDecrypt(dataDir, workDir, key, decryptVer); err != nil {
+		if err := m.CommandDecrypt(dataDir, workDir, key, decryptPlatform, decryptVer); err != nil {
 			log.Error(err)
 			return
 		}
