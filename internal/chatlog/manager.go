@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/sjzar/chatlog/internal/chatlog/conf"
 	"github.com/sjzar/chatlog/internal/chatlog/ctx"
@@ -125,6 +126,21 @@ func (m *Manager) StopService() error {
 		return errs[0]
 	}
 
+	return nil
+}
+
+func (m *Manager) SetHTTPAddr(text string) error {
+	var addr string
+	if util.IsNumeric(text) {
+		addr = fmt.Sprintf("0.0.0.0:%s", text)
+	} else if strings.HasPrefix(text, "http://") {
+		addr = strings.TrimPrefix(text, "http://")
+	} else if strings.HasPrefix(text, "https://") {
+		addr = strings.TrimPrefix(text, "https://")
+	} else {
+		addr = text
+	}
+	m.ctx.SetHTTPAddr(addr)
 	return nil
 }
 

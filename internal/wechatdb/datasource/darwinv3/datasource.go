@@ -260,13 +260,13 @@ func (ds *DataSource) GetContacts(ctx context.Context, key string, limit, offset
 
 	if key != "" {
 		// 按照关键字查询
-		query = `SELECT m_nsUsrName, nickname, IFNULL(m_nsRemark,""), m_uiSex, IFNULL(m_nsAliasName,"") 
+		query = `SELECT IFNULL(m_nsUsrName,""), nickname, IFNULL(m_nsRemark,""), m_uiSex, IFNULL(m_nsAliasName,"") 
 				FROM WCContact 
 				WHERE m_nsUsrName = ? OR nickname = ? OR m_nsRemark = ? OR m_nsAliasName = ?`
 		args = []interface{}{key, key, key, key}
 	} else {
 		// 查询所有联系人
-		query = `SELECT m_nsUsrName, nickname, IFNULL(m_nsRemark,""), m_uiSex, IFNULL(m_nsAliasName,"") 
+		query = `SELECT IFNULL(m_nsUsrName,""), nickname, IFNULL(m_nsRemark,""), m_uiSex, IFNULL(m_nsAliasName,"") 
 				FROM WCContact`
 	}
 
@@ -314,13 +314,13 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 
 	if key != "" {
 		// 按照关键字查询
-		query = `SELECT m_nsUsrName, nickname, IFNULL(m_nsRemark,""), IFNULL(m_nsChatRoomMemList,""), IFNULL(m_nsChatRoomAdminList,"") 
+		query = `SELECT IFNULL(m_nsUsrName,""), nickname, IFNULL(m_nsRemark,""), IFNULL(m_nsChatRoomMemList,""), IFNULL(m_nsChatRoomAdminList,"") 
 				FROM GroupContact 
 				WHERE m_nsUsrName = ? OR nickname = ? OR m_nsRemark = ?`
 		args = []interface{}{key, key, key}
 	} else {
 		// 查询所有群聊
-		query = `SELECT m_nsUsrName, nickname, IFNULL(m_nsRemark,""), IFNULL(m_nsChatRoomMemList,""), IFNULL(m_nsChatRoomAdminList,"") 
+		query = `SELECT IFNULL(m_nsUsrName,""), nickname, IFNULL(m_nsRemark,""), IFNULL(m_nsChatRoomMemList,""), IFNULL(m_nsChatRoomAdminList,"") 
 				FROM GroupContact`
 	}
 
@@ -364,7 +364,7 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 		if err == nil && len(contacts) > 0 && strings.HasSuffix(contacts[0].UserName, "@chatroom") {
 			// 再次尝试通过用户名查找群聊
 			rows, err := ds.chatRoomDb.QueryContext(ctx,
-				`SELECT m_nsUsrName, nickname, m_nsRemark, m_nsChatRoomMemList, m_nsChatRoomAdminList 
+				`SELECT IFNULL(m_nsUsrName,""), nickname, IFNULL(m_nsRemark,""), IFNULL(m_nsChatRoomMemList,""), IFNULL(m_nsChatRoomAdminList,"") 
 				FROM GroupContact 
 				WHERE m_nsUsrName = ?`,
 				contacts[0].UserName)

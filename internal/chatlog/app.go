@@ -338,8 +338,8 @@ func (a *App) settingSelected(i *menu.Item) {
 
 	settings := []settingItem{
 		{
-			name:        "设置 HTTP 服务端口",
-			description: "配置 HTTP 服务监听的端口",
+			name:        "设置 HTTP 服务地址",
+			description: "配置 HTTP 服务监听的地址",
 			action:      a.settingHTTPPort,
 		},
 		{
@@ -373,17 +373,17 @@ func (a *App) settingHTTPPort() {
 	// 实现端口设置逻辑
 	// 这里可以使用 tview.InputField 让用户输入端口
 	form := tview.NewForm().
-		AddInputField("端口", a.ctx.HTTPAddr, 20, nil, func(text string) {
-			a.ctx.SetHTTPAddr(text)
+		AddInputField("地址", a.ctx.HTTPAddr, 20, nil, func(text string) {
+			a.m.SetHTTPAddr(text)
 		}).
 		AddButton("保存", func() {
 			a.mainPages.RemovePage("submenu2")
-			a.showInfo("HTTP 端口已设置为 " + a.ctx.HTTPAddr)
+			a.showInfo("HTTP 地址已设置为 " + a.ctx.HTTPAddr)
 		}).
 		AddButton("取消", func() {
 			a.mainPages.RemovePage("submenu2")
 		})
-	form.SetBorder(true).SetTitle("设置 HTTP 端口")
+	form.SetBorder(true).SetTitle("设置 HTTP 地址")
 
 	a.mainPages.AddPage("submenu2", form, true, true)
 	a.SetFocus(form)
