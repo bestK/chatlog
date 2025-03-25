@@ -12,11 +12,14 @@ jobs:
   release:
     name: Release Binary
     runs-on: ubuntu-latest
+    container:
+      image: goreleaser/goreleaser-cross:v1.24
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - run: git config --global --add safe.directory "$(pwd)"
 
       - name: Setup Go
         uses: actions/setup-go@v4
@@ -36,16 +39,8 @@ jobs:
         with:
           install-only: true
 
-      - name: Build Package
-        run: |
-          ./script/package.sh
-
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Run GoReleaser
+        run: goreleaser release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          files: packages/*
-          draft: true
-          prerelease: true
+          ENABLE_UPX: true

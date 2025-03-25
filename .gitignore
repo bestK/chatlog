@@ -28,4 +28,5 @@ go.work.sum
 .stfolder
 
 chatlog
-chatlog.exe
+chatlog.exe# Added by goreleaser init:
+dist/

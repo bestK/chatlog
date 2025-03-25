@@ -54,7 +54,7 @@ go install github.com/sjzar/chatlog@latest
 
 3. 下载 `chatlog` 预编译版本或从源码安装，推荐使用 go 进行安装。
 
-4. 运行 `chatlog`，按照提示进行操作，解密数据后开启 HTTP 服务后，即可通过浏览器或 AI 助手访问聊天记录。
+4. 运行 `chatlog`，按照提示进行操作，解密数据并开启 HTTP 服务后，即可通过浏览器或 AI 助手访问聊天记录。
 
 ### macOS 版本提示
 

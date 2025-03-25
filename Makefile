@@ -38,7 +38,7 @@ test:
 
 build:
 	@echo "🔨 Building for current platform..."
-	$(GO) build -trimpath $(LDFLAGS) -o bin/$(BINARY_NAME) main.go
+	CGO_ENABLED=1 $(GO) build -trimpath $(LDFLAGS) -o bin/$(BINARY_NAME) main.go
 
 crossbuild: clean
 	@echo "🌍 Building for multiple platforms..."
@@ -50,7 +50,7 @@ crossbuild: clean
 		[ "$$float" != "" ] && output_name=$$output_name_$$float; \
 		echo "🔨 Building for $$os/$$arch..."; \
 		echo "🔨 Building for $$output_name..."; \
-		GOOS=$$os GOARCH=$$arch GOARM=$$float $(GO) build -trimpath $(LDFLAGS) -o $$output_name main.go ; \
+		GOOS=$$os GOARCH=$$arch CGO_ENABLED=1 GOARM=$$float $(GO) build -trimpath $(LDFLAGS) -o $$output_name main.go ; \
 		if [ "$(ENABLE_UPX)" = "1" ] && echo "$(UPX_PLATFORMS)" | grep -q "$$os/$$arch"; then \
 			echo "⚙️ Compressing binary $$output_name..." && upx --best $$output_name; \
 		fi; \
