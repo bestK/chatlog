@@ -5,7 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sjzar/chatlog/internal/model/wxproto"
 	"github.com/sjzar/chatlog/pkg/util/zstd"
+	"google.golang.org/protobuf/proto"
 )
 
 // CREATE TABLE Msg_md5(talker)(
@@ -29,7 +31,7 @@ import (
 // )
 type MessageV4 struct {
 	SortSeq        int64  `json:"sort_seq"`         // 消息序号，10位时间戳 + 3位序号
-	LocalType      int    `json:"local_type"`       // 消息类型
+	LocalType      int64  `json:"local_type"`       // 消息类型
 	RealSenderID   int    `json:"real_sender_id"`   // 发送人 ID，对应 Name2Id 表序号
 	CreateTime     int64  `json:"create_time"`      // 消息创建时间，10位时间戳
 	MessageContent []byte `json:"message_content"`  // 消息内容，文字聊天内容 或 zstd 压缩内容
@@ -50,12 +52,11 @@ type MessageV4 struct {
 func (m *MessageV4) Wrap(id2Name map[int]string, isChatRoom bool) *Message {
 
 	_m := &Message{
-		Sequence:        m.SortSeq,
-		CreateTime:      time.Unix(m.CreateTime, 0),
-		TalkerID:        m.RealSenderID, // 依赖 Name2Id 表进行转换为 StrTalker
-		CompressContent: m.PackedInfoData,
-		Type:            m.LocalType,
-		Version:         WeChatV4,
+		Sequence:   m.SortSeq,
+		CreateTime: time.Unix(m.CreateTime, 0),
+		TalkerID:   m.RealSenderID, // 依赖 Name2Id 表进行转换为 StrTalker
+		Type:       m.LocalType,
+		Version:    WeChatV4,
 	}
 
 	if name, ok := id2Name[m.RealSenderID]; ok {
@@ -66,16 +67,12 @@ func (m *MessageV4) Wrap(id2Name map[int]string, isChatRoom bool) *Message {
 		_m.IsSender = 1
 	}
 
-	if _m.Type == 1 {
-		_m.Content = string(m.MessageContent)
-	} else {
-		if bytes.HasPrefix(m.MessageContent, []byte{0x28, 0xb5, 0x2f, 0xfd}) {
-			if b, err := zstd.Decompress(m.MessageContent); err == nil {
-				_m.Content = string(b)
-			}
-		} else {
-			_m.CompressContent = m.MessageContent
+	if bytes.HasPrefix(m.MessageContent, []byte{0x28, 0xb5, 0x2f, 0xfd}) {
+		if b, err := zstd.Decompress(m.MessageContent); err == nil {
+			_m.Content = string(b)
 		}
+	} else {
+		_m.Content = string(m.MessageContent)
 	}
 
 	if isChatRoom {
@@ -87,5 +84,34 @@ func (m *MessageV4) Wrap(id2Name map[int]string, isChatRoom bool) *Message {
 		}
 	}
 
+	if _m.Type != 1 {
+		mediaMessage, err := NewMediaMessage(_m.Type, _m.Content)
+		if err == nil {
+			_m.MediaMessage = mediaMessage
+			_m.Type = mediaMessage.Type
+			_m.SubType = mediaMessage.SubType
+		}
+	}
+
+	if len(m.PackedInfoData) != 0 {
+		if packedInfo := ParsePackedInfo(m.PackedInfoData); packedInfo != nil {
+			// FIXME 尝试解决 v4 版本 xml 数据无法匹配到 hardlink 记录的问题
+			if _m.Type == 3 && packedInfo.Image != nil {
+				_m.MediaMessage.MediaMD5 = packedInfo.Image.Md5
+			}
+			if _m.Type == 43 && packedInfo.Video != nil {
+				_m.MediaMessage.MediaMD5 = packedInfo.Video.Md5
+			}
+		}
+	}
+
 	return _m
+}
+
+func ParsePackedInfo(b []byte) *wxproto.PackedInfo {
+	var pbMsg wxproto.PackedInfo
+	if err := proto.Unmarshal(b, &pbMsg); err != nil {
+		return nil
+	}
+	return &pbMsg
 }

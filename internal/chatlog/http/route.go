@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/pkg/util"
+	"github.com/sjzar/chatlog/pkg/util/dat2img"
 
 	"github.com/gin-gonic/gin"
 )
@@ -26,6 +29,12 @@ func (s *Service) initRouter() {
 	router.StaticFS("/static", http.FS(staticDir))
 	router.StaticFileFS("/favicon.ico", "./favicon.ico", http.FS(staticDir))
 	router.StaticFileFS("/", "./index.htm", http.FS(staticDir))
+
+	// Media
+	router.GET("/image/:key", s.GetImage)
+	router.GET("/video/:key", s.GetVideo)
+	router.GET("/file/:key", s.GetFile)
+	router.GET("/data/*path", s.GetMediaData)
 
 	// MCP Server
 	{
@@ -108,7 +117,7 @@ func (s *Service) GetChatlog(c *gin.Context) {
 		c.Writer.Flush()
 
 		for _, m := range messages {
-			c.Writer.WriteString(m.PlainText(len(q.Talker) == 0))
+			c.Writer.WriteString(m.PlainText(len(q.Talker) == 0, c.Request.Host))
 			c.Writer.WriteString("\n")
 			c.Writer.Flush()
 		}
@@ -249,5 +258,88 @@ func (s *Service) GetSessions(c *gin.Context) {
 			c.Writer.WriteString("\n")
 		}
 		c.Writer.Flush()
+	}
+}
+
+func (s *Service) GetImage(c *gin.Context) {
+	s.GetMedia(c, "image")
+}
+
+func (s *Service) GetVideo(c *gin.Context) {
+	s.GetMedia(c, "video")
+}
+
+func (s *Service) GetFile(c *gin.Context) {
+	s.GetMedia(c, "file")
+}
+
+func (s *Service) GetMedia(c *gin.Context, _type string) {
+	key := c.Param("key")
+	if key == "" {
+		errors.Err(c, errors.ErrInvalidArg(key))
+		return
+	}
+
+	media, err := s.db.GetMedia(_type, key)
+	if err != nil {
+		errors.Err(c, err)
+		return
+	}
+
+	if c.Query("info") != "" {
+		c.JSON(http.StatusOK, media)
+		return
+	}
+
+	c.Redirect(http.StatusFound, "/data/"+media.Path)
+}
+
+func (s *Service) GetMediaData(c *gin.Context) {
+	relativePath := filepath.Clean(c.Param("path"))
+
+	absolutePath := filepath.Join(s.ctx.DataDir, relativePath)
+
+	if _, err := os.Stat(absolutePath); os.IsNotExist(err) {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "File not found",
+		})
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(absolutePath))
+	switch {
+	case ext == ".dat":
+		s.HandleDatFile(c, absolutePath)
+	default:
+		// 直接返回文件
+		c.File(absolutePath)
+	}
+
+}
+
+func (s *Service) HandleDatFile(c *gin.Context, path string) {
+
+	b, err := os.ReadFile(path)
+	if err != nil {
+		errors.Err(c, err)
+		return
+	}
+	out, ext, err := dat2img.Dat2Image(b)
+	if err != nil {
+		c.File(path)
+		return
+	}
+
+	switch ext {
+	case "jpg":
+		c.Data(http.StatusOK, "image/jpeg", out)
+	case "png":
+		c.Data(http.StatusOK, "image/png", out)
+	case "gif":
+		c.Data(http.StatusOK, "image/gif", out)
+	case "bmp":
+		c.Data(http.StatusOK, "image/bmp", out)
+	default:
+		c.File(path)
 	}
 }

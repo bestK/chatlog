@@ -21,6 +21,7 @@ const (
 	MessageFilePattern = "^message_([0-9]?[0-9])?\\.db$"
 	ContactFilePattern = "^contact\\.db$"
 	SessionFilePattern = "^session\\.db$"
+	MediaFilePattern   = "^hardlink\\.db$"
 )
 
 // MessageDBInfo 存储消息数据库的信息
@@ -36,6 +37,7 @@ type DataSource struct {
 	messageDbs map[string]*sql.DB
 	contactDb  *sql.DB
 	sessionDb  *sql.DB
+	mediaDb    *sql.DB
 
 	// 消息数据库信息
 	messageFiles []MessageDBInfo
@@ -56,6 +58,9 @@ func New(path string) (*DataSource, error) {
 	}
 	if err := ds.initSessionDb(path); err != nil {
 		return nil, fmt.Errorf("初始化会话数据库失败: %w", err)
+	}
+	if err := ds.initMediaDb(path); err != nil {
+		return nil, fmt.Errorf("初始化媒体数据库失败: %w", err)
 	}
 
 	return ds, nil
@@ -171,6 +176,21 @@ func (ds *DataSource) initSessionDb(path string) error {
 	ds.sessionDb, err = sql.Open("sqlite3", files[0])
 	if err != nil {
 		return fmt.Errorf("连接最近会话数据库失败: %w", err)
+	}
+	return nil
+}
+
+func (ds *DataSource) initMediaDb(path string) error {
+	files, err := util.FindFilesWithPatterns(path, MediaFilePattern, true)
+	if err != nil {
+		return fmt.Errorf("查找媒体数据库文件失败: %w", err)
+	}
+	if len(files) == 0 {
+		return fmt.Errorf("未找到媒体数据库文件: %s", path)
+	}
+	ds.mediaDb, err = sql.Open("sqlite3", files[0])
+	if err != nil {
+		return fmt.Errorf("连接媒体数据库失败: %w", err)
 	}
 	return nil
 }
@@ -602,6 +622,81 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 	return sessions, nil
 }
 
+func (ds *DataSource) GetMedia(ctx context.Context, _type string, key string) (*model.Media, error) {
+	if key == "" {
+		return nil, fmt.Errorf("key 不能为空")
+	}
+
+	if len(key) != 32 {
+		return nil, fmt.Errorf("key 长度必须为 32")
+	}
+
+	var table string
+	switch _type {
+	case "image":
+		table = "image_hardlink_info_v3"
+	case "video":
+		table = "video_hardlink_info_v3"
+	case "file":
+		table = "file_hardlink_info_v3"
+	default:
+		return nil, fmt.Errorf("不支持的媒体类型: %s", _type)
+	}
+
+	query := fmt.Sprintf(`
+	SELECT 
+		f.md5,
+		f.file_name,
+		f.file_size,
+		f.modify_time,
+		IFNULL(d1.username,""),
+		IFNULL(d2.username,"")
+	FROM 
+		%s f
+	LEFT JOIN 
+		dir2id d1 ON d1.rowid = f.dir1
+	LEFT JOIN 
+		dir2id d2 ON d2.rowid = f.dir2
+	`, table)
+	query += " WHERE f.md5 = ? OR f.file_name LIKE ? || '%'"
+	args := []interface{}{key, key}
+
+	rows, err := ds.mediaDb.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("查询媒体失败: %w", err)
+	}
+	defer rows.Close()
+
+	var media *model.Media
+	for rows.Next() {
+		var mediaV4 model.MediaV4
+		err := rows.Scan(
+			&mediaV4.Key,
+			&mediaV4.Name,
+			&mediaV4.Size,
+			&mediaV4.ModifyTime,
+			&mediaV4.Dir1,
+			&mediaV4.Dir2,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("扫描会话行失败: %w", err)
+		}
+		mediaV4.Type = _type
+		media = mediaV4.Wrap()
+
+		// 跳过缩略图
+		if _type == "image" && !strings.Contains(media.Name, "_t") {
+			break
+		}
+	}
+
+	if media == nil {
+		return nil, fmt.Errorf("未找到媒体 %s", key)
+	}
+
+	return media, nil
+}
+
 func (ds *DataSource) Close() error {
 	var errs []error
 
@@ -623,6 +718,12 @@ func (ds *DataSource) Close() error {
 	if ds.sessionDb != nil {
 		if err := ds.sessionDb.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("关闭会话数据库失败: %w", err))
+		}
+	}
+
+	if ds.mediaDb != nil {
+		if err := ds.mediaDb.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("关闭媒体数据库失败: %w", err))
 		}
 	}
 

@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/sjzar/chatlog/pkg/util"
 
 	_ "github.com/mattn/go-sqlite3"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -21,6 +21,7 @@ const (
 	ContactFilePattern  = "^wccontact_new2\\.db$"
 	ChatRoomFilePattern = "^group_new\\.db$"
 	SessionFilePattern  = "^session_new\\.db$"
+	MediaFilePattern    = "^hldata\\.db$"
 )
 
 type DataSource struct {
@@ -29,6 +30,7 @@ type DataSource struct {
 	contactDb  *sql.DB
 	chatRoomDb *sql.DB
 	sessionDb  *sql.DB
+	mediaDb    *sql.DB
 
 	talkerDBMap      map[string]*sql.DB
 	user2DisplayName map[string]string
@@ -52,6 +54,9 @@ func New(path string) (*DataSource, error) {
 		return nil, fmt.Errorf("初始化群聊数据库失败: %w", err)
 	}
 	if err := ds.initSessionDb(path); err != nil {
+		return nil, fmt.Errorf("初始化会话数据库失败: %w", err)
+	}
+	if err := ds.initMediaDb(path); err != nil {
 		return nil, fmt.Errorf("初始化会话数据库失败: %w", err)
 	}
 
@@ -138,7 +143,7 @@ func (ds *DataSource) initChatRoomDb(path string) error {
 		return fmt.Errorf("连接群聊数据库失败: %w", err)
 	}
 
-	rows, err := ds.chatRoomDb.Query("SELECT m_nsUsrName, nickname FROM GroupMember")
+	rows, err := ds.chatRoomDb.Query("SELECT m_nsUsrName, IFNULL(nickname,\"\") FROM GroupMember")
 	if err != nil {
 		log.Printf("警告: 获取群聊成员失败: %v", err)
 		return nil
@@ -173,6 +178,21 @@ func (ds *DataSource) initSessionDb(path string) error {
 	return nil
 }
 
+func (ds *DataSource) initMediaDb(path string) error {
+	files, err := util.FindFilesWithPatterns(path, MediaFilePattern, true)
+	if err != nil {
+		return fmt.Errorf("查找媒体数据库文件失败: %w", err)
+	}
+	if len(files) == 0 {
+		return fmt.Errorf("未找到媒体数据库文件: %s", path)
+	}
+	ds.mediaDb, err = sql.Open("sqlite3", files[0])
+	if err != nil {
+		return fmt.Errorf("连接媒体数据库失败: %w", err)
+	}
+	return nil
+}
+
 // GetMessages 实现获取消息的方法
 func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.Time, talker string, limit, offset int) ([]*model.Message, error) {
 	// 在 darwinv3 中，每个联系人/群聊的消息存储在单独的表中，表名为 Chat_md5(talker)
@@ -191,7 +211,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 
 	// 构建查询条件
 	query := fmt.Sprintf(`
-		SELECT msgCreateTime, msgContent, messageType, mesDes, msgSource, CompressContent, ConBlob
+		SELECT msgCreateTime, msgContent, messageType, mesDes
 		FROM %s 
 		WHERE msgCreateTime >= ? AND msgCreateTime <= ? 
 		ORDER BY msgCreateTime ASC
@@ -216,15 +236,11 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 	messages := []*model.Message{}
 	for rows.Next() {
 		var msg model.MessageDarwinV3
-		var compressContent, conBlob []byte
 		err := rows.Scan(
-			&msg.MesCreateTime,
-			&msg.MesContent,
-			&msg.MesType,
+			&msg.MsgCreateTime,
+			&msg.MsgContent,
+			&msg.MessageType,
 			&msg.MesDes,
-			&msg.MesSource,
-			&compressContent,
-			&conBlob,
 		)
 		if err != nil {
 			log.Printf("警告: 扫描消息行失败: %v", err)
@@ -260,13 +276,13 @@ func (ds *DataSource) GetContacts(ctx context.Context, key string, limit, offset
 
 	if key != "" {
 		// 按照关键字查询
-		query = `SELECT IFNULL(m_nsUsrName,""), nickname, IFNULL(m_nsRemark,""), m_uiSex, IFNULL(m_nsAliasName,"") 
+		query = `SELECT IFNULL(m_nsUsrName,""), IFNULL(nickname,""), IFNULL(m_nsRemark,""), m_uiSex, IFNULL(m_nsAliasName,"") 
 				FROM WCContact 
 				WHERE m_nsUsrName = ? OR nickname = ? OR m_nsRemark = ? OR m_nsAliasName = ?`
 		args = []interface{}{key, key, key, key}
 	} else {
 		// 查询所有联系人
-		query = `SELECT IFNULL(m_nsUsrName,""), nickname, IFNULL(m_nsRemark,""), m_uiSex, IFNULL(m_nsAliasName,"") 
+		query = `SELECT IFNULL(m_nsUsrName,""), IFNULL(nickname,""), IFNULL(m_nsRemark,""), m_uiSex, IFNULL(m_nsAliasName,"") 
 				FROM WCContact`
 	}
 
@@ -314,13 +330,13 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 
 	if key != "" {
 		// 按照关键字查询
-		query = `SELECT IFNULL(m_nsUsrName,""), nickname, IFNULL(m_nsRemark,""), IFNULL(m_nsChatRoomMemList,""), IFNULL(m_nsChatRoomAdminList,"") 
+		query = `SELECT IFNULL(m_nsUsrName,""), IFNULL(nickname,""), IFNULL(m_nsRemark,""), IFNULL(m_nsChatRoomMemList,""), IFNULL(m_nsChatRoomAdminList,"") 
 				FROM GroupContact 
 				WHERE m_nsUsrName = ? OR nickname = ? OR m_nsRemark = ?`
 		args = []interface{}{key, key, key}
 	} else {
 		// 查询所有群聊
-		query = `SELECT IFNULL(m_nsUsrName,""), nickname, IFNULL(m_nsRemark,""), IFNULL(m_nsChatRoomMemList,""), IFNULL(m_nsChatRoomAdminList,"") 
+		query = `SELECT IFNULL(m_nsUsrName,""), IFNULL(nickname,""), IFNULL(m_nsRemark,""), IFNULL(m_nsChatRoomMemList,""), IFNULL(m_nsChatRoomAdminList,"") 
 				FROM GroupContact`
 	}
 
@@ -364,7 +380,7 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 		if err == nil && len(contacts) > 0 && strings.HasSuffix(contacts[0].UserName, "@chatroom") {
 			// 再次尝试通过用户名查找群聊
 			rows, err := ds.chatRoomDb.QueryContext(ctx,
-				`SELECT IFNULL(m_nsUsrName,""), nickname, IFNULL(m_nsRemark,""), IFNULL(m_nsChatRoomMemList,""), IFNULL(m_nsChatRoomAdminList,"") 
+				`SELECT IFNULL(m_nsUsrName,""), IFNULL(nickname,""), IFNULL(m_nsRemark,""), IFNULL(m_nsChatRoomMemList,""), IFNULL(m_nsChatRoomAdminList,"") 
 				FROM GroupContact 
 				WHERE m_nsUsrName = ?`,
 				contacts[0].UserName)
@@ -470,6 +486,58 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 	return sessions, nil
 }
 
+func (ds *DataSource) GetMedia(ctx context.Context, _type string, key string) (*model.Media, error) {
+	if key == "" {
+		return nil, fmt.Errorf("key 不能为空")
+	}
+	query := `SELECT 
+    r.mediaMd5,
+    r.mediaSize,
+    r.inodeNumber,
+    r.modifyTime,
+    d.relativePath,
+    d.fileName
+FROM 
+    HlinkMediaRecord r
+JOIN 
+    HlinkMediaDetail d ON r.inodeNumber = d.inodeNumber
+WHERE 
+    r.mediaMd5 = ?`
+	args := []interface{}{key}
+	// 执行查询
+	rows, err := ds.mediaDb.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("查询媒体失败: %w", err)
+	}
+	defer rows.Close()
+
+	var media *model.Media
+	for rows.Next() {
+		var mediaDarwinV3 model.MediaDarwinV3
+		err := rows.Scan(
+			&mediaDarwinV3.MediaMd5,
+			&mediaDarwinV3.MediaSize,
+			&mediaDarwinV3.InodeNumber,
+			&mediaDarwinV3.ModifyTime,
+			&mediaDarwinV3.RelativePath,
+			&mediaDarwinV3.FileName,
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("扫描会话行失败: %w", err)
+		}
+
+		// 包装成通用模型
+		media = mediaDarwinV3.Wrap()
+	}
+
+	if media == nil {
+		return nil, fmt.Errorf("未找到媒体 %s", key)
+	}
+
+	return media, nil
+}
+
 // Close 实现关闭数据库连接的方法
 func (ds *DataSource) Close() error {
 	var errs []error
@@ -499,6 +567,13 @@ func (ds *DataSource) Close() error {
 	if ds.sessionDb != nil {
 		if err := ds.sessionDb.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("关闭会话数据库失败: %w", err))
+		}
+	}
+
+	// 关闭媒体数据库连接
+	if ds.mediaDb != nil {
+		if err := ds.mediaDb.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("关闭媒体数据库失败: %w", err))
 		}
 	}
 

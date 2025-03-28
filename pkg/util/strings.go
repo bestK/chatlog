@@ -41,3 +41,7 @@ func IsNumeric(s string) bool {
 	}
 	return len(s) > 0
 }
+
+func SplitInt64ToTwoInt32(input int64) (int64, int64) {
+	return input & 0xFFFFFFFF, input >> 32
+}

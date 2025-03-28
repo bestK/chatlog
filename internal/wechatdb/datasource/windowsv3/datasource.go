@@ -3,6 +3,7 @@ package windowsv3
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"sort"
@@ -18,6 +19,9 @@ import (
 const (
 	MessageFilePattern = "^MSG([0-9]?[0-9])?\\.db$"
 	ContactFilePattern = "^MicroMsg.db$"
+	ImageFilePattern   = "^HardLinkImage\\.db$"
+	VideoFilePattern   = "^HardLinkVideo\\.db$"
+	FileFilePattern    = "^HardLinkFile\\.db$"
 )
 
 // MessageDBInfo 保存消息数据库的信息
@@ -37,6 +41,10 @@ type DataSource struct {
 	// 联系人数据库
 	contactDbFile string
 	contactDb     *sql.DB
+
+	imageDb *sql.DB
+	videoDb *sql.DB
+	fileDb  *sql.DB
 }
 
 // New 创建一个新的 WindowsV3DataSource
@@ -54,6 +62,10 @@ func New(path string) (*DataSource, error) {
 	// 初始化联系人数据库
 	if err := ds.initContactDb(path); err != nil {
 		return nil, fmt.Errorf("初始化联系人数据库失败: %w", err)
+	}
+
+	if err := ds.initMediaDb(path); err != nil {
+		return nil, fmt.Errorf("初始化多媒体数据库失败: %w", err)
 	}
 
 	return ds, nil
@@ -173,6 +185,53 @@ func (ds *DataSource) initContactDb(path string) error {
 	ds.contactDb, err = sql.Open("sqlite3", ds.contactDbFile)
 	if err != nil {
 		return fmt.Errorf("连接联系人数据库失败: %w", err)
+	}
+
+	return nil
+}
+
+// initContactDb 初始化联系人数据库
+func (ds *DataSource) initMediaDb(path string) error {
+	files, err := util.FindFilesWithPatterns(path, ImageFilePattern, true)
+	if err != nil {
+		return fmt.Errorf("查找图片数据库文件失败: %w", err)
+	}
+
+	if len(files) == 0 {
+		return fmt.Errorf("未找到图片数据库文件: %s", path)
+	}
+
+	ds.imageDb, err = sql.Open("sqlite3", files[0])
+	if err != nil {
+		return fmt.Errorf("连接图片数据库失败: %w", err)
+	}
+
+	files, err = util.FindFilesWithPatterns(path, VideoFilePattern, true)
+	if err != nil {
+		return fmt.Errorf("查找视频数据库文件失败: %w", err)
+	}
+
+	if len(files) == 0 {
+		return fmt.Errorf("未找到视频数据库文件: %s", path)
+	}
+
+	ds.videoDb, err = sql.Open("sqlite3", files[0])
+	if err != nil {
+		return fmt.Errorf("连接视频数据库失败: %w", err)
+	}
+
+	files, err = util.FindFilesWithPatterns(path, FileFilePattern, true)
+	if err != nil {
+		return fmt.Errorf("查找文件数据库文件失败: %w", err)
+	}
+
+	if len(files) == 0 {
+		return fmt.Errorf("未找到文件数据库文件: %s", path)
+	}
+
+	ds.fileDb, err = sql.Open("sqlite3", files[0])
+	if err != nil {
+		return fmt.Errorf("连接文件数据库失败: %w", err)
 	}
 
 	return nil
@@ -589,6 +648,84 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 	return sessions, nil
 }
 
+func (ds *DataSource) GetMedia(ctx context.Context, _type string, key string) (*model.Media, error) {
+	if key == "" {
+		return nil, fmt.Errorf("key 不能为空")
+	}
+
+	md5key, err := hex.DecodeString(key)
+	if err != nil {
+		return nil, fmt.Errorf("解析 key 失败: %w", err)
+	}
+
+	var db *sql.DB
+	var table1, table2 string
+
+	switch _type {
+	case "image":
+		db = ds.imageDb
+		table1 = "HardLinkImageAttribute"
+		table2 = "HardLinkImageID"
+	case "video":
+		db = ds.videoDb
+		table1 = "HardLinkVideoAttribute"
+		table2 = "HardLinkVideoID"
+	case "file":
+		db = ds.fileDb
+		table1 = "HardLinkFileAttribute"
+		table2 = "HardLinkFileID"
+	default:
+		return nil, fmt.Errorf("不支持的媒体类型: %s", _type)
+
+	}
+
+	query := fmt.Sprintf(`
+        SELECT 
+            a.FileName,
+            a.ModifyTime,
+            IFNULL(d1.Dir,"") AS Dir1,
+            IFNULL(d2.Dir,"") AS Dir2
+        FROM 
+            %s a
+        LEFT JOIN 
+            %s d1 ON a.DirID1 = d1.DirId
+        LEFT JOIN 
+            %s d2 ON a.DirID2 = d2.DirId
+        WHERE 
+            a.Md5 = ?
+    `, table1, table2, table2)
+	args := []interface{}{md5key}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("查询媒体失败: %w", err)
+	}
+	defer rows.Close()
+
+	var media *model.Media
+	for rows.Next() {
+		var mediaV3 model.MediaV3
+		err := rows.Scan(
+			&mediaV3.Name,
+			&mediaV3.ModifyTime,
+			&mediaV3.Dir1,
+			&mediaV3.Dir2,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("扫描会话行失败: %w", err)
+		}
+		mediaV3.Type = _type
+		mediaV3.Key = key
+		media = mediaV3.Wrap()
+	}
+
+	if media == nil {
+		return nil, fmt.Errorf("未找到媒体 %s", key)
+	}
+
+	return media, nil
+}
+
 // Close 实现 DataSource 接口的 Close 方法
 func (ds *DataSource) Close() error {
 	var errs []error
@@ -604,6 +741,22 @@ func (ds *DataSource) Close() error {
 	if ds.contactDb != nil {
 		if err := ds.contactDb.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("关闭联系人数据库失败: %w", err))
+		}
+	}
+
+	if ds.imageDb != nil {
+		if err := ds.imageDb.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("关闭图片数据库失败: %w", err))
+		}
+	}
+	if ds.videoDb != nil {
+		if err := ds.videoDb.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("关闭视频数据库失败: %w", err))
+		}
+	}
+	if ds.fileDb != nil {
+		if err := ds.fileDb.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("关闭文件数据库失败: %w", err))
 		}
 	}
 

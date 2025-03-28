@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 )
 
 // ErrorHandlerMiddleware 是一个 Gin 中间件，用于统一处理请求过程中的错误
@@ -53,7 +54,7 @@ func RecoveryMiddleware() gin.HandlerFunc {
 				}
 
 				// 记录错误日志
-				fmt.Printf("PANIC RECOVERED: %v\n", err)
+				log.Errorf("PANIC RECOVERED: %v\n", err)
 
 				// 返回 500 错误
 				c.JSON(http.StatusInternalServerError, err)

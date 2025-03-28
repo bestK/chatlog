@@ -23,16 +23,16 @@ import (
 // ConBlob BLOB
 // )
 type MessageDarwinV3 struct {
-	MesCreateTime int64  `json:"mesCreateTime"`
-	MesContent    string `json:"mesContent"`
-	MesType       int    `json:"mesType"`
+	MsgCreateTime int64  `json:"msgCreateTime"`
+	MsgContent    string `json:"msgContent"`
+	MessageType   int64  `json:"messageType"`
 	MesDes        int    `json:"mesDes"` // 0: 发送, 1: 接收
-	MesSource     string `json:"mesSource"`
 
 	// MesLocalID      int64  `json:"mesLocalID"`
 	// MesSvrID        int64  `json:"mesSvrID"`
 	// MesStatus       int    `json:"mesStatus"`
 	// MesImgStatus    int    `json:"mesImgStatus"`
+	// MsgSource       string `json:"msgSource"`
 	// IntRes1         int    `json:"IntRes1"`
 	// IntRes2         int    `json:"IntRes2"`
 	// StrRes1         string `json:"StrRes1"`
@@ -44,26 +44,31 @@ type MessageDarwinV3 struct {
 }
 
 func (m *MessageDarwinV3) Wrap(talker string) *Message {
-	isChatRoom := strings.HasSuffix(talker, "@chatroom")
 
-	var chatRoomSender string
-	content := m.MesContent
-	if isChatRoom {
-		split := strings.SplitN(m.MesContent, ":\n", 2)
+	_m := &Message{
+		CreateTime: time.Unix(m.MsgCreateTime, 0),
+		Type:       m.MessageType,
+		IsSender:   (m.MesDes + 1) % 2,
+		Version:    WeChatDarwinV3,
+	}
+
+	_m.IsChatRoom = strings.HasSuffix(talker, "@chatroom")
+
+	_m.Content = m.MsgContent
+	if _m.IsChatRoom {
+		split := strings.SplitN(m.MsgContent, ":\n", 2)
 		if len(split) == 2 {
-			chatRoomSender = split[0]
-			content = split[1]
+			_m.ChatRoomSender = split[0]
+			_m.Content = split[1]
 		}
 	}
 
-	return &Message{
-		CreateTime:     time.Unix(m.MesCreateTime, 0),
-		Content:        content,
-		Talker:         talker,
-		Type:           m.MesType,
-		IsSender:       (m.MesDes + 1) % 2,
-		IsChatRoom:     isChatRoom,
-		ChatRoomSender: chatRoomSender,
-		Version:        WeChatDarwinV3,
+	if _m.Type != 1 {
+		mediaMessage, err := NewMediaMessage(_m.Type, _m.Content)
+		if err == nil {
+			_m.MediaMessage = mediaMessage
+		}
 	}
+
+	return _m
 }

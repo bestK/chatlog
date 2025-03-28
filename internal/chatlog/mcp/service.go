@@ -200,7 +200,7 @@ func (s *Service) toolsCall(session *mcp.Session, req *mcp.Request) error {
 			return fmt.Errorf("无法获取聊天记录: %v", err)
 		}
 		for _, m := range messages {
-			buf.WriteString(m.PlainText(len(talker) == 0))
+			buf.WriteString(m.PlainText(len(talker) == 0, ""))
 			buf.WriteString("\n")
 		}
 	default:
@@ -273,7 +273,7 @@ func (s *Service) resourcesRead(session *mcp.Session, req *mcp.Request) error {
 			return fmt.Errorf("无法获取聊天记录: %v", err)
 		}
 		for _, m := range messages {
-			buf.WriteString(m.PlainText(len(u.Host) == 0))
+			buf.WriteString(m.PlainText(len(u.Host) == 0, ""))
 			buf.WriteString("\n")
 		}
 	default:

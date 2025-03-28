@@ -121,3 +121,7 @@ func (w *DB) GetSessions(key string, limit, offset int) (*GetSessionsResp, error
 		Items: sessions,
 	}, nil
 }
+
+func (w *DB) GetMedia(_type string, key string) (*model.Media, error) {
+	return w.repo.GetMedia(context.Background(), _type, key)
+}

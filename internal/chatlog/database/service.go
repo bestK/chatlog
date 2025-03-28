@@ -57,6 +57,10 @@ func (s *Service) GetSessions(key string, limit, offset int) (*wechatdb.GetSessi
 	return s.db.GetSessions(key, limit, offset)
 }
 
+func (s *Service) GetMedia(_type string, key string) (*model.Media, error) {
+	return s.db.GetMedia(_type, key)
+}
+
 // Close closes the database connection
 func (s *Service) Close() {
 	// Add cleanup code if needed
