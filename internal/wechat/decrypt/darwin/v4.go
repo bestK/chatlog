@@ -80,7 +80,7 @@ func (d *V4Decryptor) Decrypt(ctx context.Context, dbfile string, hexKey string,
 	// 解码密钥
 	key, err := hex.DecodeString(hexKey)
 	if err != nil {
-		return errors.DecryptDecodeKeyFailed(err)
+		return errors.DecodeKeyFailed(err)
 	}
 
 	// 打开数据库文件并读取基本信息
@@ -100,14 +100,14 @@ func (d *V4Decryptor) Decrypt(ctx context.Context, dbfile string, hexKey string,
 	// 打开数据库文件
 	dbFile, err := os.Open(dbfile)
 	if err != nil {
-		return errors.DecryptOpenFileFailed(dbfile, err)
+		return errors.OpenFileFailed(dbfile, err)
 	}
 	defer dbFile.Close()
 
 	// 写入SQLite头
 	_, err = output.Write([]byte(common.SQLiteHeader))
 	if err != nil {
-		return errors.DecryptWriteOutputFailed(err)
+		return errors.WriteOutputFailed(err)
 	}
 
 	// 处理每一页
@@ -117,7 +117,7 @@ func (d *V4Decryptor) Decrypt(ctx context.Context, dbfile string, hexKey string,
 		// 检查是否取消
 		select {
 		case <-ctx.Done():
-			return errors.DecryptOperationCanceled()
+			return errors.ErrDecryptOperationCanceled
 		default:
 			// 继续处理
 		}
@@ -131,7 +131,7 @@ func (d *V4Decryptor) Decrypt(ctx context.Context, dbfile string, hexKey string,
 					break
 				}
 			}
-			return errors.DecryptReadFileFailed(dbfile, err)
+			return errors.ReadFileFailed(dbfile, err)
 		}
 
 		// 检查页面是否全为零
@@ -147,7 +147,7 @@ func (d *V4Decryptor) Decrypt(ctx context.Context, dbfile string, hexKey string,
 			// 写入零页面
 			_, err = output.Write(pageBuf)
 			if err != nil {
-				return errors.DecryptWriteOutputFailed(err)
+				return errors.WriteOutputFailed(err)
 			}
 			continue
 		}
@@ -161,7 +161,7 @@ func (d *V4Decryptor) Decrypt(ctx context.Context, dbfile string, hexKey string,
 		// 写入解密后的页面
 		_, err = output.Write(decryptedData)
 		if err != nil {
-			return errors.DecryptWriteOutputFailed(err)
+			return errors.WriteOutputFailed(err)
 		}
 	}
 

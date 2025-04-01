@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"github.com/shirou/gopsutil/v4/process"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/sjzar/chatlog/internal/wechat/model"
 )
@@ -14,7 +14,7 @@ import (
 func initializeProcessInfo(p *process.Process, info *model.Process) error {
 	files, err := p.OpenFiles()
 	if err != nil {
-		log.Error("获取打开文件列表失败: ", err)
+		log.Err(err).Msgf("获取进程 %d 的打开文件失败", p.Pid)
 		return err
 	}
 
@@ -28,7 +28,7 @@ func initializeProcessInfo(p *process.Process, info *model.Process) error {
 			filePath := f.Path[4:] // 移除 "\\?\" 前缀
 			parts := strings.Split(filePath, string(filepath.Separator))
 			if len(parts) < 4 {
-				log.Debug("无效的文件路径格式: " + filePath)
+				log.Debug().Msg("无效的文件路径: " + filePath)
 				continue
 			}
 

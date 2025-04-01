@@ -1,12 +1,11 @@
 package errors
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
 // ErrorHandlerMiddleware 是一个 Gin 中间件，用于统一处理请求过程中的错误
@@ -40,21 +39,18 @@ func RecoveryMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if r := recover(); r != nil {
-				// 获取请求 ID
-				requestID, _ := c.Get("RequestID")
-				requestIDStr, _ := requestID.(string)
 
 				// 创建内部服务器错误
-				var err *AppError
+				var err *Error
 				switch v := r.(type) {
 				case error:
-					err = Internal("panic recovered", v).WithRequestID(requestIDStr)
+					err = New(v, http.StatusInternalServerError, "panic recovered")
 				default:
-					err = Internal(fmt.Sprintf("panic recovered: %v", r), nil).WithRequestID(requestIDStr)
+					err = Newf(nil, http.StatusInternalServerError, "panic recovered: %v", r)
 				}
 
 				// 记录错误日志
-				log.Errorf("PANIC RECOVERED: %v\n", err)
+				log.Err(err).Msg("PANIC RECOVERED")
 
 				// 返回 500 错误
 				c.JSON(http.StatusInternalServerError, err)

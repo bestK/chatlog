@@ -6,7 +6,7 @@ import (
 
 	"github.com/sjzar/chatlog/internal/model"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
 // GetMessages 实现 Repository 接口的 GetMessages 方法
@@ -25,7 +25,7 @@ func (r *Repository) GetMessages(ctx context.Context, startTime, endTime time.Ti
 
 	// 补充消息信息
 	if err := r.EnrichMessages(ctx, messages); err != nil {
-		log.Debugf("EnrichMessages failed: %v", err)
+		log.Debug().Msgf("EnrichMessages failed: %v", err)
 	}
 
 	return messages, nil

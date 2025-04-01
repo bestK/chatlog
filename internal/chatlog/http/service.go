@@ -11,7 +11,7 @@ import (
 	"github.com/sjzar/chatlog/internal/errors"
 
 	"github.com/gin-gonic/gin"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -33,14 +33,14 @@ func NewService(ctx *ctx.Context, db *database.Service, mcp *mcp.Service) *Servi
 
 	// Handle error from SetTrustedProxies
 	if err := router.SetTrustedProxies(nil); err != nil {
-		log.Error("Failed to set trusted proxies:", err)
+		log.Err(err).Msg("Failed to set trusted proxies")
 	}
 
 	// Middleware
 	router.Use(
 		errors.RecoveryMiddleware(),
 		errors.ErrorHandlerMiddleware(),
-		gin.LoggerWithWriter(log.StandardLogger().Out),
+		gin.LoggerWithWriter(log.Logger),
 	)
 
 	s := &Service{
@@ -68,11 +68,11 @@ func (s *Service) Start() error {
 	go func() {
 		// Handle error from Run
 		if err := s.server.ListenAndServe(); err != nil {
-			log.Error("Server Stopped: ", err)
+			log.Err(err).Msg("Failed to start HTTP server")
 		}
 	}()
 
-	log.Info("Server started on ", s.ctx.HTTPAddr)
+	log.Info().Msg("Starting HTTP server on " + s.ctx.HTTPAddr)
 
 	return nil
 }
@@ -88,10 +88,10 @@ func (s *Service) Stop() error {
 	defer cancel()
 
 	if err := s.server.Shutdown(ctx); err != nil {
-		return errors.HTTP("HTTP server shutdown error", err)
+		return errors.HTTPShutDown(err)
 	}
 
-	log.Info("HTTP server stopped")
+	log.Info().Msg("HTTP server stopped")
 	return nil
 }
 

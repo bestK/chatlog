@@ -3,7 +3,7 @@ package chatlog
 import (
 	"github.com/sjzar/chatlog/internal/chatlog"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -17,7 +17,7 @@ func init() {
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		log.Error(err)
+		log.Err(err).Msg("command execution failed")
 	}
 }
 
@@ -38,11 +38,11 @@ func Root(cmd *cobra.Command, args []string) {
 
 	m, err := chatlog.New("")
 	if err != nil {
-		log.Error(err)
+		log.Err(err).Msg("failed to create chatlog instance")
 		return
 	}
 
 	if err := m.Run(); err != nil {
-		log.Error(err)
+		log.Err(err).Msg("failed to run chatlog instance")
 	}
 }

@@ -2,7 +2,6 @@ package wechatdb
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/sjzar/chatlog/internal/model"
@@ -45,14 +44,14 @@ func (w *DB) Close() error {
 
 func (w *DB) Initialize() error {
 	var err error
-	w.ds, err = datasource.NewDataSource(w.path, w.platform, w.version)
+	w.ds, err = datasource.New(w.path, w.platform, w.version)
 	if err != nil {
-		return fmt.Errorf("初始化数据源失败: %w", err)
+		return err
 	}
 
 	w.repo, err = repository.New(w.ds)
 	if err != nil {
-		return fmt.Errorf("初始化仓库失败: %w", err)
+		return err
 	}
 
 	return nil
@@ -64,7 +63,7 @@ func (w *DB) GetMessages(start, end time.Time, talker string, limit, offset int)
 	// 使用 repository 获取消息
 	messages, err := w.repo.GetMessages(ctx, start, end, talker, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("获取消息失败: %w", err)
+		return nil, err
 	}
 
 	return messages, nil
@@ -114,7 +113,7 @@ func (w *DB) GetSessions(key string, limit, offset int) (*GetSessionsResp, error
 	// 使用 repository 获取会话列表
 	sessions, err := w.repo.GetSessions(ctx, key, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("获取会话列表失败: %w", err)
+		return nil, err
 	}
 
 	return &GetSessionsResp{

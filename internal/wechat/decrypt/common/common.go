@@ -32,13 +32,13 @@ type DBFile struct {
 func OpenDBFile(dbPath string, pageSize int) (*DBFile, error) {
 	fp, err := os.Open(dbPath)
 	if err != nil {
-		return nil, errors.DecryptOpenFileFailed(dbPath, err)
+		return nil, errors.OpenFileFailed(dbPath, err)
 	}
 	defer fp.Close()
 
 	fileInfo, err := fp.Stat()
 	if err != nil {
-		return nil, errors.WeChatDecryptFailed(err)
+		return nil, errors.StatFileFailed(dbPath, err)
 	}
 
 	fileSize := fileInfo.Size()
@@ -50,10 +50,10 @@ func OpenDBFile(dbPath string, pageSize int) (*DBFile, error) {
 	buffer := make([]byte, pageSize)
 	n, err := io.ReadFull(fp, buffer)
 	if err != nil {
-		return nil, errors.DecryptReadFileFailed(dbPath, err)
+		return nil, errors.ReadFileFailed(dbPath, err)
 	}
 	if n != pageSize {
-		return nil, errors.DecryptIncompleteRead(fmt.Errorf("read %d bytes, expected %d", n, pageSize))
+		return nil, errors.IncompleteRead(fmt.Errorf("read %d bytes, expected %d", n, pageSize))
 	}
 
 	if bytes.Equal(buffer[:len(SQLiteHeader)-1], []byte(SQLiteHeader[:len(SQLiteHeader)-1])) {

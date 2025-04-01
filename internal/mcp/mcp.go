@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -85,7 +85,7 @@ func (m *MCP) HandleMessages(c *gin.Context) {
 		return
 	}
 
-	log.Printf("收到消息: %v\n", req)
+	log.Debug().Msgf("session: %s, request: %s", sessionID, req)
 	select {
 	case m.ProcessChan <- ProcessCtx{Session: session, Request: &req}:
 	default:

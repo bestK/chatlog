@@ -2,10 +2,10 @@ package repository
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"strings"
 
+	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/model"
 )
 
@@ -14,7 +14,7 @@ func (r *Repository) initContactCache(ctx context.Context) error {
 	// 加载所有联系人到缓存
 	contacts, err := r.ds.GetContacts(ctx, "", 0, 0)
 	if err != nil {
-		return fmt.Errorf("加载联系人失败: %w", err)
+		return err
 	}
 
 	contactMap := make(map[string]*model.Contact)
@@ -78,7 +78,7 @@ func (r *Repository) GetContact(ctx context.Context, key string) (*model.Contact
 	// 先尝试从缓存中获取
 	contact := r.findContact(key)
 	if contact == nil {
-		return nil, fmt.Errorf("未找到联系人: %s", key)
+		return nil, errors.ContactNotFound(key)
 	}
 	return contact, nil
 }
@@ -88,7 +88,7 @@ func (r *Repository) GetContacts(ctx context.Context, key string, limit, offset 
 	if key != "" {
 		ret = r.findContacts(key)
 		if len(ret) == 0 {
-			return nil, fmt.Errorf("未找到联系人: %s", key)
+			return nil, errors.ContactNotFound(key)
 		}
 		if limit > 0 {
 			end := offset + limit

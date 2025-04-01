@@ -2,18 +2,13 @@ package datasource
 
 import (
 	"context"
-	"fmt"
 	"time"
 
+	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/model"
 	"github.com/sjzar/chatlog/internal/wechatdb/datasource/darwinv3"
 	v4 "github.com/sjzar/chatlog/internal/wechatdb/datasource/v4"
 	"github.com/sjzar/chatlog/internal/wechatdb/datasource/windowsv3"
-)
-
-// 错误定义
-var (
-	ErrUnsupportedPlatform = fmt.Errorf("unsupported platform")
 )
 
 type DataSource interface {
@@ -36,7 +31,7 @@ type DataSource interface {
 	Close() error
 }
 
-func NewDataSource(path string, platform string, version int) (DataSource, error) {
+func New(path string, platform string, version int) (DataSource, error) {
 	switch {
 	case platform == "windows" && version == 3:
 		return windowsv3.New(path)
@@ -47,6 +42,6 @@ func NewDataSource(path string, platform string, version int) (DataSource, error
 	case platform == "darwin" && version == 4:
 		return v4.New(path)
 	default:
-		return nil, fmt.Errorf("%w: %s v%d", ErrUnsupportedPlatform, platform, version)
+		return nil, errors.PlatformUnsupported(platform, version)
 	}
 }

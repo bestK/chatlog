@@ -2,8 +2,8 @@ package repository
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/model"
 	"github.com/sjzar/chatlog/internal/wechatdb/datasource"
 )
@@ -58,7 +58,7 @@ func New(ds datasource.DataSource) (*Repository, error) {
 
 	// 初始化缓存
 	if err := r.initCache(context.Background()); err != nil {
-		return nil, fmt.Errorf("初始化缓存失败: %w", err)
+		return nil, errors.InitCacheFailed(err)
 	}
 
 	return r, nil

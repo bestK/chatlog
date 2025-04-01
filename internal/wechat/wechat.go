@@ -2,9 +2,9 @@ package wechat
 
 import (
 	"context"
-	"fmt"
 	"os"
 
+	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/wechat/decrypt"
 	"github.com/sjzar/chatlog/internal/wechat/key"
 	"github.com/sjzar/chatlog/internal/wechat/model"
@@ -71,28 +71,28 @@ func (a *Account) GetKey(ctx context.Context) (string, error) {
 
 	// 刷新进程状态
 	if err := a.RefreshStatus(); err != nil {
-		return "", fmt.Errorf("failed to refresh process status: %w", err)
+		return "", errors.RefreshProcessStatusFailed(err)
 	}
 
 	// 检查账号状态
 	if a.Status != model.StatusOnline {
-		return "", fmt.Errorf("account %s is not online", a.Name)
+		return "", errors.WeChatAccountNotOnline(a.Name)
 	}
 
 	// 创建密钥提取器 - 使用新的接口，传入平台和版本信息
 	extractor, err := key.NewExtractor(a.Platform, a.Version)
 	if err != nil {
-		return "", fmt.Errorf("failed to create key extractor: %w", err)
+		return "", err
 	}
 
 	process, err := GetProcess(a.Name)
 	if err != nil {
-		return "", fmt.Errorf("failed to get process: %w", err)
+		return "", err
 	}
 
 	validator, err := decrypt.NewValidator(process.DataDir, process.Platform, process.Version)
 	if err != nil {
-		return "", fmt.Errorf("failed to create validator: %w", err)
+		return "", err
 	}
 
 	extractor.SetValidate(validator)

@@ -8,6 +8,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"time"
+
+	"github.com/rs/zerolog/log"
+	"github.com/sjzar/chatlog/internal/errors"
 )
 
 // FIXME 按照 region 读取效率较低，512MB 内存读取耗时约 18s
@@ -38,14 +41,14 @@ func (g *Glance) Read() ([]byte, error) {
 	g.MemRegions = MemRegionsFilter(regions)
 
 	if len(g.MemRegions) == 0 {
-		return nil, fmt.Errorf("no memory regions found")
+		return nil, errors.ErrNoMemoryRegionsFound
 	}
 
 	region := g.MemRegions[0]
 
 	// 1. Create pipe file
 	if err := exec.Command("mkfifo", g.pipePath).Run(); err != nil {
-		return nil, fmt.Errorf("failed to create pipe file: %w", err)
+		return nil, errors.CreatePipeFileFailed(err)
 	}
 	defer os.Remove(g.pipePath)
 
@@ -56,7 +59,7 @@ func (g *Glance) Read() ([]byte, error) {
 		// Open pipe for reading
 		file, err := os.OpenFile(g.pipePath, os.O_RDONLY, 0600)
 		if err != nil {
-			errCh <- fmt.Errorf("failed to open pipe for reading: %w", err)
+			errCh <- errors.OpenPipeFileFailed(err)
 			return
 		}
 		defer file.Close()
@@ -64,7 +67,7 @@ func (g *Glance) Read() ([]byte, error) {
 		// Read all data from pipe
 		data, err := io.ReadAll(file)
 		if err != nil {
-			errCh <- fmt.Errorf("failed to read from pipe: %w", err)
+			errCh <- errors.ReadPipeFileFailed(err)
 			return
 		}
 		dataCh <- data
@@ -80,12 +83,12 @@ func (g *Glance) Read() ([]byte, error) {
 	// Set up stdout pipe for monitoring (optional)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
+		return nil, err
 	}
 
 	// Start the command
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start lldb: %w", err)
+		return nil, errors.RunCmdFailed(err)
 	}
 
 	// Monitor lldb output (optional)
@@ -102,16 +105,16 @@ func (g *Glance) Read() ([]byte, error) {
 	case data := <-dataCh:
 		g.data = data
 	case err := <-errCh:
-		return nil, fmt.Errorf("failed to read memory: %w", err)
+		return nil, errors.ReadMemoryFailed(err)
 	case <-time.After(30 * time.Second):
 		cmd.Process.Kill()
-		return nil, fmt.Errorf("timeout waiting for memory data")
+		return nil, errors.ErrReadMemoryTimeout
 	}
 
 	// Wait for the command to finish
 	if err := cmd.Wait(); err != nil {
 		// We already have the data, so just log the error
-		fmt.Printf("Warning: lldb process exited with error: %v\n", err)
+		log.Err(err).Msg("lldb process exited with error")
 	}
 
 	return g.data, nil

@@ -1,15 +1,15 @@
 package darwin
 
 import (
-	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"github.com/shirou/gopsutil/v4/process"
-	log "github.com/sirupsen/logrus"
 
+	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/wechat/model"
 	"github.com/sjzar/chatlog/pkg/appver"
 )
@@ -33,7 +33,7 @@ func NewDetector() *Detector {
 func (d *Detector) FindProcesses() ([]*model.Process, error) {
 	processes, err := process.Processes()
 	if err != nil {
-		log.Errorf("获取进程列表失败: %v", err)
+		log.Err(err).Msg("获取进程列表失败")
 		return nil, err
 	}
 
@@ -47,7 +47,7 @@ func (d *Detector) FindProcesses() ([]*model.Process, error) {
 		// 获取进程信息
 		procInfo, err := d.getProcessInfo(p)
 		if err != nil {
-			log.Errorf("获取进程 %d 的信息失败: %v", p.Pid, err)
+			log.Err(err).Msgf("获取进程 %d 的信息失败", p.Pid)
 			continue
 		}
 
@@ -68,7 +68,7 @@ func (d *Detector) getProcessInfo(p *process.Process) (*model.Process, error) {
 	// 获取可执行文件路径
 	exePath, err := p.Exe()
 	if err != nil {
-		log.Error(err)
+		log.Err(err).Msg("获取可执行文件路径失败")
 		return nil, err
 	}
 	procInfo.ExePath = exePath
@@ -77,7 +77,7 @@ func (d *Detector) getProcessInfo(p *process.Process) (*model.Process, error) {
 	// 注意：macOS 的版本获取方式可能与 Windows 不同
 	versionInfo, err := appver.New(exePath)
 	if err != nil {
-		log.Error(err)
+		log.Err(err).Msg("获取版本信息失败")
 		procInfo.Version = 3
 		procInfo.FullVersion = "3.0.0"
 	} else {
@@ -87,7 +87,7 @@ func (d *Detector) getProcessInfo(p *process.Process) (*model.Process, error) {
 
 	// 初始化附加信息（数据目录、账户名）
 	if err := d.initializeProcessInfo(p, procInfo); err != nil {
-		log.Errorf("初始化进程信息失败: %v", err)
+		log.Err(err).Msg("初始化进程信息失败")
 		// 即使初始化失败也返回部分信息
 	}
 
@@ -99,7 +99,7 @@ func (d *Detector) initializeProcessInfo(p *process.Process, info *model.Process
 	// 使用 lsof 命令获取进程打开的文件
 	files, err := d.getOpenFiles(int(p.Pid))
 	if err != nil {
-		log.Error("获取打开文件列表失败: ", err)
+		log.Err(err).Msg("获取打开的文件失败")
 		return err
 	}
 
@@ -112,7 +112,7 @@ func (d *Detector) initializeProcessInfo(p *process.Process, info *model.Process
 		if strings.Contains(filePath, dbPath) {
 			parts := strings.Split(filePath, string(filepath.Separator))
 			if len(parts) < 4 {
-				log.Debug("无效的文件路径格式: " + filePath)
+				log.Debug().Msg("无效的文件路径格式: " + filePath)
 				continue
 			}
 
@@ -142,7 +142,7 @@ func (d *Detector) getOpenFiles(pid int) ([]string, error) {
 	cmd := exec.Command("lsof", "-p", strconv.Itoa(pid), "-F", "n")
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("执行 lsof 命令失败: %v", err)
+		return nil, errors.RunCmdFailed(err)
 	}
 
 	// 解析 lsof -F n 输出

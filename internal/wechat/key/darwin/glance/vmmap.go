@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/sjzar/chatlog/internal/errors"
 )
 
 const (
@@ -31,7 +33,7 @@ func GetVmmap(pid uint32) ([]MemRegion, error) {
 	cmd := exec.Command(CommandVmmap, "-wide", fmt.Sprintf("%d", pid))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("error executing vmmap command: %w", err)
+		return nil, errors.RunCmdFailed(err)
 	}
 
 	// Parse the output using the existing LoadVmmap function

@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"runtime"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
 // FindFilesWithPatterns 在指定目录下查找匹配多个正则表达式的文件
@@ -128,7 +128,7 @@ func PrepareDir(path string) error {
 			return err
 		}
 	} else if !stat.IsDir() {
-		log.Debugf("%s is not a directory", path)
+		log.Debug().Msgf("%s is not a directory", path)
 		return fmt.Errorf("%s is not a directory", path)
 	}
 	return nil

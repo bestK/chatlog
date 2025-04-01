@@ -10,6 +10,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/rivo/tview v0.0.0-20250325173046-7b72abf45814
+	github.com/rs/zerolog v1.34.0
 	github.com/shirou/gopsutil/v4 v4.25.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.9.1
@@ -41,6 +42,7 @@ require (
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20250317134145-8bc96cf8fc35 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect

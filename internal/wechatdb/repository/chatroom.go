@@ -2,10 +2,10 @@ package repository
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"strings"
 
+	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/model"
 )
 
@@ -14,7 +14,7 @@ func (r *Repository) initChatRoomCache(ctx context.Context) error {
 	// 加载所有群聊到缓存
 	chatRooms, err := r.ds.GetChatRooms(ctx, "", 0, 0)
 	if err != nil {
-		return fmt.Errorf("加载群聊失败: %w", err)
+		return err
 	}
 
 	chatRoomMap := make(map[string]*model.ChatRoom)
@@ -75,7 +75,7 @@ func (r *Repository) GetChatRooms(ctx context.Context, key string, limit, offset
 	if key != "" {
 		ret = r.findChatRooms(key)
 		if len(ret) == 0 {
-			return nil, fmt.Errorf("未找到群聊: %s", key)
+			return nil, errors.ChatRoomNotFound(key)
 		}
 
 		if limit > 0 {
@@ -111,7 +111,7 @@ func (r *Repository) GetChatRooms(ctx context.Context, key string, limit, offset
 func (r *Repository) GetChatRoom(ctx context.Context, key string) (*model.ChatRoom, error) {
 	chatRoom := r.findChatRoom(key)
 	if chatRoom == nil {
-		return nil, fmt.Errorf("未找到群聊: %s", key)
+		return nil, errors.ChatRoomNotFound(key)
 	}
 	return chatRoom, nil
 }

@@ -2,18 +2,11 @@ package decrypt
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/wechat/decrypt/darwin"
 	"github.com/sjzar/chatlog/internal/wechat/decrypt/windows"
-)
-
-// 错误定义
-var (
-	ErrInvalidVersion      = fmt.Errorf("invalid version, must be 3 or 4")
-	ErrUnsupportedPlatform = fmt.Errorf("unsupported platform")
 )
 
 // Decryptor 定义数据库解密的接口

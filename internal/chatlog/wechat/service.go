@@ -13,7 +13,7 @@ import (
 	"github.com/sjzar/chatlog/internal/wechat/decrypt"
 	"github.com/sjzar/chatlog/pkg/util"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
 type Service struct {
@@ -64,7 +64,7 @@ func (s *Service) FindDBFiles(rootDir string, recursive bool) ([]string, error) 
 	walkFunc := func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			// If a file or directory can't be accessed, log the error but continue
-			fmt.Printf("Warning: Cannot access %s: %v\n", path, err)
+			log.Err(err).Msgf("Warning: Cannot access %s", path)
 			return nil
 		}
 
@@ -121,7 +121,7 @@ func (s *Service) DecryptDBFiles(dataDir string, workDir string, key string, pla
 		defer outputFile.Close()
 
 		if err := decryptor.Decrypt(ctx, dbfile, key, outputFile); err != nil {
-			log.Debugf("failed to decrypt %s: %v", dbfile, err)
+			log.Err(err).Msgf("failed to decrypt %s", dbfile)
 			if err == errors.ErrAlreadyDecrypted {
 				if data, err := os.ReadFile(dbfile); err == nil {
 					outputFile.Write(data)

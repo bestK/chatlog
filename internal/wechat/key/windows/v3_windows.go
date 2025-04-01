@@ -10,9 +10,10 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/sys/windows"
 
+	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/wechat/model"
 	"github.com/sjzar/chatlog/pkg/util"
 )
@@ -24,20 +25,20 @@ const (
 
 func (e *V3Extractor) Extract(ctx context.Context, proc *model.Process) (string, error) {
 	if proc.Status == model.StatusOffline {
-		return "", ErrWeChatOffline
+		return "", errors.ErrWeChatOffline
 	}
 
 	// Open WeChat process
 	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_INFORMATION|windows.PROCESS_VM_READ, false, proc.PID)
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrOpenProcess, err)
+		return "", errors.OpenProcessFailed(err)
 	}
 	defer windows.CloseHandle(handle)
 
 	// Check process architecture
 	is64Bit, err := util.Is64Bit(handle)
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrCheckProcessBits, err)
+		return "", err
 	}
 
 	// Create context to control all goroutines
@@ -56,7 +57,7 @@ func (e *V3Extractor) Extract(ctx context.Context, proc *model.Process) (string,
 	if workerCount > MaxWorkers {
 		workerCount = MaxWorkers
 	}
-	logrus.Debug("Starting ", workerCount, " workers for V3 key search")
+	log.Debug().Msgf("Starting %d workers for V3 key search", workerCount)
 
 	// Start consumer goroutines
 	var workerWaitGroup sync.WaitGroup
@@ -76,7 +77,7 @@ func (e *V3Extractor) Extract(ctx context.Context, proc *model.Process) (string,
 		defer close(memoryChannel) // Close channel when producer is done
 		err := e.findMemory(searchCtx, handle, proc.PID, memoryChannel)
 		if err != nil {
-			logrus.Error(err)
+			log.Err(err).Msg("Failed to find memory regions")
 		}
 	}()
 
@@ -97,7 +98,7 @@ func (e *V3Extractor) Extract(ctx context.Context, proc *model.Process) (string,
 		}
 	}
 
-	return "", ErrNoValidKey
+	return "", errors.ErrNoValidKey
 }
 
 // findMemoryV3 searches for writable memory regions in WeChatWin.dll for V3 version
@@ -105,9 +106,9 @@ func (e *V3Extractor) findMemory(ctx context.Context, handle windows.Handle, pid
 	// Find WeChatWin.dll module
 	module, isFound := FindModule(pid, V3ModuleName)
 	if !isFound {
-		return ErrFindWeChatDLL
+		return errors.ErrWeChatDLLNotFound
 	}
-	logrus.Debug("Found WeChatWin.dll module at base address: 0x", fmt.Sprintf("%X", module.ModBaseAddr))
+	log.Debug().Msg("Found WeChatWin.dll module at base address: 0x" + fmt.Sprintf("%X", module.ModBaseAddr))
 
 	// Read writable memory regions
 	baseAddr := uintptr(module.ModBaseAddr)
@@ -141,7 +142,7 @@ func (e *V3Extractor) findMemory(ctx context.Context, handle windows.Handle, pid
 			if err = windows.ReadProcessMemory(handle, currentAddr, &memory[0], regionSize, nil); err == nil {
 				select {
 				case memoryChannel <- memory:
-					logrus.Debug("Sent memory region for analysis, size: ", regionSize, " bytes")
+					log.Debug().Msgf("Memory region: 0x%X - 0x%X, size: %d bytes", currentAddr, currentAddr+regionSize, regionSize)
 				case <-ctx.Done():
 					return nil
 				}
@@ -198,7 +199,7 @@ func (e *V3Extractor) worker(ctx context.Context, handle windows.Handle, is64Bit
 					if key := e.validateKey(handle, ptrValue); key != "" {
 						select {
 						case resultChannel <- key:
-							logrus.Debug("Valid key found for V3 database")
+							log.Debug().Msg("Valid key found: " + key)
 							return
 						default:
 						}
@@ -230,7 +231,7 @@ func FindModule(pid uint32, name string) (module windows.ModuleEntry32, isFound 
 	// Create module snapshot
 	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPMODULE|windows.TH32CS_SNAPMODULE32, pid)
 	if err != nil {
-		logrus.Debug("Failed to create module snapshot: ", err)
+		log.Debug().Msgf("Failed to create module snapshot for PID %d: %v", pid, err)
 		return module, false
 	}
 	defer windows.CloseHandle(snapshot)
@@ -240,7 +241,7 @@ func FindModule(pid uint32, name string) (module windows.ModuleEntry32, isFound 
 
 	// Get the first module
 	if err := windows.Module32First(snapshot, &module); err != nil {
-		logrus.Debug("Failed to get first module: ", err)
+		log.Debug().Msgf("Module32First failed for PID %d: %v", pid, err)
 		return module, false
 	}
 

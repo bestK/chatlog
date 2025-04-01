@@ -2,18 +2,12 @@ package key
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/wechat/decrypt"
 	"github.com/sjzar/chatlog/internal/wechat/key/darwin"
 	"github.com/sjzar/chatlog/internal/wechat/key/windows"
 	"github.com/sjzar/chatlog/internal/wechat/model"
-)
-
-// 错误定义
-var (
-	ErrInvalidVersion      = fmt.Errorf("invalid version, must be 3 or 4")
-	ErrUnsupportedPlatform = fmt.Errorf("unsupported platform")
 )
 
 // Extractor 定义密钥提取器接口
@@ -36,6 +30,6 @@ func NewExtractor(platform string, version int) (Extractor, error) {
 	case platform == "darwin" && version == 4:
 		return darwin.NewV4Extractor(), nil
 	default:
-		return nil, fmt.Errorf("%w: %s v%d", ErrUnsupportedPlatform, platform, version)
+		return nil, errors.PlatformUnsupported(platform, version)
 	}
 }

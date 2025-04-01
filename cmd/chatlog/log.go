@@ -1,33 +1,26 @@
 package chatlog
 
 import (
-	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
-	"runtime"
+	"time"
 
 	"github.com/sjzar/chatlog/pkg/util"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 var Debug bool
 
 func initLog(cmd *cobra.Command, args []string) {
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp: true,
-		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
-			_, filename := path.Split(f.File)
-			return "", fmt.Sprintf("%s:%d", filename, f.Line)
-		},
-	})
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
 	if Debug {
-		log.SetLevel(log.DebugLevel)
-		log.SetReportCaller(true)
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 }
 
@@ -43,8 +36,8 @@ func initTuiLog(cmd *cobra.Command, args []string) {
 			panic(err)
 		}
 		logOutput = logFD
-		log.SetReportCaller(true)
 	}
 
-	log.SetOutput(logOutput)
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: logOutput, NoColor: true, TimeFormat: time.RFC3339})
+	logrus.SetOutput(logOutput)
 }

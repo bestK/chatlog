@@ -5,14 +5,14 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"runtime"
 	"sync"
 	"unsafe"
 
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/sys/windows"
 
+	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/wechat/model"
 )
 
@@ -22,13 +22,13 @@ const (
 
 func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string, error) {
 	if proc.Status == model.StatusOffline {
-		return "", ErrWeChatOffline
+		return "", errors.ErrWeChatOffline
 	}
 
 	// Open process handle
 	handle, err := windows.OpenProcess(windows.PROCESS_VM_READ|windows.PROCESS_QUERY_INFORMATION, false, proc.PID)
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrOpenProcess, err)
+		return "", errors.OpenProcessFailed(err)
 	}
 	defer windows.CloseHandle(handle)
 
@@ -48,7 +48,7 @@ func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string,
 	if workerCount > MaxWorkers {
 		workerCount = MaxWorkers
 	}
-	logrus.Debug("Starting ", workerCount, " workers for V4 key search")
+	log.Debug().Msgf("Starting %d workers for V4 key search", workerCount)
 
 	// Start consumer goroutines
 	var workerWaitGroup sync.WaitGroup
@@ -68,7 +68,7 @@ func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string,
 		defer close(memoryChannel) // Close channel when producer is done
 		err := e.findMemory(searchCtx, handle, memoryChannel)
 		if err != nil {
-			logrus.Error(err)
+			log.Err(err).Msg("Failed to find memory regions")
 		}
 	}()
 
@@ -89,7 +89,7 @@ func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string,
 		}
 	}
 
-	return "", ErrNoValidKey
+	return "", errors.ErrNoValidKey
 }
 
 // findMemoryV4 searches for writable memory regions for V4 version
@@ -101,7 +101,7 @@ func (e *V4Extractor) findMemory(ctx context.Context, handle windows.Handle, mem
 	if runtime.GOARCH == "amd64" {
 		maxAddr = uintptr(0x7FFFFFFFFFFF) // 64-bit process space limit
 	}
-	logrus.Debug("Scanning memory regions from 0x", fmt.Sprintf("%X", minAddr), " to 0x", fmt.Sprintf("%X", maxAddr))
+	log.Debug().Msgf("Scanning memory regions from 0x%X to 0x%X", minAddr, maxAddr)
 
 	currentAddr := minAddr
 
@@ -131,7 +131,7 @@ func (e *V4Extractor) findMemory(ctx context.Context, handle windows.Handle, mem
 			if err = windows.ReadProcessMemory(handle, currentAddr, &memory[0], regionSize, nil); err == nil {
 				select {
 				case memoryChannel <- memory:
-					logrus.Debug("Sent memory region for analysis, size: ", regionSize, " bytes")
+					log.Debug().Msgf("Memory region for analysis: 0x%X - 0x%X, size: %d bytes", currentAddr, currentAddr+regionSize, regionSize)
 				case <-ctx.Done():
 					return nil
 				}
@@ -185,7 +185,7 @@ func (e *V4Extractor) worker(ctx context.Context, handle windows.Handle, memoryC
 					if key := e.validateKey(handle, ptrValue); key != "" {
 						select {
 						case resultChannel <- key:
-							logrus.Debug("Valid key found for V4 database")
+							log.Debug().Msg("Valid key found: " + key)
 							return
 						default:
 						}

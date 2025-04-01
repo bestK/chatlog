@@ -20,7 +20,7 @@ import (
 	"errors"
 	"os"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
 
@@ -141,7 +141,7 @@ func PrepareDir(path string) error {
 			return err
 		}
 	} else if !stat.IsDir() {
-		log.Debugf("%s is not a directory", path)
+		log.Debug().Msgf("%s is not a directory", path)
 		return ErrInvalidDirectory
 	}
 	return nil

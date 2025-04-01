@@ -88,7 +88,7 @@ func (s *Service) GetChatlog(c *gin.Context) {
 	var err error
 	start, end, ok := util.TimeRangeOf(q.Time)
 	if !ok {
-		errors.Err(c, errors.ErrInvalidArg("time"))
+		errors.Err(c, errors.InvalidArg("time"))
 	}
 	if q.Limit < 0 {
 		q.Limit = 0
@@ -276,7 +276,7 @@ func (s *Service) GetFile(c *gin.Context) {
 func (s *Service) GetMedia(c *gin.Context, _type string) {
 	key := c.Param("key")
 	if key == "" {
-		errors.Err(c, errors.ErrInvalidArg(key))
+		errors.Err(c, errors.InvalidArg(key))
 		return
 	}
 

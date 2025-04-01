@@ -6,15 +6,16 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"sort"
 	"strings"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/rs/zerolog/log"
+
+	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/model"
 	"github.com/sjzar/chatlog/pkg/util"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 const (
@@ -51,16 +52,16 @@ func New(path string) (*DataSource, error) {
 	}
 
 	if err := ds.initMessageDbs(path); err != nil {
-		return nil, fmt.Errorf("初始化消息数据库失败: %w", err)
+		return nil, errors.DBInitFailed(err)
 	}
 	if err := ds.initContactDb(path); err != nil {
-		return nil, fmt.Errorf("初始化联系人数据库失败: %w", err)
+		return nil, errors.DBInitFailed(err)
 	}
 	if err := ds.initSessionDb(path); err != nil {
-		return nil, fmt.Errorf("初始化会话数据库失败: %w", err)
+		return nil, errors.DBInitFailed(err)
 	}
 	if err := ds.initMediaDb(path); err != nil {
-		return nil, fmt.Errorf("初始化媒体数据库失败: %w", err)
+		return nil, errors.DBInitFailed(err)
 	}
 
 	return ds, nil
@@ -70,11 +71,11 @@ func (ds *DataSource) initMessageDbs(path string) error {
 	// 查找所有消息数据库文件
 	files, err := util.FindFilesWithPatterns(path, MessageFilePattern, true)
 	if err != nil {
-		return fmt.Errorf("查找消息数据库文件失败: %w", err)
+		return errors.DBFileNotFound(path, MessageFilePattern, err)
 	}
 
 	if len(files) == 0 {
-		return fmt.Errorf("未找到任何消息数据库文件: %s", path)
+		return errors.DBFileNotFound(path, MessageFilePattern, nil)
 	}
 
 	// 处理每个数据库文件
@@ -82,7 +83,7 @@ func (ds *DataSource) initMessageDbs(path string) error {
 		// 连接数据库
 		db, err := sql.Open("sqlite3", filePath)
 		if err != nil {
-			log.Printf("警告: 连接数据库 %s 失败: %v", filePath, err)
+			log.Err(err).Msgf("连接数据库 %s 失败", filePath)
 			continue
 		}
 
@@ -92,7 +93,7 @@ func (ds *DataSource) initMessageDbs(path string) error {
 
 		row := db.QueryRow("SELECT timestamp FROM Timestamp LIMIT 1")
 		if err := row.Scan(&timestamp); err != nil {
-			log.Printf("警告: 获取数据库 %s 的时间戳失败: %v", filePath, err)
+			log.Err(err).Msgf("获取数据库 %s 的时间戳失败", filePath)
 			db.Close()
 			continue
 		}
@@ -102,7 +103,7 @@ func (ds *DataSource) initMessageDbs(path string) error {
 		id2Name := make(map[int]string)
 		rows, err := db.Query("SELECT user_name FROM Name2Id")
 		if err != nil {
-			log.Printf("警告: 获取数据库 %s 的 Name2Id 表失败: %v", filePath, err)
+			log.Err(err).Msgf("获取数据库 %s 的 Name2Id 表失败", filePath)
 			db.Close()
 			continue
 		}
@@ -111,7 +112,7 @@ func (ds *DataSource) initMessageDbs(path string) error {
 		for rows.Next() {
 			var name string
 			if err := rows.Scan(&name); err != nil {
-				log.Printf("警告: 扫描 Name2Id 行失败: %v", err)
+				log.Err(err).Msgf("数据库 %s 扫描 Name2Id 行失败", filePath)
 				continue
 			}
 			id2Name[i] = name
@@ -150,16 +151,16 @@ func (ds *DataSource) initMessageDbs(path string) error {
 func (ds *DataSource) initContactDb(path string) error {
 	files, err := util.FindFilesWithPatterns(path, ContactFilePattern, true)
 	if err != nil {
-		return fmt.Errorf("查找联系人数据库文件失败: %w", err)
+		return errors.DBFileNotFound(path, ContactFilePattern, err)
 	}
 
 	if len(files) == 0 {
-		return fmt.Errorf("未找到联系人数据库文件: %s", path)
+		return errors.DBFileNotFound(path, ContactFilePattern, nil)
 	}
 
 	ds.contactDb, err = sql.Open("sqlite3", files[0])
 	if err != nil {
-		return fmt.Errorf("连接联系人数据库失败: %w", err)
+		return errors.DBConnectFailed(files[0], err)
 	}
 
 	return nil
@@ -168,14 +169,14 @@ func (ds *DataSource) initContactDb(path string) error {
 func (ds *DataSource) initSessionDb(path string) error {
 	files, err := util.FindFilesWithPatterns(path, SessionFilePattern, true)
 	if err != nil {
-		return fmt.Errorf("查找最近会话数据库文件失败: %w", err)
+		return errors.DBFileNotFound(path, SessionFilePattern, err)
 	}
 	if len(files) == 0 {
-		return fmt.Errorf("未找到最近会话数据库文件: %s", path)
+		return errors.DBFileNotFound(path, SessionFilePattern, nil)
 	}
 	ds.sessionDb, err = sql.Open("sqlite3", files[0])
 	if err != nil {
-		return fmt.Errorf("连接最近会话数据库失败: %w", err)
+		return errors.DBConnectFailed(files[0], err)
 	}
 	return nil
 }
@@ -183,14 +184,14 @@ func (ds *DataSource) initSessionDb(path string) error {
 func (ds *DataSource) initMediaDb(path string) error {
 	files, err := util.FindFilesWithPatterns(path, MediaFilePattern, true)
 	if err != nil {
-		return fmt.Errorf("查找媒体数据库文件失败: %w", err)
+		return errors.DBFileNotFound(path, MediaFilePattern, err)
 	}
 	if len(files) == 0 {
-		return fmt.Errorf("未找到媒体数据库文件: %s", path)
+		return errors.DBFileNotFound(path, MediaFilePattern, nil)
 	}
 	ds.mediaDb, err = sql.Open("sqlite3", files[0])
 	if err != nil {
-		return fmt.Errorf("连接媒体数据库失败: %w", err)
+		return errors.DBConnectFailed(files[0], err)
 	}
 	return nil
 }
@@ -208,13 +209,13 @@ func (ds *DataSource) getDBInfosForTimeRange(startTime, endTime time.Time) []Mes
 
 func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.Time, talker string, limit, offset int) ([]*model.Message, error) {
 	if talker == "" {
-		return nil, fmt.Errorf("必须指定 talker 参数")
+		return nil, errors.ErrTalkerEmpty
 	}
 
 	// 找到时间范围内的数据库文件
 	dbInfos := ds.getDBInfosForTimeRange(startTime, endTime)
 	if len(dbInfos) == 0 {
-		return nil, fmt.Errorf("未找到时间范围 %v 到 %v 内的数据库文件", startTime, endTime)
+		return nil, errors.TimeRangeNotFound(startTime, endTime)
 	}
 
 	if len(dbInfos) == 1 {
@@ -233,13 +234,13 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 
 		db, ok := ds.messageDbs[dbInfo.FilePath]
 		if !ok {
-			log.Printf("警告: 数据库 %s 未打开", dbInfo.FilePath)
+			log.Error().Msgf("数据库 %s 未打开", dbInfo.FilePath)
 			continue
 		}
 
 		messages, err := ds.getMessagesFromDB(ctx, db, dbInfo, startTime, endTime, talker)
 		if err != nil {
-			log.Printf("警告: 从数据库 %s 获取消息失败: %v", dbInfo.FilePath, err)
+			log.Err(err).Msgf("从数据库 %s 获取消息失败", dbInfo.FilePath)
 			continue
 		}
 
@@ -274,7 +275,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 func (ds *DataSource) getMessagesSingleFile(ctx context.Context, dbInfo MessageDBInfo, startTime, endTime time.Time, talker string, limit, offset int) ([]*model.Message, error) {
 	db, ok := ds.messageDbs[dbInfo.FilePath]
 	if !ok {
-		return nil, fmt.Errorf("数据库 %s 未打开", dbInfo.FilePath)
+		return nil, errors.DBConnectFailed(dbInfo.FilePath, nil)
 	}
 
 	// 构建表名
@@ -303,7 +304,7 @@ func (ds *DataSource) getMessagesSingleFile(ctx context.Context, dbInfo MessageD
 	// 执行查询
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("查询数据库 %s 失败: %w", dbInfo.FilePath, err)
+		return nil, errors.QueryFailed(query, err)
 	}
 	defer rows.Close()
 
@@ -323,7 +324,7 @@ func (ds *DataSource) getMessagesSingleFile(ctx context.Context, dbInfo MessageD
 			&msg.Status,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("扫描消息行失败: %w", err)
+			return nil, errors.ScanRowFailed(err)
 		}
 
 		messages = append(messages, msg.Wrap(dbInfo.ID2Name, isChatRoom))
@@ -350,7 +351,7 @@ func (ds *DataSource) getMessagesFromDB(ctx context.Context, db *sql.DB, dbInfo 
 			// 表不存在，返回空结果
 			return []*model.Message{}, nil
 		}
-		return nil, fmt.Errorf("检查表 %s 是否存在失败: %w", tableName, err)
+		return nil, errors.QueryFailed("", err)
 	}
 
 	// 构建查询条件
@@ -371,7 +372,7 @@ func (ds *DataSource) getMessagesFromDB(ctx context.Context, db *sql.DB, dbInfo 
 		if strings.Contains(err.Error(), "no such table") {
 			return []*model.Message{}, nil
 		}
-		return nil, fmt.Errorf("查询数据库失败: %w", err)
+		return nil, errors.QueryFailed(query, err)
 	}
 	defer rows.Close()
 
@@ -391,7 +392,7 @@ func (ds *DataSource) getMessagesFromDB(ctx context.Context, db *sql.DB, dbInfo 
 			&msg.Status,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("扫描消息行失败: %w", err)
+			return nil, errors.ScanRowFailed(err)
 		}
 
 		messages = append(messages, msg.Wrap(dbInfo.ID2Name, isChatRoom))
@@ -428,7 +429,7 @@ func (ds *DataSource) GetContacts(ctx context.Context, key string, limit, offset
 	// 执行查询
 	rows, err := ds.contactDb.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("查询联系人失败: %w", err)
+		return nil, errors.QueryFailed(query, err)
 	}
 	defer rows.Close()
 
@@ -444,7 +445,7 @@ func (ds *DataSource) GetContacts(ctx context.Context, key string, limit, offset
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("扫描联系人行失败: %w", err)
+			return nil, errors.ScanRowFailed(err)
 		}
 
 		contacts = append(contacts, contactV4.Wrap())
@@ -466,7 +467,7 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 		// 执行查询
 		rows, err := ds.contactDb.QueryContext(ctx, query, args...)
 		if err != nil {
-			return nil, fmt.Errorf("查询群聊失败: %w", err)
+			return nil, errors.QueryFailed(query, err)
 		}
 		defer rows.Close()
 
@@ -480,7 +481,7 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 			)
 
 			if err != nil {
-				return nil, fmt.Errorf("扫描群聊行失败: %w", err)
+				return nil, errors.ScanRowFailed(err)
 			}
 
 			chatRooms = append(chatRooms, chatRoomV4.Wrap())
@@ -496,7 +497,7 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 					contacts[0].UserName)
 
 				if err != nil {
-					return nil, fmt.Errorf("查询群聊失败: %w", err)
+					return nil, errors.QueryFailed(query, err)
 				}
 				defer rows.Close()
 
@@ -509,7 +510,7 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 					)
 
 					if err != nil {
-						return nil, fmt.Errorf("扫描群聊行失败: %w", err)
+						return nil, errors.ScanRowFailed(err)
 					}
 
 					chatRooms = append(chatRooms, chatRoomV4.Wrap())
@@ -543,7 +544,7 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 		// 执行查询
 		rows, err := ds.contactDb.QueryContext(ctx, query, args...)
 		if err != nil {
-			return nil, fmt.Errorf("查询群聊失败: %w", err)
+			return nil, errors.QueryFailed(query, err)
 		}
 		defer rows.Close()
 
@@ -557,7 +558,7 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 			)
 
 			if err != nil {
-				return nil, fmt.Errorf("扫描群聊行失败: %w", err)
+				return nil, errors.ScanRowFailed(err)
 			}
 
 			chatRooms = append(chatRooms, chatRoomV4.Wrap())
@@ -597,7 +598,7 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 	// 执行查询
 	rows, err := ds.sessionDb.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("查询会话失败: %w", err)
+		return nil, errors.QueryFailed(query, err)
 	}
 	defer rows.Close()
 
@@ -613,7 +614,7 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("扫描会话行失败: %w", err)
+			return nil, errors.ScanRowFailed(err)
 		}
 
 		sessions = append(sessions, sessionV4.Wrap())
@@ -624,11 +625,11 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 
 func (ds *DataSource) GetMedia(ctx context.Context, _type string, key string) (*model.Media, error) {
 	if key == "" {
-		return nil, fmt.Errorf("key 不能为空")
+		return nil, errors.ErrKeyEmpty
 	}
 
 	if len(key) != 32 {
-		return nil, fmt.Errorf("key 长度必须为 32")
+		return nil, errors.ErrKeyLengthMust32
 	}
 
 	var table string
@@ -640,7 +641,7 @@ func (ds *DataSource) GetMedia(ctx context.Context, _type string, key string) (*
 	case "file":
 		table = "file_hardlink_info_v3"
 	default:
-		return nil, fmt.Errorf("不支持的媒体类型: %s", _type)
+		return nil, errors.MediaTypeUnsupported(_type)
 	}
 
 	query := fmt.Sprintf(`
@@ -663,7 +664,7 @@ func (ds *DataSource) GetMedia(ctx context.Context, _type string, key string) (*
 
 	rows, err := ds.mediaDb.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("查询媒体失败: %w", err)
+		return nil, errors.QueryFailed(query, err)
 	}
 	defer rows.Close()
 
@@ -679,7 +680,7 @@ func (ds *DataSource) GetMedia(ctx context.Context, _type string, key string) (*
 			&mediaV4.Dir2,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("扫描会话行失败: %w", err)
+			return nil, errors.ScanRowFailed(err)
 		}
 		mediaV4.Type = _type
 		media = mediaV4.Wrap()
@@ -691,7 +692,7 @@ func (ds *DataSource) GetMedia(ctx context.Context, _type string, key string) (*
 	}
 
 	if media == nil {
-		return nil, fmt.Errorf("未找到媒体 %s", key)
+		return nil, errors.ErrMediaNotFound
 	}
 
 	return media, nil
@@ -701,34 +702,34 @@ func (ds *DataSource) Close() error {
 	var errs []error
 
 	// 关闭消息数据库连接
-	for path, db := range ds.messageDbs {
+	for _, db := range ds.messageDbs {
 		if err := db.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("关闭消息数据库 %s 失败: %w", path, err))
+			errs = append(errs, err)
 		}
 	}
 
 	// 关闭联系人数据库连接
 	if ds.contactDb != nil {
 		if err := ds.contactDb.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("关闭联系人数据库失败: %w", err))
+			errs = append(errs, err)
 		}
 	}
 
 	// 关闭会话数据库连接
 	if ds.sessionDb != nil {
 		if err := ds.sessionDb.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("关闭会话数据库失败: %w", err))
+			errs = append(errs, err)
 		}
 	}
 
 	if ds.mediaDb != nil {
 		if err := ds.mediaDb.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("关闭媒体数据库失败: %w", err))
+			errs = append(errs, err)
 		}
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("关闭数据库连接时发生错误: %v", errs)
+		return errors.DBCloseFailed(errs[0])
 	}
 
 	return nil

@@ -3,8 +3,8 @@ package windows
 import (
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"github.com/shirou/gopsutil/v4/process"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/sjzar/chatlog/internal/wechat/model"
 	"github.com/sjzar/chatlog/pkg/appver"
@@ -29,7 +29,7 @@ func NewDetector() *Detector {
 func (d *Detector) FindProcesses() ([]*model.Process, error) {
 	processes, err := process.Processes()
 	if err != nil {
-		log.Errorf("获取进程列表失败: %v", err)
+		log.Err(err).Msg("获取进程列表失败")
 		return nil, err
 	}
 
@@ -45,7 +45,7 @@ func (d *Detector) FindProcesses() ([]*model.Process, error) {
 		if name == V4ProcessName {
 			cmdline, err := p.Cmdline()
 			if err != nil {
-				log.Error(err)
+				log.Err(err).Msg("获取进程命令行失败")
 				continue
 			}
 			if strings.Contains(cmdline, "--") {
@@ -56,7 +56,7 @@ func (d *Detector) FindProcesses() ([]*model.Process, error) {
 		// 获取进程信息
 		procInfo, err := d.getProcessInfo(p)
 		if err != nil {
-			log.Errorf("获取进程 %d 的信息失败: %v", p.Pid, err)
+			log.Err(err).Msgf("获取进程 %d 的信息失败", p.Pid)
 			continue
 		}
 
@@ -77,7 +77,7 @@ func (d *Detector) getProcessInfo(p *process.Process) (*model.Process, error) {
 	// 获取可执行文件路径
 	exePath, err := p.Exe()
 	if err != nil {
-		log.Error(err)
+		log.Err(err).Msg("获取可执行文件路径失败")
 		return nil, err
 	}
 	procInfo.ExePath = exePath
@@ -85,7 +85,7 @@ func (d *Detector) getProcessInfo(p *process.Process) (*model.Process, error) {
 	// 获取版本信息
 	versionInfo, err := appver.New(exePath)
 	if err != nil {
-		log.Error(err)
+		log.Err(err).Msg("获取版本信息失败")
 		return nil, err
 	}
 	procInfo.Version = versionInfo.Version
@@ -93,7 +93,7 @@ func (d *Detector) getProcessInfo(p *process.Process) (*model.Process, error) {
 
 	// 初始化附加信息（数据目录、账户名）
 	if err := initializeProcessInfo(p, procInfo); err != nil {
-		log.Errorf("初始化进程信息失败: %v", err)
+		log.Err(err).Msg("初始化进程信息失败")
 		// 即使初始化失败也返回部分信息
 	}
 

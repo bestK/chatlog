@@ -2,9 +2,9 @@ package wechat
 
 import (
 	"context"
-	"fmt"
 	"runtime"
 
+	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/wechat/model"
 	"github.com/sjzar/chatlog/internal/wechat/process"
 )
@@ -87,7 +87,7 @@ func (m *Manager) GetAccount(name string) (*Account, error) {
 func (m *Manager) GetProcess(name string) (*model.Process, error) {
 	p, ok := m.processMap[name]
 	if !ok {
-		return nil, fmt.Errorf("account not found: %s", name)
+		return nil, errors.WeChatAccountNotFound(name)
 	}
 	return p, nil
 }

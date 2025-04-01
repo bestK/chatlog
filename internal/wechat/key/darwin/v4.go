@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"fmt"
 	"runtime"
 	"sync"
 
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 
+	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/wechat/decrypt"
 	"github.com/sjzar/chatlog/internal/wechat/key/darwin/glance"
 	"github.com/sjzar/chatlog/internal/wechat/model"
@@ -29,16 +29,16 @@ func NewV4Extractor() *V4Extractor {
 
 func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string, error) {
 	if proc.Status == model.StatusOffline {
-		return "", fmt.Errorf("WeChat is offline")
+		return "", errors.ErrWeChatOffline
 	}
 
 	// Check if SIP is disabled, as it's required for memory reading on macOS
 	if !glance.IsSIPDisabled() {
-		return "", fmt.Errorf("System Integrity Protection (SIP) is enabled, cannot read process memory")
+		return "", errors.ErrSIPEnabled
 	}
 
 	if e.validator == nil {
-		return "", fmt.Errorf("validator not set")
+		return "", errors.ErrValidatorNotSet
 	}
 
 	// Create context to control all goroutines
@@ -57,7 +57,7 @@ func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string,
 	if workerCount > MaxWorkers {
 		workerCount = MaxWorkers
 	}
-	logrus.Debug("Starting ", workerCount, " workers for V4 key search")
+	log.Debug().Msgf("Starting %d workers for V4 key search", workerCount)
 
 	// Start consumer goroutines
 	var workerWaitGroup sync.WaitGroup
@@ -77,7 +77,7 @@ func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string,
 		defer close(memoryChannel) // Close channel when producer is done
 		err := e.findMemory(searchCtx, uint32(proc.PID), memoryChannel)
 		if err != nil {
-			logrus.Error(err)
+			log.Err(err).Msg("Failed to read memory")
 		}
 	}()
 
@@ -98,7 +98,7 @@ func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string,
 		}
 	}
 
-	return "", fmt.Errorf("no valid key found")
+	return "", errors.ErrNoValidKey
 }
 
 // findMemory searches for memory regions using Glance
@@ -109,15 +109,15 @@ func (e *V4Extractor) findMemory(ctx context.Context, pid uint32, memoryChannel 
 	// Read memory data
 	memory, err := g.Read()
 	if err != nil {
-		return fmt.Errorf("failed to read process memory: %w", err)
+		return err
 	}
 
-	logrus.Debug("Read memory region, size: ", len(memory), " bytes")
+	log.Debug().Msgf("Read memory region, size: %d bytes", len(memory))
 
 	// Send memory data to channel for processing
 	select {
 	case memoryChannel <- memory:
-		logrus.Debug("Sent memory region for analysis")
+		log.Debug().Msg("Memory region sent for analysis")
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -167,7 +167,7 @@ func (e *V4Extractor) worker(ctx context.Context, memoryChannel <-chan []byte, r
 				if e.validator.Validate(keyData) {
 					select {
 					case resultChannel <- hex.EncodeToString(keyData):
-						logrus.Debug("Valid key found for V4 database")
+						log.Debug().Msg("Key found: " + hex.EncodeToString(keyData))
 						return
 					default:
 					}

@@ -5,7 +5,7 @@ import (
 
 	"github.com/sjzar/chatlog/internal/chatlog"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -21,12 +21,12 @@ var keyCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		m, err := chatlog.New("")
 		if err != nil {
-			log.Error(err)
+			log.Err(err).Msg("failed to create chatlog instance")
 			return
 		}
 		ret, err := m.CommandKey(pid)
 		if err != nil {
-			log.Error(err)
+			log.Err(err).Msg("failed to get key")
 			return
 		}
 		fmt.Println(ret)
