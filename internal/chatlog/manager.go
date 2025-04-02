@@ -13,6 +13,7 @@ import (
 	"github.com/sjzar/chatlog/internal/chatlog/mcp"
 	"github.com/sjzar/chatlog/internal/chatlog/wechat"
 	"github.com/sjzar/chatlog/pkg/util"
+	"github.com/sjzar/chatlog/pkg/util/dat2img"
 )
 
 // Manager 管理聊天日志应用
@@ -94,6 +95,11 @@ func (m *Manager) StartService() error {
 		m.mcp.Stop() // 回滚已启动的服务
 		m.db.Stop()
 		return err
+	}
+
+	// 如果是 4.0 版本，更新下 xorkey
+	if m.ctx.Version == 4 {
+		go dat2img.ScanAndSetXorKey(m.ctx.DataDir)
 	}
 
 	// 更新状态
