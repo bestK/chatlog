@@ -191,9 +191,6 @@ func (s *Service) toolsCall(session *mcp.Session, req *mcp.Request) error {
 			talker = v.(string)
 		}
 		limit := util.MustAnyToInt(callReq.Arguments["limit"])
-		if limit == 0 {
-			limit = 100
-		}
 		offset := util.MustAnyToInt(callReq.Arguments["offset"])
 		messages, err := s.db.GetMessages(start, end, talker, limit, offset)
 		if err != nil {
@@ -264,9 +261,6 @@ func (s *Service) resourcesRead(session *mcp.Session, req *mcp.Request) error {
 			return fmt.Errorf("无法解析时间范围")
 		}
 		limit := util.MustAnyToInt(u.Query().Get("limit"))
-		if limit == 0 {
-			limit = 100
-		}
 		offset := util.MustAnyToInt(u.Query().Get("offset"))
 		messages, err := s.db.GetMessages(start, end, u.Host, limit, offset)
 		if err != nil {

@@ -293,7 +293,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 		}
 
 		query := fmt.Sprintf(`
-            SELECT Sequence, CreateTime, TalkerId, StrTalker, IsSender, 
+            SELECT Sequence, CreateTime, StrTalker, IsSender, 
                 Type, SubType, StrContent, CompressContent, BytesExtra
             FROM MSG 
             WHERE %s 
@@ -316,7 +316,6 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 			err := rows.Scan(
 				&msg.Sequence,
 				&msg.CreateTime,
-				&msg.TalkerID,
 				&msg.StrTalker,
 				&msg.IsSender,
 				&msg.Type,
@@ -343,7 +342,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 
 	// 对所有消息按时间排序
 	sort.Slice(totalMessages, func(i, j int) bool {
-		return totalMessages[i].Sequence < totalMessages[j].Sequence
+		return totalMessages[i].Seq < totalMessages[j].Seq
 	})
 
 	// 处理分页
@@ -378,7 +377,7 @@ func (ds *DataSource) getMessagesSingleFile(ctx context.Context, dbInfo MessageD
 		}
 	}
 	query := fmt.Sprintf(`
-        SELECT Sequence, CreateTime, TalkerId, StrTalker, IsSender, 
+        SELECT Sequence, CreateTime, StrTalker, IsSender, 
             Type, SubType, StrContent, CompressContent, BytesExtra
         FROM MSG 
         WHERE %s 
@@ -409,7 +408,6 @@ func (ds *DataSource) getMessagesSingleFile(ctx context.Context, dbInfo MessageD
 		err := rows.Scan(
 			&msg.Sequence,
 			&msg.CreateTime,
-			&msg.TalkerID,
 			&msg.StrTalker,
 			&msg.IsSender,
 			&msg.Type,

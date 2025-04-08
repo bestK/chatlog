@@ -3,215 +3,15 @@ package model
 import (
 	"encoding/xml"
 	"fmt"
+	"regexp"
 	"strings"
-	"time"
-
-	"github.com/sjzar/chatlog/pkg/util"
 )
 
-type MediaMessage struct {
-	Type      int64
-	SubType   int
-	MediaMD5  string
-	MediaPath string
-	Title     string
-	Desc      string
-	Content   string
-	URL       string
-
-	RecordInfo *RecordInfo
-
-	ReferDisplayName string
-	ReferUserName    string
-	ReferCreateTime  time.Time
-	ReferMessage     *MediaMessage
-
-	Host string
-
-	Message XMLMessage
-}
-
-func NewMediaMessage(_type int64, data string) (*MediaMessage, error) {
-
-	__type, subType := util.SplitInt64ToTwoInt32(_type)
-
-	m := &MediaMessage{
-		Type:    __type,
-		SubType: int(subType),
-	}
-
-	if _type == 1 {
-		m.Content = data
-		return m, nil
-	}
-
-	var msg XMLMessage
-	err := xml.Unmarshal([]byte(data), &msg)
-	if err != nil {
-		return nil, err
-	}
-
-	m.Message = msg
-	if err := m.parse(); err != nil {
-		return nil, err
-	}
-
-	return m, nil
-}
-
-func (m *MediaMessage) parse() error {
-
-	switch m.Type {
-	case 3:
-		m.MediaMD5 = m.Message.Image.MD5
-	case 43:
-		m.MediaMD5 = m.Message.Video.RawMd5
-	case 49:
-		m.SubType = m.Message.App.Type
-		switch m.SubType {
-		case 5:
-			m.Title = m.Message.App.Title
-			m.URL = m.Message.App.URL
-		case 6:
-			m.Title = m.Message.App.Title
-			m.MediaMD5 = m.Message.App.MD5
-		case 19:
-			m.Title = m.Message.App.Title
-			m.Desc = m.Message.App.Des
-			if m.Message.App.RecordItem == nil {
-				break
-			}
-			recordInfo := &RecordInfo{}
-			err := xml.Unmarshal([]byte(m.Message.App.RecordItem.CDATA), recordInfo)
-			if err != nil {
-				return err
-			}
-			m.RecordInfo = recordInfo
-		case 57:
-			m.Content = m.Message.App.Title
-			if m.Message.App.ReferMsg == nil {
-				break
-			}
-			subMsg, err := NewMediaMessage(m.Message.App.ReferMsg.Type, m.Message.App.ReferMsg.Content)
-			if err != nil {
-				break
-			}
-			m.ReferDisplayName = m.Message.App.ReferMsg.DisplayName
-			m.ReferUserName = m.Message.App.ReferMsg.ChatUsr
-			m.ReferCreateTime = time.Unix(m.Message.App.ReferMsg.CreateTime, 0)
-			m.ReferMessage = subMsg
-		}
-	}
-
-	return nil
-}
-
-func (m *MediaMessage) SetHost(host string) {
-	m.Host = host
-}
-
-func (m *MediaMessage) String() string {
-	switch m.Type {
-	case 1:
-		return m.Content
-	case 3:
-		return fmt.Sprintf("![图片](http://%s/image/%s)", m.Host, m.MediaMD5)
-	case 34:
-		return "[语音]"
-	case 43:
-		if m.MediaPath != "" {
-			return fmt.Sprintf("![视频](http://%s/data/%s)", m.Host, m.MediaPath)
-		}
-		return fmt.Sprintf("![视频](http://%s/video/%s)", m.Host, m.MediaMD5)
-	case 47:
-		return "[动画表情]"
-	case 49:
-		switch m.SubType {
-		case 5:
-			return fmt.Sprintf("[链接|%s](%s)", m.Title, m.URL)
-		case 6:
-			return fmt.Sprintf("[文件|%s](http://%s/file/%s)", m.Title, m.Host, m.MediaMD5)
-		case 8:
-			return "[GIF表情]"
-		case 19:
-			if m.RecordInfo == nil {
-				return "[合并转发]"
-			}
-			buf := strings.Builder{}
-			for _, item := range m.RecordInfo.DataList.DataItems {
-				buf.WriteString(item.SourceName + ": ")
-				switch item.DataType {
-				case "jpg":
-					buf.WriteString(fmt.Sprintf("![图片](http://%s/image/%s)", m.Host, item.FullMD5))
-				default:
-					buf.WriteString(item.DataDesc)
-				}
-				buf.WriteString("\n")
-			}
-			return m.Content
-		case 33, 36:
-			return "[小程序]"
-		case 57:
-			if m.ReferMessage == nil {
-				if m.Content == "" {
-					return "[引用]"
-				}
-				return "> [引用]\n" + m.Content
-			}
-			buf := strings.Builder{}
-			buf.WriteString("> ")
-			if m.ReferDisplayName != "" {
-				buf.WriteString(m.ReferDisplayName)
-				buf.WriteString("(")
-				buf.WriteString(m.ReferUserName)
-				buf.WriteString(")")
-			} else {
-				buf.WriteString(m.ReferUserName)
-			}
-			buf.WriteString(" ")
-			buf.WriteString(m.ReferCreateTime.Format("2006-01-02 15:04:05"))
-			buf.WriteString("\n")
-			buf.WriteString("> ")
-			m.ReferMessage.SetHost(m.Host)
-			buf.WriteString(strings.ReplaceAll(m.ReferMessage.String(), "\n", "\n> "))
-			buf.WriteString("\n")
-			buf.WriteString(m.Content)
-			m.Content = buf.String()
-			return m.Content
-		case 63:
-			return "[视频号]"
-		case 87:
-			return "[群公告]"
-		case 2000:
-			return "[转账]"
-		case 2003:
-			return "[红包封面]"
-		default:
-			return "[分享]"
-		}
-	case 50:
-		return "[语音通话]"
-	case 10000:
-		return "[系统消息]"
-	default:
-		content := m.Content
-		if len(content) > 120 {
-			content = content[:120] + "<...>"
-		}
-		return fmt.Sprintf("Type: %d Content: %s", m.Type, content)
-	}
-}
-
-type XMLMessage struct {
+type MediaMsg struct {
 	XMLName xml.Name `xml:"msg"`
 	Image   Image    `xml:"img,omitempty"`
 	Video   Video    `xml:"videomsg,omitempty"`
 	App     App      `xml:"appmsg,omitempty"`
-}
-
-type XMLImageMessage struct {
-	XMLName xml.Name `xml:"msg"`
-	Img     Image    `xml:"img"`
 }
 
 type Image struct {
@@ -232,11 +32,6 @@ type Image struct {
 	// CdnThumbWidth       string `xml:"cdnthumbwidth,attr"`
 	// CdnThumbHeight      string `xml:"cdnthumbheight,attr"`
 	// CdnThumbAesKey      string `xml:"cdnthumbaeskey,attr"`
-}
-
-type XMLVideoMessage struct {
-	XMLName  xml.Name `xml:"msg"`
-	VideoMsg Video    `xml:"videomsg"`
 }
 
 type Video struct {
@@ -263,14 +58,18 @@ type Video struct {
 }
 
 type App struct {
-	Type       int         `xml:"type"`
-	Title      string      `xml:"title"`
-	Des        string      `xml:"des"`
-	URL        string      `xml:"url"`                  // type 5 分享
-	AppAttach  AppAttach   `xml:"appattach"`            // type 6 文件
-	MD5        string      `xml:"md5"`                  // type 6 文件
-	RecordItem *RecordItem `xml:"recorditem,omitempty"` // type 19 合并转发
-	ReferMsg   *ReferMsg   `xml:"refermsg,omitempty"`   // type 57 引用
+	Type              int         `xml:"type"`
+	Title             string      `xml:"title"`
+	Des               string      `xml:"des"`
+	URL               string      `xml:"url"`                         // type 5 分享
+	AppAttach         *AppAttach  `xml:"appattach,omitempty"`         // type 6 文件
+	MD5               string      `xml:"md5,omitempty"`               // type 6 文件
+	RecordItem        *RecordItem `xml:"recorditem,omitempty"`        // type 19 合并转发
+	SourceDisplayName string      `xml:"sourcedisplayname,omitempty"` // type 33 小程序
+	FinderFeed        *FinderFeed `xml:"finderFeed,omitempty"`        // type 51 视频号
+	ReferMsg          *ReferMsg   `xml:"refermsg,omitempty"`          // type 57 引用
+	PatMsg            *PatMsg     `xml:"patMsg,omitempty"`            // type 62 拍一拍
+	WCPayInfo         *WCPayInfo  `xml:"wcpayinfo,omitempty"`         // type 2000 微信转账
 }
 
 // ReferMsg 表示引用消息
@@ -352,4 +151,225 @@ type DataItem struct {
 	SrcMsgCreateTime string `xml:"srcMsgCreateTime,omitempty"`
 	MessageUUID      string `xml:"messageuuid,omitempty"`
 	FromNewMsgID     string `xml:"fromnewmsgid,omitempty"`
+
+	// 套娃合并转发
+	DataTitle string     `xml:"datatitle,omitempty"`
+	RecordXML *RecordXML `xml:"recordxml,omitempty"`
+}
+
+type RecordXML struct {
+	RecordInfo RecordInfo `xml:"recordinfo,omitempty"`
+}
+
+func (r *RecordInfo) String(title, host string) string {
+	buf := strings.Builder{}
+	if title == "" {
+		title = r.Title
+	}
+	buf.WriteString(fmt.Sprintf("[合并转发|%s]\n", title))
+	for _, item := range r.DataList.DataItems {
+		buf.WriteString(fmt.Sprintf("  %s %s\n", item.SourceName, item.SourceTime))
+
+		// 套娃合并转发
+		if item.DataType == "17" && item.RecordXML != nil {
+			content := item.RecordXML.RecordInfo.String(item.DataTitle, host)
+			if content != "" {
+				for _, line := range strings.Split(content, "\n") {
+					buf.WriteString(fmt.Sprintf("  %s\n", line))
+				}
+			}
+			continue
+		}
+
+		switch item.DataFmt {
+		case "pic", "jpg":
+			buf.WriteString(fmt.Sprintf("  ![图片](http://%s/image/%s)\n", host, item.FullMD5))
+		default:
+			for _, line := range strings.Split(item.DataDesc, "\n") {
+				buf.WriteString(fmt.Sprintf("  %s\n", line))
+			}
+		}
+		buf.WriteString("\n")
+	}
+	return buf.String()
+}
+
+// PatMsg 拍一拍消息结构
+type PatMsg struct {
+	ChatUser  string  `xml:"chatUser"`  // 被拍的用户
+	RecordNum int     `xml:"recordNum"` // 记录数量
+	Records   Records `xml:"records"`   // 拍一拍记录
+}
+
+// Records 拍一拍记录集合
+type Records struct {
+	Record []PatRecord `xml:"record"` // 拍一拍记录列表
+}
+
+// PatRecord 单条拍一拍记录
+type PatRecord struct {
+	FromUser   string `xml:"fromUser"`   // 发起拍一拍的用户
+	PattedUser string `xml:"pattedUser"` // 被拍的用户
+	Templete   string `xml:"templete"`   // 模板文本
+	CreateTime int64  `xml:"createTime"` // 创建时间
+	SvrId      string `xml:"svrId"`      // 服务器ID
+	ReadStatus int    `xml:"readStatus"` // 已读状态
+}
+
+// WCPayInfo 微信支付信息
+type WCPayInfo struct {
+	PaySubType        int    `xml:"paysubtype"`        // 支付子类型
+	FeeDesc           string `xml:"feedesc"`           // 金额描述，如"￥200000.00"
+	TranscationID     string `xml:"transcationid"`     // 交易ID
+	TransferID        string `xml:"transferid"`        // 转账ID
+	InvalidTime       string `xml:"invalidtime"`       // 失效时间
+	BeginTransferTime string `xml:"begintransfertime"` // 开始转账时间
+	EffectiveDate     string `xml:"effectivedate"`     // 生效日期
+	PayMemo           string `xml:"pay_memo"`          // 支付备注
+	ReceiverUsername  string `xml:"receiver_username"` // 接收方用户名
+	PayerUsername     string `xml:"payer_username"`    // 支付方用户名
+}
+
+// FinderFeed 视频号信息
+type FinderFeed struct {
+	ObjectID            string          `xml:"objectId"`
+	FeedType            string          `xml:"feedType"`
+	Nickname            string          `xml:"nickname"`
+	Avatar              string          `xml:"avatar"`
+	Desc                string          `xml:"desc"`
+	MediaCount          string          `xml:"mediaCount"`
+	ObjectNonceID       string          `xml:"objectNonceId"`
+	LiveID              string          `xml:"liveId"`
+	Username            string          `xml:"username"`
+	AuthIconURL         string          `xml:"authIconUrl"`
+	AuthIconType        int             `xml:"authIconType"`
+	ContactJumpInfoStr  string          `xml:"contactJumpInfoStr"`
+	SourceCommentScene  int             `xml:"sourceCommentScene"`
+	MediaList           FinderMediaList `xml:"mediaList"`
+	MegaVideo           FinderMegaVideo `xml:"megaVideo"`
+	BizUsername         string          `xml:"bizUsername"`
+	BizNickname         string          `xml:"bizNickname"`
+	BizAvatar           string          `xml:"bizAvatar"`
+	BizUsernameV2       string          `xml:"bizUsernameV2"`
+	BizAuthIconURL      string          `xml:"bizAuthIconUrl"`
+	BizAuthIconType     int             `xml:"bizAuthIconType"`
+	EcSource            string          `xml:"ecSource"`
+	LastGMsgID          string          `xml:"lastGMsgID"`
+	ShareBypData        string          `xml:"shareBypData"`
+	IsDebug             int             `xml:"isDebug"`
+	ContentType         int             `xml:"content_type"`
+	FinderForwardSource string          `xml:"finderForwardSource"`
+}
+
+type FinderMediaList struct {
+	Media []FinderMedia `xml:"media"`
+}
+
+type FinderMedia struct {
+	ThumbURL          string `xml:"thumbUrl"`
+	FullCoverURL      string `xml:"fullCoverUrl"`
+	VideoPlayDuration string `xml:"videoPlayDuration"`
+	URL               string `xml:"url"`
+	CoverURL          string `xml:"coverUrl"`
+	Height            string `xml:"height"`
+	MediaType         string `xml:"mediaType"`
+	FullClipInset     string `xml:"fullClipInset"`
+	Width             string `xml:"width"`
+}
+
+type FinderMegaVideo struct {
+	ObjectID      string `xml:"objectId"`
+	ObjectNonceID string `xml:"objectNonceId"`
+}
+
+type SysMsg struct {
+	SysMsgTemplate SysMsgTemplate `xml:"sysmsgtemplate"`
+}
+
+type SysMsgTemplate struct {
+	ContentTemplate ContentTemplate `xml:"content_template"`
+}
+
+type ContentTemplate struct {
+	Type     string   `xml:"type,attr"`
+	Plain    string   `xml:"plain"`
+	Template string   `xml:"template"`
+	LinkList LinkList `xml:"link_list"`
+}
+
+type LinkList struct {
+	Links []Link `xml:"link"`
+}
+
+type Link struct {
+	Name       string     `xml:"name,attr"`
+	Type       string     `xml:"type,attr"`
+	MemberList MemberList `xml:"memberlist"`
+	Separator  string     `xml:"separator"`
+}
+
+type MemberList struct {
+	Members []Member `xml:"member"`
+}
+
+type Member struct {
+	Username string `xml:"username"`
+	Nickname string `xml:"nickname"`
+}
+
+func (s *SysMsg) String() string {
+	template := s.SysMsgTemplate.ContentTemplate.Template
+	links := s.SysMsgTemplate.ContentTemplate.LinkList.Links
+
+	// 创建一个映射，用于存储占位符名称和对应的替换内容
+	replacements := make(map[string]string)
+
+	// 遍历所有链接，为每个占位符准备替换内容
+	for _, link := range links {
+		var replacement string
+
+		// 根据链接类型和成员信息生成替换内容
+		switch link.Type {
+		case "link_profile":
+			// 使用自定义分隔符，如果未指定则默认使用"、"
+			separator := link.Separator
+			if separator == "" {
+				separator = "、"
+			}
+
+			// 处理成员信息，格式为 nickname(username)
+			var memberTexts []string
+			for _, member := range link.MemberList.Members {
+				if member.Nickname != "" {
+					memberText := member.Nickname
+					if member.Username != "" {
+						memberText += "(" + member.Username + ")"
+					}
+					memberTexts = append(memberTexts, memberText)
+				}
+			}
+
+			// 使用指定的分隔符连接所有成员文本
+			replacement = strings.Join(memberTexts, separator)
+
+		// 可以根据需要添加其他链接类型的处理逻辑
+		default:
+			replacement = ""
+		}
+
+		// 将占位符名称和替换内容存入映射
+		replacements["$"+link.Name+"$"] = replacement
+	}
+
+	// 使用正则表达式查找并替换所有占位符
+	re := regexp.MustCompile(`\$([^$]+)\$`)
+	result := re.ReplaceAllStringFunc(template, func(match string) string {
+		if replacement, ok := replacements[match]; ok {
+			return replacement
+		}
+		// 如果找不到对应的替换内容，保留原占位符
+		return match
+	})
+
+	return result
 }

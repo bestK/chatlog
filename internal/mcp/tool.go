@@ -92,8 +92,9 @@ type Tool struct {
 }
 
 type ToolSchema struct {
-	Type       string `json:"type"`
-	Properties M      `json:"properties"`
+	Type       string   `json:"type"`
+	Properties M        `json:"properties"`
+	Required   []string `json:"required,omitempty"`
 }
 
 //	{

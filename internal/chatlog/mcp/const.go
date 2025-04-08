@@ -26,6 +26,7 @@ var (
 					"description": "联系人的搜索关键词，可以是姓名、备注名或ID。",
 				},
 			},
+			Required: []string{"query"},
 		},
 	}
 
@@ -40,6 +41,7 @@ var (
 					"description": "群聊的搜索关键词，可以是群名称、群ID或相关描述",
 				},
 			},
+			Required: []string{"query"},
 		},
 	}
 
@@ -67,6 +69,7 @@ var (
 					"description": "交谈对象，可以是联系人或群聊。支持使用ID、昵称、备注名等进行查询。",
 				},
 			},
+			Required: []string{"time", "talker"},
 		},
 	}
 

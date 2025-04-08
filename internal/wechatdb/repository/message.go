@@ -41,28 +41,24 @@ func (r *Repository) EnrichMessages(ctx context.Context, messages []*model.Messa
 
 // enrichMessage 补充单条消息的额外信息
 func (r *Repository) enrichMessage(msg *model.Message) {
-	talker := msg.Talker
-
 	// 处理群聊消息
 	if msg.IsChatRoom {
-		talker = msg.ChatRoomSender
-
 		// 补充群聊名称
 		if chatRoom, ok := r.chatRoomCache[msg.Talker]; ok {
-			msg.ChatRoomName = chatRoom.DisplayName()
+			msg.TalkerName = chatRoom.DisplayName()
 
 			// 补充发送者在群里的显示名称
-			if displayName, ok := chatRoom.User2DisplayName[talker]; ok {
-				msg.DisplayName = displayName
+			if displayName, ok := chatRoom.User2DisplayName[msg.Sender]; ok {
+				msg.SenderName = displayName
 			}
 		}
 	}
 
 	// 如果不是自己发送的消息且还没有显示名称，尝试补充发送者信息
-	if msg.DisplayName == "" && msg.IsSender != 1 {
-		contact := r.getFullContact(talker)
+	if msg.SenderName == "" && !msg.IsSelf {
+		contact := r.getFullContact(msg.Sender)
 		if contact != nil {
-			msg.DisplayName = contact.DisplayName()
+			msg.SenderName = contact.DisplayName()
 		}
 	}
 }

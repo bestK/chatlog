@@ -32,75 +32,56 @@ import (
 type MessageV4 struct {
 	SortSeq        int64  `json:"sort_seq"`         // 消息序号，10位时间戳 + 3位序号
 	LocalType      int64  `json:"local_type"`       // 消息类型
-	RealSenderID   int    `json:"real_sender_id"`   // 发送人 ID，对应 Name2Id 表序号
+	UserName       string `json:"user_name"`        // 发送人，通过 Join Name2Id 表获得
 	CreateTime     int64  `json:"create_time"`      // 消息创建时间，10位时间戳
 	MessageContent []byte `json:"message_content"`  // 消息内容，文字聊天内容 或 zstd 压缩内容
 	PackedInfoData []byte `json:"packed_info_data"` // 额外数据，类似 proto，格式与 v3 有差异
-	Status         int    `json:"status"`           // 消息状态，2 是已发送，4 是已接收，可以用于判断 IsSender（猜测）
-
-	// 非关键信息，后续有需要再加入
-	// LocalID         int    `json:"local_id"`
-	// ServerID        int64  `json:"server_id"`
-	// UploadStatus    int    `json:"upload_status"`
-	// DownloadStatus  int    `json:"download_status"`
-	// ServerSeq       int    `json:"server_seq"`
-	// OriginSource    int    `json:"origin_source"`
-	// Source          string `json:"source"`
-	// CompressContent string `json:"compress_content"`
+	Status         int    `json:"status"`           // 消息状态，2 是已发送，4 是已接收，可以用于判断 IsSender（FIXME 不准, 需要判断 UserName）
 }
 
-func (m *MessageV4) Wrap(id2Name map[int]string, isChatRoom bool) *Message {
+func (m *MessageV4) Wrap(talker string) *Message {
 
 	_m := &Message{
-		Sequence:   m.SortSeq,
-		CreateTime: time.Unix(m.CreateTime, 0),
-		TalkerID:   m.RealSenderID, // 依赖 Name2Id 表进行转换为 StrTalker
+		Seq:        m.SortSeq,
+		Time:       time.Unix(m.CreateTime, 0),
+		Talker:     talker,
+		IsChatRoom: strings.HasSuffix(talker, "@chatroom"),
+		Sender:     m.UserName,
 		Type:       m.LocalType,
+		Contents:   make(map[string]interface{}),
 		Version:    WeChatV4,
 	}
 
-	if name, ok := id2Name[m.RealSenderID]; ok {
-		_m.Talker = name
-	}
+	// FIXME 后续通过 UserName 判断是否是自己发送的消息，目前可能不准确
+	_m.IsSelf = m.Status == 2 || (!_m.IsChatRoom && talker != m.UserName)
 
-	if m.Status == 2 {
-		_m.IsSender = 1
-	}
-
+	content := ""
 	if bytes.HasPrefix(m.MessageContent, []byte{0x28, 0xb5, 0x2f, 0xfd}) {
 		if b, err := zstd.Decompress(m.MessageContent); err == nil {
-			_m.Content = string(b)
+			content = string(b)
 		}
 	} else {
-		_m.Content = string(m.MessageContent)
+		content = string(m.MessageContent)
 	}
 
-	if isChatRoom {
-		_m.IsChatRoom = true
-		split := strings.SplitN(_m.Content, ":\n", 2)
+	if _m.IsChatRoom {
+		split := strings.SplitN(content, ":\n", 2)
 		if len(split) == 2 {
-			_m.ChatRoomSender = split[0]
-			_m.Content = split[1]
+			_m.Sender = split[0]
+			content = split[1]
 		}
 	}
 
-	if _m.Type != 1 {
-		mediaMessage, err := NewMediaMessage(_m.Type, _m.Content)
-		if err == nil {
-			_m.MediaMessage = mediaMessage
-			_m.Type = mediaMessage.Type
-			_m.SubType = mediaMessage.SubType
-		}
-	}
+	_m.ParseMediaInfo(content)
 
 	if len(m.PackedInfoData) != 0 {
 		if packedInfo := ParsePackedInfo(m.PackedInfoData); packedInfo != nil {
 			// FIXME 尝试解决 v4 版本 xml 数据无法匹配到 hardlink 记录的问题
 			if _m.Type == 3 && packedInfo.Image != nil {
-				_m.MediaMessage.MediaMD5 = packedInfo.Image.Md5
+				_m.Contents["md5"] = packedInfo.Image.Md5
 			}
 			if _m.Type == 43 && packedInfo.Video != nil {
-				_m.MediaMessage.MediaMD5 = packedInfo.Video.Md5
+				_m.Contents["md5"] = packedInfo.Video.Md5
 			}
 		}
 	}

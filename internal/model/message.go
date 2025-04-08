@@ -1,197 +1,215 @@
 package model
 
 import (
-	"path/filepath"
+	"encoding/xml"
+	"fmt"
 	"strings"
 	"time"
 
-	"github.com/sjzar/chatlog/internal/model/wxproto"
-	"github.com/sjzar/chatlog/pkg/util/lz4"
-
-	"google.golang.org/protobuf/proto"
+	"github.com/sjzar/chatlog/pkg/util"
 )
 
+var Debug = false
+
 const (
-	// Source
 	WeChatV3       = "wechatv3"
 	WeChatV4       = "wechatv4"
 	WeChatDarwinV3 = "wechatdarwinv3"
 )
 
 type Message struct {
-	Sequence        int64     `json:"sequence"`        // 消息序号，10位时间戳 + 3位序号
-	CreateTime      time.Time `json:"createTime"`      // 消息创建时间，10位时间戳
-	TalkerID        int       `json:"talkerID"`        // 聊天对象，Name2ID 表序号，索引值
-	Talker          string    `json:"talker"`          // 聊天对象，微信 ID or 群 ID
-	IsSender        int       `json:"isSender"`        // 是否为发送消息，0 接收消息，1 发送消息
-	Type            int64     `json:"type"`            // 消息类型
-	SubType         int       `json:"subType"`         // 消息子类型
-	Content         string    `json:"content"`         // 消息内容，文字聊天内容 或 XML
-	CompressContent []byte    `json:"compressContent"` // 非文字聊天内容，如图片、语音、视频等
-	IsChatRoom      bool      `json:"isChatRoom"`      // 是否为群聊消息
-	ChatRoomSender  string    `json:"chatRoomSender"`  // 群聊消息发送人
+	Version    string                 `json:"-"`                  // 消息版本，内部判断
+	Seq        int64                  `json:"seq"`                // 消息序号，10位时间戳 + 3位序号
+	Time       time.Time              `json:"time"`               // 消息创建时间，10位时间戳
+	Talker     string                 `json:"talker"`             // 聊天对象，微信 ID or 群 ID
+	TalkerName string                 `json:"talkerName"`         // 聊天对象名称
+	IsChatRoom bool                   `json:"isChatRoom"`         // 是否为群聊消息
+	Sender     string                 `json:"sender"`             // 发送人，微信 ID
+	SenderName string                 `json:"senderName"`         // 发送人名称
+	IsSelf     bool                   `json:"isSelf"`             // 是否为自己发送的消息
+	Type       int64                  `json:"type"`               // 消息类型
+	SubType    int64                  `json:"subType"`            // 消息子类型
+	Content    string                 `json:"content"`            // 消息内容，文字聊天内容
+	Contents   map[string]interface{} `json:"contents,omitempty"` // 消息内容，多媒体消息，采用更灵活的记录方式
 
-	// Fill Info
-	// 从联系人等信息中填充
-	DisplayName  string        `json:"-"` // 显示名称
-	ChatRoomName string        `json:"-"` // 群聊名称
-	MediaMessage *MediaMessage `json:"-"` // 多媒体消息
-
-	Version string `json:"-"` // 消息版本，内部判断
+	// Debug Info
+	MediaMsg *MediaMsg `json:"mediaMsg,omitempty"` // 原始多媒体消息，XML 格式
+	SysMsg   *SysMsg   `json:"sysMsg,omitempty"`   // 原始系统消息，XML 格式
 }
 
-// CREATE TABLE MSG (
-// localId INTEGER PRIMARY KEY AUTOINCREMENT,
-// TalkerId INT DEFAULT 0,
-// MsgSvrID INT,
-// Type INT,
-// SubType INT,
-// IsSender INT,
-// CreateTime INT,
-// Sequence INT DEFAULT 0,
-// StatusEx INT DEFAULT 0,
-// FlagEx INT,
-// Status INT,
-// MsgServerSeq INT,
-// MsgSequence INT,
-// StrTalker TEXT,
-// StrContent TEXT,
-// DisplayContent TEXT,
-// Reserved0 INT DEFAULT 0,
-// Reserved1 INT DEFAULT 0,
-// Reserved2 INT DEFAULT 0,
-// Reserved3 INT DEFAULT 0,
-// Reserved4 TEXT,
-// Reserved5 TEXT,
-// Reserved6 TEXT,
-// CompressContent BLOB,
-// BytesExtra BLOB,
-// BytesTrans BLOB
-// )
-type MessageV3 struct {
-	Sequence        int64  `json:"Sequence"`        // 消息序号，10位时间戳 + 3位序号
-	CreateTime      int64  `json:"CreateTime"`      // 消息创建时间，10位时间戳
-	TalkerID        int    `json:"TalkerId"`        // 聊天对象，Name2ID 表序号，索引值
-	StrTalker       string `json:"StrTalker"`       // 聊天对象，微信 ID or 群 ID
-	IsSender        int    `json:"IsSender"`        // 是否为发送消息，0 接收消息，1 发送消息
-	Type            int64  `json:"Type"`            // 消息类型
-	SubType         int    `json:"SubType"`         // 消息子类型
-	StrContent      string `json:"StrContent"`      // 消息内容，文字聊天内容 或 XML
-	CompressContent []byte `json:"CompressContent"` // 非文字聊天内容，如图片、语音、视频等
-	BytesExtra      []byte `json:"BytesExtra"`      // protobuf 额外数据，记录群聊发送人等信息
+func (m *Message) ParseMediaInfo(data string) error {
 
-	// 非关键信息，后续有需要再加入
-	// LocalID        int64  `json:"localId"`
-	// MsgSvrID       int64  `json:"MsgSvrID"`
-	// StatusEx       int    `json:"StatusEx"`
-	// FlagEx         int    `json:"FlagEx"`
-	// Status         int    `json:"Status"`
-	// MsgServerSeq   int64  `json:"MsgServerSeq"`
-	// MsgSequence    int64  `json:"MsgSequence"`
-	// DisplayContent string `json:"DisplayContent"`
-	// Reserved0      int    `json:"Reserved0"`
-	// Reserved1      int    `json:"Reserved1"`
-	// Reserved2      int    `json:"Reserved2"`
-	// Reserved3      int    `json:"Reserved3"`
-	// Reserved4      string `json:"Reserved4"`
-	// Reserved5      string `json:"Reserved5"`
-	// Reserved6      string `json:"Reserved6"`
-	// BytesTrans     []byte `json:"BytesTrans"`
-}
+	m.Type, m.SubType = util.SplitInt64ToTwoInt32(m.Type)
 
-func (m *MessageV3) Wrap() *Message {
-
-	_m := &Message{
-		Sequence:        m.Sequence,
-		CreateTime:      time.Unix(m.CreateTime, 0),
-		TalkerID:        m.TalkerID,
-		Talker:          m.StrTalker,
-		IsSender:        m.IsSender,
-		Type:            m.Type,
-		SubType:         m.SubType,
-		Content:         m.StrContent,
-		CompressContent: m.CompressContent,
-		Version:         WeChatV3,
-	}
-
-	_m.IsChatRoom = strings.HasSuffix(_m.Talker, "@chatroom")
-
-	if _m.Type == 49 {
-		b, err := lz4.Decompress(m.CompressContent)
-		if err == nil {
-			_m.Content = string(b)
-		}
-	}
-
-	if _m.Type != 1 {
-		mediaMessage, err := NewMediaMessage(_m.Type, _m.Content)
-		if err == nil {
-			_m.MediaMessage = mediaMessage
-		}
-	}
-
-	if len(m.BytesExtra) != 0 {
-		if bytesExtra := ParseBytesExtra(m.BytesExtra); bytesExtra != nil {
-			if _m.IsChatRoom {
-				_m.ChatRoomSender = bytesExtra[1]
-			}
-			// FIXME xml 中的 md5 数据无法匹配到 hardlink 记录，所以直接用 proto 数据
-			if _m.Type == 43 {
-				path := bytesExtra[4]
-				parts := strings.Split(filepath.ToSlash(path), "/")
-				if len(parts) > 1 {
-					path = strings.Join(parts[1:], "/")
-				}
-				_m.MediaMessage.MediaPath = path
-			}
-		}
-	}
-
-	return _m
-}
-
-// ParseBytesExtra 解析额外数据
-// 按需解析
-func ParseBytesExtra(b []byte) map[int]string {
-	var pbMsg wxproto.BytesExtra
-	if err := proto.Unmarshal(b, &pbMsg); err != nil {
-		return nil
-	}
-	if pbMsg.Items == nil {
+	if m.Type == 1 {
+		m.Content = data
 		return nil
 	}
 
-	ret := make(map[int]string, len(pbMsg.Items))
-	for _, item := range pbMsg.Items {
-		ret[int(item.Type)] = item.Value
+	if m.Type == 10000 {
+		var sysMsg SysMsg
+		if err := xml.Unmarshal([]byte(data), &sysMsg); err != nil {
+			m.Content = data
+			return nil
+		}
+		if Debug {
+			m.SysMsg = &sysMsg
+		}
+		m.Content = sysMsg.String()
+		return nil
 	}
 
-	return ret
+	var msg MediaMsg
+	err := xml.Unmarshal([]byte(data), &msg)
+	if err != nil {
+		return err
+	}
+
+	if m.Contents == nil {
+		m.Contents = make(map[string]interface{})
+	}
+
+	if Debug {
+		m.MediaMsg = &msg
+	}
+
+	switch m.Type {
+	case 3:
+		m.Contents["md5"] = msg.Image.MD5
+	case 43:
+		m.Contents["md5"] = msg.Video.RawMd5
+	case 49:
+		m.SubType = int64(msg.App.Type)
+		switch m.SubType {
+		case 5:
+			// 链接
+			m.Contents["title"] = msg.App.Title
+			m.Contents["url"] = msg.App.URL
+		case 6:
+			// 文件
+			m.Contents["title"] = msg.App.Title
+			m.Contents["md5"] = msg.App.MD5
+		case 19:
+			// 合并转发
+			m.Contents["title"] = msg.App.Title
+			m.Contents["desc"] = msg.App.Des
+			if msg.App.RecordItem == nil {
+				break
+			}
+			recordInfo := &RecordInfo{}
+			err := xml.Unmarshal([]byte(msg.App.RecordItem.CDATA), recordInfo)
+			if err != nil {
+				return err
+			}
+			m.Contents["recordInfo"] = recordInfo
+		case 33, 36:
+			// 小程序
+			m.Contents["title"] = msg.App.SourceDisplayName
+			m.Contents["url"] = msg.App.URL
+		case 51:
+			// 视频号
+			if msg.App.FinderFeed == nil {
+				break
+			}
+			m.Contents["title"] = msg.App.FinderFeed.Desc
+			if len(msg.App.FinderFeed.MediaList.Media) > 0 {
+				m.Contents["url"] = msg.App.FinderFeed.MediaList.Media[0].URL
+			}
+		case 57:
+			// 引用
+			m.Content = msg.App.Title
+			if msg.App.ReferMsg == nil {
+				break
+			}
+			subMsg := &Message{
+				Type:       int64(msg.App.ReferMsg.Type),
+				Time:       time.Unix(msg.App.ReferMsg.CreateTime, 0),
+				Sender:     msg.App.ReferMsg.ChatUsr,
+				SenderName: msg.App.ReferMsg.DisplayName,
+			}
+			if subMsg.Sender == "" {
+				subMsg.Sender = msg.App.ReferMsg.FromUsr
+			}
+			if err := subMsg.ParseMediaInfo(msg.App.ReferMsg.Content); err != nil {
+				break
+			}
+			m.Contents["refer"] = subMsg
+		case 62:
+			// 拍一拍
+			if msg.App.PatMsg == nil {
+				break
+			}
+			if len(msg.App.PatMsg.Records.Record) == 0 {
+				break
+			}
+			m.Sender = msg.App.PatMsg.Records.Record[0].FromUser
+			m.Content = msg.App.PatMsg.Records.Record[0].Templete
+		case 2000:
+			// 微信转账
+			if msg.App.WCPayInfo == nil {
+				break
+			}
+			// 1 实时转账
+			// 3 实时转账收钱回执
+			// 4 转账退还回执
+			// 5 非实时转账收钱回执
+			// 7 非实时转账
+			_type := ""
+			switch msg.App.WCPayInfo.PaySubType {
+			case 1, 7:
+				_type = "发送 "
+			case 3, 5:
+				_type = "接收 "
+			case 4:
+				_type = "退还 "
+			}
+			payMemo := ""
+			if len(msg.App.WCPayInfo.PayMemo) > 0 {
+				payMemo = "(" + msg.App.WCPayInfo.PayMemo + ")"
+			}
+			m.Content = fmt.Sprintf("[转账|%s%s]%s", _type, msg.App.WCPayInfo.FeeDesc, payMemo)
+		}
+	}
+
+	return nil
+}
+
+func (m *Message) SetContent(key string, value interface{}) {
+	if m.Contents == nil {
+		m.Contents = make(map[string]interface{})
+	}
+	m.Contents[key] = value
 }
 
 func (m *Message) PlainText(showChatRoom bool, host string) string {
+
+	m.SetContent("host", host)
+
 	buf := strings.Builder{}
 
-	talker := m.Talker
-	if m.IsSender == 1 {
-		talker = "我"
-	} else if m.IsChatRoom {
-		talker = m.ChatRoomSender
+	sender := m.Sender
+	switch {
+	case m.Type == 10000:
+		sender = "系统消息"
+	case m.IsSelf:
+		sender = "我"
+	default:
+		sender = m.Sender
 	}
-	if m.DisplayName != "" {
-		buf.WriteString(m.DisplayName)
+	if m.SenderName != "" {
+		buf.WriteString(m.SenderName)
 		buf.WriteString("(")
-		buf.WriteString(talker)
+		buf.WriteString(sender)
 		buf.WriteString(")")
 	} else {
-		buf.WriteString(talker)
+		buf.WriteString(sender)
 	}
 	buf.WriteString(" ")
 
 	if m.IsChatRoom && showChatRoom {
 		buf.WriteString("[")
-		if m.ChatRoomName != "" {
-			buf.WriteString(m.ChatRoomName)
+		if m.TalkerName != "" {
+			buf.WriteString(m.TalkerName)
 			buf.WriteString("(")
 			buf.WriteString(m.Talker)
 			buf.WriteString(")")
@@ -201,17 +219,112 @@ func (m *Message) PlainText(showChatRoom bool, host string) string {
 		buf.WriteString("] ")
 	}
 
-	buf.WriteString(m.CreateTime.Format("2006-01-02 15:04:05"))
+	buf.WriteString(m.Time.Format("2006-01-02 15:04:05"))
 	buf.WriteString("\n")
 
-	if m.MediaMessage != nil {
-		m.MediaMessage.SetHost(host)
-		buf.WriteString(m.MediaMessage.String())
-	} else {
-		buf.WriteString(m.Content)
-	}
-
+	buf.WriteString(m.PlainTextContent())
 	buf.WriteString("\n")
 
 	return buf.String()
+}
+
+func (m *Message) PlainTextContent() string {
+	switch m.Type {
+	case 1:
+		return m.Content
+	case 3:
+		return fmt.Sprintf("![图片](http://%s/image/%s)", m.Contents["host"], m.Contents["md5"])
+	case 34:
+		return "[语音]"
+	case 42:
+		return "[名片]"
+	case 43:
+		if path, ok := m.Contents["path"]; ok {
+			return fmt.Sprintf("![视频](http://%s/data/%s)", m.Contents["host"], path)
+		}
+		return fmt.Sprintf("![视频](http://%s/video/%s)", m.Contents["host"], m.Contents["md5"])
+	case 47:
+		return "[动画表情]"
+	case 49:
+		switch m.SubType {
+		case 5:
+			return fmt.Sprintf("[链接|%s](%s)", m.Contents["title"], m.Contents["url"])
+		case 6:
+			return fmt.Sprintf("[文件|%s](http://%s/file/%s)", m.Contents["title"], m.Contents["host"], m.Contents["md5"])
+		case 8:
+			return "[GIF表情]"
+		case 19:
+			_recordInfo, ok := m.Contents["recordInfo"]
+			if !ok {
+				return "[合并转发]"
+			}
+			recordInfo, ok := _recordInfo.(*RecordInfo)
+			if !ok {
+				return "[合并转发]"
+			}
+			return recordInfo.String("", m.Contents["host"].(string))
+		case 33, 36:
+			if m.Contents["title"] == "" {
+				return "[小程序]"
+			}
+			return fmt.Sprintf("[小程序|%s](%s)", m.Contents["title"], m.Contents["url"])
+		case 51:
+			if m.Contents["title"] == "" {
+				return "[视频号]"
+			} else {
+				return fmt.Sprintf("[视频号|%s](%s)", m.Contents["title"], m.Contents["url"])
+			}
+		case 57:
+			_refer, ok := m.Contents["refer"]
+			if !ok {
+				if m.Content == "" {
+					return "[引用]"
+				}
+				return "> [引用]\n" + m.Content
+			}
+			refer, ok := _refer.(*Message)
+			if !ok {
+				if m.Content == "" {
+					return "[引用]"
+				}
+				return "> [引用]\n" + m.Content
+			}
+			buf := strings.Builder{}
+			referContent := refer.PlainText(false, m.Contents["host"].(string))
+			for _, line := range strings.Split(referContent, "\n") {
+				if line == "" {
+					continue
+				}
+				buf.WriteString("> ")
+				buf.WriteString(line)
+				buf.WriteString("\n")
+			}
+			buf.WriteString(m.Content)
+			return buf.String()
+		case 62:
+			return m.Content
+		case 63:
+			return "[视频号]"
+		case 87:
+			return "[群公告]"
+		case 2000:
+			return m.Content
+		case 2001:
+			return "[红包]"
+		case 2003:
+			return "[红包封面]"
+		default:
+			return "[分享]"
+		}
+	case 50:
+		return "[语音通话]"
+	case 10000:
+		return m.Content
+	default:
+		content := m.Content
+		if len(content) > 120 {
+			content = content[:120] + "<...>"
+		}
+		return fmt.Sprintf("Type: %d Content: %s", m.Type, content)
+	}
 }
