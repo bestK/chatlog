@@ -53,8 +53,6 @@ var dumpmemoryCmd = &cobra.Command{
 			log.Info().Msgf("%d. %s %d %s", i, a.FullVersion, a.PID, a.DataDir)
 		}
 
-		return
-
 		// step 2. dump memory
 		account := accounts[0]
 		file := fmt.Sprintf("wechat_%s_%d_%s.bin", account.FullVersion, account.PID, session)
