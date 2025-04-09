@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	V3ProcessName = "WeChat"
-	V4ProcessName = "Weixin"
-	V3DBFile      = "Message/msg_0.db"
-	V4DBFile      = "db_storage/message/message_0.db"
+	ProcessNameOfficial = "WeChat"
+	ProcessNameBeta     = "Weixin"
+	V3DBFile            = "Message/msg_0.db"
+	V4DBFile            = "db_storage/session/session.db"
 )
 
 // Detector 实现 macOS 平台的进程检测器
@@ -40,7 +40,7 @@ func (d *Detector) FindProcesses() ([]*model.Process, error) {
 	var result []*model.Process
 	for _, p := range processes {
 		name, err := p.Name()
-		if err != nil || (name != V3ProcessName && name != V4ProcessName) {
+		if err != nil || (name != ProcessNameOfficial && name != ProcessNameBeta) {
 			continue
 		}
 

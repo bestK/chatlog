@@ -74,6 +74,16 @@ func (c *Context) SwitchHistory(account string) {
 		c.WorkDir = history.WorkDir
 		c.HTTPEnabled = history.HTTPEnabled
 		c.HTTPAddr = history.HTTPAddr
+	} else {
+		c.Account = ""
+		c.Platform = ""
+		c.Version = 0
+		c.FullVersion = ""
+		c.DataKey = ""
+		c.DataDir = ""
+		c.WorkDir = ""
+		c.HTTPEnabled = false
+		c.HTTPAddr = ""
 	}
 }
 
