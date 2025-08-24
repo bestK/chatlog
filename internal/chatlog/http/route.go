@@ -2,6 +2,7 @@ package http
 
 import (
 	"embed"
+	"encoding/csv"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -9,12 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/pkg/util"
 	"github.com/sjzar/chatlog/pkg/util/dat2img"
 	"github.com/sjzar/chatlog/pkg/util/silk"
-
-	"github.com/gin-gonic/gin"
 )
 
 // EFS holds embedded file system data for static assets.
@@ -23,43 +24,54 @@ import (
 var EFS embed.FS
 
 func (s *Service) initRouter() {
+	s.initBaseRouter()
+	s.initMediaRouter()
+	s.initAPIRouter()
+	s.initMCPRouter()
+}
 
-	router := s.GetRouter()
-
+func (s *Service) initBaseRouter() {
 	staticDir, _ := fs.Sub(EFS, "static")
-	router.StaticFS("/static", http.FS(staticDir))
-	router.StaticFileFS("/favicon.ico", "./favicon.ico", http.FS(staticDir))
-	router.StaticFileFS("/", "./index.htm", http.FS(staticDir))
-	router.GET("/health", func(ctx *gin.Context) {
+
+	s.router.StaticFS("/static", http.FS(staticDir))
+	s.router.StaticFileFS("/favicon.ico", "./favicon.ico", http.FS(staticDir))
+	s.router.StaticFileFS("/", "./index.htm", http.FS(staticDir))
+
+	s.router.GET("/health", func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	// Media
-	router.GET("/image/*key", s.GetImage)
-	router.GET("/video/*key", s.GetVideo)
-	router.GET("/file/*key", s.GetFile)
-	router.GET("/voice/*key", s.GetVoice)
-	router.GET("/data/*path", s.GetMediaData)
+	s.router.NoRoute(s.NoRoute)
+}
 
-	// MCP Server
+func (s *Service) initMediaRouter() {
+	s.router.GET("/image/*key", func(c *gin.Context) { s.handleMedia(c, "image") })
+	s.router.GET("/video/*key", func(c *gin.Context) { s.handleMedia(c, "video") })
+	s.router.GET("/file/*key", func(c *gin.Context) { s.handleMedia(c, "file") })
+	s.router.GET("/voice/*key", func(c *gin.Context) { s.handleMedia(c, "voice") })
+	s.router.GET("/data/*path", s.handleMediaData)
+}
+
+func (s *Service) initAPIRouter() {
+	api := s.router.Group("/api/v1", s.checkDBStateMiddleware())
 	{
-		router.GET("/sse", s.mcp.HandleSSE)
-		router.POST("/messages", s.mcp.HandleMessages)
-		// mcp inspector is shit
-		// https://github.com/modelcontextprotocol/inspector/blob/aeaf32f/server/src/index.ts#L155
-		router.POST("/message", s.mcp.HandleMessages)
+		api.GET("/chatlog", s.handleChatlog)
+		api.GET("/contact", s.handleContacts)
+		api.GET("/chatroom", s.handleChatRooms)
+		api.GET("/session", s.handleSessions)
 	}
+}
 
-	// API V1 Router
-	api := router.Group("/api/v1", s.checkDBStateMiddleware())
-	{
-		api.GET("/chatlog", s.GetChatlog)
-		api.GET("/contact", s.GetContacts)
-		api.GET("/chatroom", s.GetChatRooms)
-		api.GET("/session", s.GetSessions)
-	}
-
-	router.NoRoute(s.NoRoute)
+func (s *Service) initMCPRouter() {
+	s.router.Any("/mcp", func(c *gin.Context) {
+		s.mcpStreamableServer.ServeHTTP(c.Writer, c.Request)
+	})
+	s.router.Any("/sse", func(c *gin.Context) {
+		s.mcpSSEServer.ServeHTTP(c.Writer, c.Request)
+	})
+	s.router.Any("/message", func(c *gin.Context) {
+		s.mcpSSEServer.ServeHTTP(c.Writer, c.Request)
+	})
 }
 
 // NoRoute handles 404 Not Found errors. If the request URL starts with "/api"
@@ -75,7 +87,7 @@ func (s *Service) NoRoute(c *gin.Context) {
 	}
 }
 
-func (s *Service) GetChatlog(c *gin.Context) {
+func (s *Service) handleChatlog(c *gin.Context) {
 
 	q := struct {
 		Time    string `form:"time"`
@@ -113,6 +125,18 @@ func (s *Service) GetChatlog(c *gin.Context) {
 
 	switch strings.ToLower(q.Format) {
 	case "csv":
+		c.Writer.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		c.Writer.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s_%s_%s.csv", q.Talker, start.Format("2006-01-02"), end.Format("2006-01-02")))
+		c.Writer.Header().Set("Cache-Control", "no-cache")
+		c.Writer.Header().Set("Connection", "keep-alive")
+		c.Writer.Flush()
+
+		csvWriter := csv.NewWriter(c.Writer)
+		csvWriter.Write([]string{"Time", "SenderName", "Sender", "TalkerName", "Talker", "Content"})
+		for _, m := range messages {
+			csvWriter.Write(m.CSV(c.Request.Host))
+		}
+		csvWriter.Flush()
 	case "json":
 		// json
 		c.JSON(http.StatusOK, messages)
@@ -131,7 +155,7 @@ func (s *Service) GetChatlog(c *gin.Context) {
 	}
 }
 
-func (s *Service) GetContacts(c *gin.Context) {
+func (s *Service) handleContacts(c *gin.Context) {
 
 	q := struct {
 		Keyword string `form:"keyword"`
@@ -176,7 +200,7 @@ func (s *Service) GetContacts(c *gin.Context) {
 	}
 }
 
-func (s *Service) GetChatRooms(c *gin.Context) {
+func (s *Service) handleChatRooms(c *gin.Context) {
 
 	q := struct {
 		Keyword string `form:"keyword"`
@@ -220,7 +244,7 @@ func (s *Service) GetChatRooms(c *gin.Context) {
 	}
 }
 
-func (s *Service) GetSessions(c *gin.Context) {
+func (s *Service) handleSessions(c *gin.Context) {
 
 	q := struct {
 		Keyword string `form:"keyword"`
@@ -268,22 +292,7 @@ func (s *Service) GetSessions(c *gin.Context) {
 	}
 }
 
-func (s *Service) GetImage(c *gin.Context) {
-	s.GetMedia(c, "image")
-}
-
-func (s *Service) GetVideo(c *gin.Context) {
-	s.GetMedia(c, "video")
-}
-
-func (s *Service) GetFile(c *gin.Context) {
-	s.GetMedia(c, "file")
-}
-func (s *Service) GetVoice(c *gin.Context) {
-	s.GetMedia(c, "voice")
-}
-
-func (s *Service) GetMedia(c *gin.Context, _type string) {
+func (s *Service) handleMedia(c *gin.Context, _type string) {
 	key := strings.TrimPrefix(c.Param("key"), "/")
 	if key == "" {
 		errors.Err(c, errors.InvalidArg(key))
@@ -300,11 +309,10 @@ func (s *Service) GetMedia(c *gin.Context, _type string) {
 	for _, k := range keys {
 		if len(k) != 32 {
 			absolutePath := filepath.Join(s.conf.GetDataDir(), k)
-			if _, err := os.Stat(absolutePath); os.IsNotExist(err) {
-				continue
+			if _, err := os.Stat(absolutePath); err == nil {
+				c.Redirect(http.StatusFound, "/data/"+k)
+				return
 			}
-			c.Redirect(http.StatusFound, "/data/"+k)
-			return
 		}
 		media, err := s.db.GetMedia(_type, k)
 		if err != nil {
@@ -331,7 +339,7 @@ func (s *Service) GetMedia(c *gin.Context, _type string) {
 	}
 }
 
-func (s *Service) GetMediaData(c *gin.Context) {
+func (s *Service) handleMediaData(c *gin.Context) {
 	relativePath := filepath.Clean(c.Param("path"))
 
 	absolutePath := filepath.Join(s.conf.GetDataDir(), relativePath)
