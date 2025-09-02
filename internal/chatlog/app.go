@@ -485,6 +485,11 @@ func (a *App) settingSelected(i *menu.Item) {
 			action:      a.settingDataKey,
 		},
 		{
+			name:        "设置图片密钥",
+			description: "配置图片解密密钥",
+			action:      a.settingImgKey,
+		},
+		{
 			name:        "设置数据目录",
 			description: "配置微信数据文件所在目录",
 			action:      a.settingDataDir,
@@ -584,6 +589,30 @@ func (a *App) settingDataKey() {
 		a.ctx.DataKey = tempDataKey // 设置数据密钥
 		a.mainPages.RemovePage("submenu2")
 		a.showInfo("数据密钥已设置")
+	})
+
+	formView.AddButton("取消", func() {
+		a.mainPages.RemovePage("submenu2")
+	})
+
+	a.mainPages.AddPage("submenu2", formView, true, true)
+	a.SetFocus(formView)
+}
+
+// settingImgKey 设置图片密钥 (ImgKey)
+func (a *App) settingImgKey() {
+	formView := form.NewForm("设置图片密钥")
+
+	tempImgKey := a.ctx.ImgKey
+
+	formView.AddInputField("图片密钥", tempImgKey, 0, nil, func(text string) {
+		tempImgKey = text
+	})
+
+	formView.AddButton("保存", func() {
+		a.ctx.SetImgKey(tempImgKey)
+		a.mainPages.RemovePage("submenu2")
+		a.showInfo("图片密钥已设置")
 	})
 
 	formView.AddButton("取消", func() {

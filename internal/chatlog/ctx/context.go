@@ -227,6 +227,16 @@ func (c *Context) SetDataDir(dir string) {
 	c.Refresh()
 }
 
+func (c *Context) SetImgKey(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.ImgKey == key {
+		return
+	}
+	c.ImgKey = key
+	c.UpdateConfig()
+}
+
 func (c *Context) SetAutoDecrypt(enabled bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
