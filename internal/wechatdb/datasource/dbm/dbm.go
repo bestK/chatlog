@@ -155,29 +155,35 @@ func (d *DBManager) CloseDB(path string) {
 	}
 }
 
+// getLockKey 统一获取锁的 key
+func (d *DBManager) getLockKey(path string) string {
+	p := filepath.Clean(path)
+	if runtime.GOOS == "windows" {
+		return strings.ToLower(p)
+	}
+	return p
+}
+
 // LockDB 锁定指定的数据库路径，禁止 OpenDB
 func (d *DBManager) LockDB(path string) {
 	d.lockMut.Lock()
 	defer d.lockMut.Unlock()
-	// 规范化路径
-	normalizedPath := filepath.Clean(path)
-	d.locks[normalizedPath] = true
+	d.locks[d.getLockKey(path)] = true
 }
 
 // UnlockDB 解锁指定的数据库路径
 func (d *DBManager) UnlockDB(path string) {
 	d.lockMut.Lock()
 	defer d.lockMut.Unlock()
-	normalizedPath := filepath.Clean(path)
-	delete(d.locks, normalizedPath)
+	delete(d.locks, d.getLockKey(path))
 }
 
 func (d *DBManager) OpenDB(path string) (*sql.DB, error) {
 	// 检查是否被锁定，如果被锁定则等待
-	normalizedPath := filepath.Clean(path)
+	lockKey := d.getLockKey(path)
 	for {
 		d.lockMut.Lock()
-		locked := d.locks[normalizedPath]
+		locked := d.locks[lockKey]
 		d.lockMut.Unlock()
 
 		if !locked {
@@ -187,11 +193,14 @@ func (d *DBManager) OpenDB(path string) (*sql.DB, error) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	d.mutex.RLock()
-	db, ok := d.dbs[path]
-	d.mutex.RUnlock()
-	if ok {
-		return db, nil
+	// 在 Windows 上不使用缓存（配合短连接模式）
+	if runtime.GOOS != "windows" {
+		d.mutex.RLock()
+		db, ok := d.dbs[path]
+		d.mutex.RUnlock()
+		if ok {
+			return db, nil
+		}
 	}
 
 	// 构建连接字符串
@@ -212,9 +221,11 @@ func (d *DBManager) OpenDB(path string) (*sql.DB, error) {
 		return nil, err
 	}
 
-	d.mutex.Lock()
-	d.dbs[path] = db
-	d.mutex.Unlock()
+	if runtime.GOOS != "windows" {
+		d.mutex.Lock()
+		d.dbs[path] = db
+		d.mutex.Unlock()
+	}
 	return db, nil
 }
 
