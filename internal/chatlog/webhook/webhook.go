@@ -127,6 +127,16 @@ func (g *Group) loop() {
 			}
 			if g.delayMs > 0 {
 				time.Sleep(time.Duration(g.delayMs) * time.Millisecond)
+				// 延迟后清空 channel 中的其他事件，避免重复触发
+				for {
+					select {
+					case <-g.ch:
+						// 丢弃延迟期间积累的事件
+					default:
+						goto done
+					}
+				}
+			done:
 			}
 			g.do(event)
 		case <-g.ctx.Done():

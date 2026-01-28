@@ -92,6 +92,15 @@ func (a *App) Stop() {
 	if a.stopRefresh != nil {
 		close(a.stopRefresh)
 	}
+
+	// 停止 HTTP 服务和自动解密
+	if a.ctx.HTTPEnabled {
+		a.m.StopService()
+	}
+	if a.ctx.AutoDecrypt {
+		a.m.StopAutoDecrypt()
+	}
+
 	a.Application.Stop()
 }
 
