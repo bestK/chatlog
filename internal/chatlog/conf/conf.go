@@ -11,7 +11,7 @@ import (
 
 const (
 	AppName          = "chatlog"
-	ServerConfigName = "chatlog-server"
+	ServerConfigName = "chatlog"
 	EnvPrefix        = "CHATLOG"
 	EnvConfigDir     = "CHATLOG_DIR"
 )
@@ -23,7 +23,7 @@ func LoadTUIConfig(configPath string) (*TUIConfig, *config.Manager, error) {
 		configPath = os.Getenv(EnvConfigDir)
 	}
 
-	tcm, err := config.New(AppName, configPath, "", "", true)
+	tcm, err := config.New(AppName, configPath, "", EnvPrefix, true)
 	if err != nil {
 		log.Error().Err(err).Msg("load tui config failed")
 		return nil, nil, err

@@ -16,6 +16,18 @@ import (
 
 var Debug bool
 
+func getLogWriter() io.Writer {
+	logpath := util.DefaultWorkDir("")
+	if err := util.PrepareDir(logpath); err != nil {
+		return nil
+	}
+	logFD, err := os.OpenFile(filepath.Join(logpath, "chatlog.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, os.ModePerm)
+	if err != nil {
+		return nil
+	}
+	return logFD
+}
+
 func initLog(cmd *cobra.Command, args []string) {
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
@@ -23,21 +35,24 @@ func initLog(cmd *cobra.Command, args []string) {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
+	writers := []io.Writer{zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}}
+	if fw := getLogWriter(); fw != nil {
+		writers = append(writers, fw)
+	}
+
+	log.Logger = log.Output(io.MultiWriter(writers...))
 }
 
 func initTuiLog(cmd *cobra.Command, args []string) {
-	logOutput := io.Discard
-
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	debug, _ := cmd.Flags().GetBool("debug")
 	if debug {
-		logpath := util.DefaultWorkDir("")
-		util.PrepareDir(logpath)
-		logFD, err := os.OpenFile(filepath.Join(logpath, "chatlog.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, os.ModePerm)
-		if err != nil {
-			panic(err)
-		}
-		logOutput = logFD
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	}
+
+	logOutput := io.Discard
+	if fw := getLogWriter(); fw != nil {
+		logOutput = fw
 	}
 
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: logOutput, NoColor: true, TimeFormat: time.RFC3339})
