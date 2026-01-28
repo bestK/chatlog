@@ -36,6 +36,10 @@ type DataSource interface {
 	// 关闭指定路径的数据库连接
 	CloseDB(path string) error
 
+	// 锁定/解锁指定路径（用于文件替换时阻止新的 OpenDB）
+	LockDB(path string) error
+	UnlockDB(path string) error
+
 	Close() error
 }
 

@@ -657,3 +657,13 @@ func (ds *DataSource) CloseDB(path string) error {
 	ds.dbm.CloseDB(path)
 	return nil
 }
+
+func (ds *DataSource) LockDB(path string) error {
+	ds.dbm.LockDB(path)
+	return nil
+}
+
+func (ds *DataSource) UnlockDB(path string) error {
+	ds.dbm.UnlockDB(path)
+	return nil
+}

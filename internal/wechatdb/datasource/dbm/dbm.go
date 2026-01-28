@@ -24,6 +24,8 @@ type DBManager struct {
 	fgs     map[string]*filemonitor.FileGroup
 	dbs     map[string]*sql.DB
 	dbPaths map[string][]string
+	locks   map[string]bool // 文件锁定状态
+	lockMut sync.Mutex      // 锁状态的互斥锁
 	mutex   sync.RWMutex
 }
 
@@ -35,6 +37,7 @@ func NewDBManager(path string) *DBManager {
 		fgs:     make(map[string]*filemonitor.FileGroup),
 		dbs:     make(map[string]*sql.DB),
 		dbPaths: make(map[string][]string),
+		locks:   make(map[string]bool),
 	}
 }
 
@@ -152,7 +155,38 @@ func (d *DBManager) CloseDB(path string) {
 	}
 }
 
+// LockDB 锁定指定的数据库路径，禁止 OpenDB
+func (d *DBManager) LockDB(path string) {
+	d.lockMut.Lock()
+	defer d.lockMut.Unlock()
+	// 规范化路径
+	normalizedPath := filepath.Clean(path)
+	d.locks[normalizedPath] = true
+}
+
+// UnlockDB 解锁指定的数据库路径
+func (d *DBManager) UnlockDB(path string) {
+	d.lockMut.Lock()
+	defer d.lockMut.Unlock()
+	normalizedPath := filepath.Clean(path)
+	delete(d.locks, normalizedPath)
+}
+
 func (d *DBManager) OpenDB(path string) (*sql.DB, error) {
+	// 检查是否被锁定，如果被锁定则等待
+	normalizedPath := filepath.Clean(path)
+	for {
+		d.lockMut.Lock()
+		locked := d.locks[normalizedPath]
+		d.lockMut.Unlock()
+
+		if !locked {
+			break
+		}
+		// 如果被锁定，等待一下再试
+		time.Sleep(100 * time.Millisecond)
+	}
+
 	d.mutex.RLock()
 	db, ok := d.dbs[path]
 	d.mutex.RUnlock()
