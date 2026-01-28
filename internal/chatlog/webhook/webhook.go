@@ -190,6 +190,7 @@ func (m *MessageWebhook) Do(event fsnotify.Event) {
 	resp, err := m.client.Do(req)
 	if err != nil {
 		log.Error().Err(err).Msgf("post messages failed")
+		return
 	}
 	defer resp.Body.Close()
 
