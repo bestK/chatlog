@@ -287,17 +287,21 @@ func (fm *FileMonitor) setupWatchForGroup(group *FileGroup) error {
 		return fmt.Errorf("failed to list matching directories: %w", err)
 	}
 
+	log.Debug().Msgf("setupWatchForGroup: group=%s, rootDir=%s, matchingDirs=%d", group.ID, group.RootDir, len(matchingDirs))
+
 	// Always watch the root directory to catch new files
 	rootDir := filepath.Clean(group.RootDir)
 	if err := fm.addWatchDir(rootDir); err != nil {
 		return err
 	}
+	log.Debug().Msgf("setupWatchForGroup: watching root dir: %s", rootDir)
 
 	// Watch directories containing matching files
 	for dir := range matchingDirs {
 		if err := fm.addWatchDir(dir); err != nil {
 			return err
 		}
+		log.Debug().Msgf("setupWatchForGroup: watching dir: %s", dir)
 	}
 
 	return nil
@@ -360,6 +364,8 @@ func (fm *FileMonitor) watchLoop() {
 				// Channel closed, exit loop
 				return
 			}
+			// LOG RAW EVENT FOR DEBUGGING
+			// log.Debug().Msgf("Raw fsnotify event: %s, Name: %s, Op: %s", event.String(), event.Name, event.Op.String())
 
 			// Handle directory creation events to add new watches
 			info, err := os.Stat(event.Name)

@@ -43,6 +43,10 @@ func (w *DB) Close() error {
 	return nil
 }
 
+func (w *DB) CloseDB(path string) error {
+	return w.ds.CloseDB(path)
+}
+
 func (w *DB) Initialize() error {
 	var err error
 	w.ds, err = datasource.New(w.path, w.platform, w.version)

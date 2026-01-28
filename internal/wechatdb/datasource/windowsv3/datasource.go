@@ -776,3 +776,8 @@ func (ds *DataSource) GetVoice(ctx context.Context, key string) (*model.Media, e
 func (ds *DataSource) Close() error {
 	return ds.dbm.Close()
 }
+
+func (ds *DataSource) CloseDB(path string) error {
+	ds.dbm.CloseDB(path)
+	return nil
+}

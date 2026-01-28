@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,11 +25,12 @@ var (
 )
 
 type Service struct {
-	conf           Config
-	lastEvents     map[string]time.Time
-	pendingActions map[string]bool
-	mutex          sync.Mutex
-	fm             *filemonitor.FileMonitor
+	conf            Config
+	lastEvents      map[string]time.Time
+	pendingActions  map[string]bool
+	mutex           sync.Mutex
+	fm              *filemonitor.FileMonitor
+	CloseDBCallback func(string) error
 }
 
 type Config interface {
@@ -69,7 +71,8 @@ func (s *Service) GetDataKey(info *wechat.Account) (string, error) {
 
 func (s *Service) StartAutoDecrypt() error {
 	log.Info().Msgf("start auto decrypt, data dir: %s", s.conf.GetDataDir())
-	dbGroup, err := filemonitor.NewFileGroup("wechat", s.conf.GetDataDir(), `.*\.db$`, []string{"fts"})
+	// Update pattern to match .db and .db-wal files
+	dbGroup, err := filemonitor.NewFileGroup("wechat", s.conf.GetDataDir(), `.*\.db(-wal)?$`, []string{"fts"})
 	if err != nil {
 		return err
 	}
@@ -95,25 +98,25 @@ func (s *Service) StopAutoDecrypt() error {
 }
 
 func (s *Service) DecryptFileCallback(event fsnotify.Event) error {
-	// Local file system
-	// WRITE         "/db_storage/message/message_0.db"
-	// WRITE         "/db_storage/message/message_0.db"
-	// WRITE|CHMOD   "/db_storage/message/message_0.db"
-	// Syncthing
-	// REMOVE        "/app/data/db_storage/session/session.db"
-	// CREATE        "/app/data/db_storage/session/session.db" ← "/app/data/db_storage/session/.syncthing.session.db.tmp"
-	// CHMOD         "/app/data/db_storage/session/session.db"
+	// Local file system and Syncthing checks...
 	if !(event.Op.Has(fsnotify.Write) || event.Op.Has(fsnotify.Create)) {
 		return nil
 	}
 
-	s.mutex.Lock()
-	s.lastEvents[event.Name] = time.Now()
+	targetFile := event.Name
+	// If it's a WAL file, target the main DB file
+	if strings.HasSuffix(targetFile, "-wal") {
+		targetFile = strings.TrimSuffix(targetFile, "-wal")
+		// log.Info().Msgf("WAL file change detected, targeting main DB: %s", targetFile)
+	}
 
-	if !s.pendingActions[event.Name] {
-		s.pendingActions[event.Name] = true
+	s.mutex.Lock()
+	s.lastEvents[targetFile] = time.Now()
+
+	if !s.pendingActions[targetFile] {
+		s.pendingActions[targetFile] = true
 		s.mutex.Unlock()
-		go s.waitAndProcess(event.Name)
+		go s.waitAndProcess(targetFile)
 	} else {
 		s.mutex.Unlock()
 	}
@@ -162,13 +165,43 @@ func (s *Service) DecryptDBFile(dbFile string) error {
 	}
 	defer func() {
 		outputFile.Close()
-		if err := os.Rename(outputTemp, output); err != nil {
-			log.Debug().Err(err).Msgf("failed to rename %s to %s", outputTemp, output)
-			// 清理失败的临时文件
-			if removeErr := os.Remove(outputTemp); removeErr != nil {
-				log.Debug().Err(removeErr).Msgf("failed to remove temp file %s", outputTemp)
+
+		// 重试机制：尝试多次替换文件
+		maxRetries := 10
+		for i := 0; i < maxRetries; i++ {
+			// 1. 尝试关闭连接
+			if s.CloseDBCallback != nil {
+				s.CloseDBCallback(output)
+				// 稍微等待文件锁释放
+				time.Sleep(time.Duration(100*(i+1)) * time.Millisecond)
 			}
+
+			// 2. 尝试直接重命名
+			err := os.Rename(outputTemp, output)
+			if err == nil {
+				// log.Info().Msgf("successfully replaced %s", output)
+				return // 成功，退出
+			}
+
+			// 3. 如果重命名失败，尝试删除目标文件
+			if os.IsExist(err) || strings.Contains(err.Error(), "exist") || strings.Contains(err.Error(), "access") || strings.Contains(err.Error(), "used by another process") {
+				if removeErr := os.Remove(output); removeErr != nil {
+					log.Debug().Err(removeErr).Msgf("failed to remove target file %s (retry %d)", output, i)
+				} else {
+					// 删除成功后再次尝试重命名
+					if renameErr := os.Rename(outputTemp, output); renameErr == nil {
+						// log.Info().Msgf("successfully replaced %s after remove", output)
+						return // 成功，退出
+					}
+				}
+			}
+
+			log.Debug().Err(err).Msgf("retry %d: replace file failed, waiting...", i)
 		}
+
+		// 4. 所有重试都失败，清理临时文件
+		log.Error().Msgf("failed to replace %s after %d retries, cleaning up", output, maxRetries)
+		os.Remove(outputTemp)
 	}()
 
 	if err := decryptor.Decrypt(context.Background(), dbFile, s.conf.GetDataKey(), outputFile); err != nil {

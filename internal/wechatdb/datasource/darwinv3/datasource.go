@@ -652,3 +652,8 @@ WHERE
 func (ds *DataSource) Close() error {
 	return ds.dbm.Close()
 }
+
+func (ds *DataSource) CloseDB(path string) error {
+	ds.dbm.CloseDB(path)
+	return nil
+}
