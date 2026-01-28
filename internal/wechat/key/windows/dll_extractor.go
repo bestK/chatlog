@@ -268,6 +268,127 @@ func GetDbKey(dllPath string, pid uint32, timeout int, onProgress func(string)) 
 	}
 }
 
+// GetDbKeyFull 完整的数据库密钥获取流程（自动重启微信）
+func GetDbKeyFull(dllPath string, timeout int, onProgress func(string)) GetDbKeyResult {
+	// 状态消息处理回调
+	statusHandler := func(msg string, level int) {
+		prefix := "[*]"
+		switch level {
+		case 1:
+			prefix = "[+]"
+		case 2:
+			prefix = "[!]"
+		}
+		if onProgress != nil {
+			onProgress(fmt.Sprintf("%s %s", prefix, msg))
+		}
+	}
+
+	// 1. 检查 DLL
+	if onProgress != nil {
+		onProgress("正在加载 Hook DLL...")
+	}
+
+	hc, err := NewHookController(dllPath)
+	if err != nil {
+		return GetDbKeyResult{Success: false, Error: err.Error()}
+	}
+	defer hc.Release()
+
+	// 2. 检查微信是否运行，如果运行则关闭
+	if onProgress != nil {
+		onProgress("正在检查微信进程...")
+	}
+
+	if IsProcessRunning("Weixin.exe") || IsProcessRunning("WeChat.exe") {
+		if onProgress != nil {
+			onProgress("检测到微信正在运行，正在关闭...")
+		}
+		KillWeChatProcesses()
+		time.Sleep(2 * time.Second)
+		if onProgress != nil {
+			onProgress("已关闭微信进程")
+		}
+	}
+
+	// 3. 启动微信
+	if onProgress != nil {
+		onProgress("正在启动微信...")
+	}
+
+	err = LaunchWeChat()
+	if err != nil {
+		return GetDbKeyResult{Success: false, Error: err.Error()}
+	}
+
+	if onProgress != nil {
+		onProgress("微信启动成功，等待窗口出现...")
+	}
+
+	// 4. 等待微信进程出现
+	pid, found := WaitForWeChatProcess(15)
+	if !found {
+		return GetDbKeyResult{Success: false, Error: "等待微信窗口超时"}
+	}
+
+	if onProgress != nil {
+		onProgress(fmt.Sprintf("找到微信进程 PID: %d", pid))
+	}
+
+	// 等待微信界面加载
+	time.Sleep(3 * time.Second)
+
+	// 5. 初始化并安装 Hook
+	if onProgress != nil {
+		onProgress("正在安装远程 Hook...")
+	}
+
+	if !hc.Initialize(pid) {
+		hc.ProcessStatusMessages(statusHandler)
+		errMsg := hc.GetLastError()
+		if errMsg == "" {
+			errMsg = "初始化 Hook 失败"
+		}
+		return GetDbKeyResult{Success: false, Error: errMsg}
+	}
+
+	// 处理初始化阶段的状态消息
+	hc.ProcessStatusMessages(statusHandler)
+
+	if onProgress != nil {
+		onProgress("Hook 安装成功！")
+		onProgress("请在微信中登录账号，密钥将在登录时自动获取...")
+	}
+
+	// 6. 轮询等待密钥
+	deadline := time.Now().Add(time.Duration(timeout) * time.Second)
+	pollInterval := 100 * time.Millisecond
+
+	for time.Now().Before(deadline) {
+		// 处理状态消息
+		hc.ProcessStatusMessages(statusHandler)
+
+		// 检查是否有新密钥
+		key, hasKey := hc.PollKeyData()
+		if hasKey && len(key) > 0 {
+			if onProgress != nil {
+				onProgress("成功获取数据库密钥！")
+			}
+			hc.Cleanup()
+			return GetDbKeyResult{Success: true, Key: key}
+		}
+
+		time.Sleep(pollInterval)
+	}
+
+	// 超时
+	hc.Cleanup()
+	return GetDbKeyResult{
+		Success: false,
+		Error:   fmt.Sprintf("等待密钥超时（%d秒）。请确保在微信中完成登录操作。", timeout),
+	}
+}
+
 // FindProcessIdsByName find process id by name
 func FindProcessIdsByName(name string) ([]uint32, error) {
 	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)

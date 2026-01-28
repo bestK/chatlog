@@ -63,53 +63,100 @@ func (a *Account) RefreshStatus() error {
 	return nil
 }
 
-// GetKey 获取账号的密钥
-func (a *Account) GetKey(ctx context.Context) (string, string, error) {
+// GetDataKey 获取数据库密钥
+func (a *Account) GetDataKey(ctx context.Context) (string, error) {
 	// 如果已经有密钥，直接返回
-	if a.Key != "" && (a.ImgKey != "" || a.Version == 3) {
-		return a.Key, a.ImgKey, nil
+	if a.Key != "" {
+		return a.Key, nil
 	}
 
 	// 刷新进程状态
 	if err := a.RefreshStatus(); err != nil {
-		return "", "", errors.RefreshProcessStatusFailed(err)
+		return "", errors.RefreshProcessStatusFailed(err)
 	}
 
 	// 检查账号状态
 	if a.Status != model.StatusOnline {
-		return "", "", errors.WeChatAccountNotOnline(a.Name)
+		return "", errors.WeChatAccountNotOnline(a.Name)
 	}
 
-	// 创建密钥提取器 - 使用新的接口，传入平台和版本信息
+	// 创建密钥提取器
 	extractor, err := key.NewExtractor(a.Platform, a.Version)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	process, err := GetProcess(a.Name)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	validator, err := decrypt.NewValidator(process.Platform, process.Version, process.DataDir)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	extractor.SetValidate(validator)
 
-	// 提取密钥
-	dataKey, imgKey, err := extractor.Extract(ctx, process)
+	// 提取数据库密钥
+	dataKey, err := extractor.ExtractDataKey(ctx, process)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	if dataKey != "" {
 		a.Key = dataKey
 	}
 
+	return dataKey, nil
+}
+
+// GetImgKey 获取图片密钥
+func (a *Account) GetImgKey(ctx context.Context) (string, error) {
+	// 如果已经有密钥，直接返回
+	if a.ImgKey != "" {
+		return a.ImgKey, nil
+	}
+
+	// 刷新进程状态
+	if err := a.RefreshStatus(); err != nil {
+		return "", errors.RefreshProcessStatusFailed(err)
+	}
+
+	// 创建密钥提取器
+	extractor, err := key.NewExtractor(a.Platform, a.Version)
+	if err != nil {
+		return "", err
+	}
+
+	process, err := GetProcess(a.Name)
+	if err != nil {
+		return "", err
+	}
+
+	// 提取图片密钥
+	imgKey, err := extractor.ExtractImgKey(ctx, process)
+	if err != nil {
+		return "", err
+	}
+
 	if imgKey != "" {
 		a.ImgKey = imgKey
+	}
+
+	return imgKey, nil
+}
+
+// GetKey 获取账号的密钥（兼容旧接口）
+func (a *Account) GetKey(ctx context.Context) (string, string, error) {
+	dataKey, err := a.GetDataKey(ctx)
+	if err != nil {
+		return "", "", err
+	}
+
+	imgKey, err := a.GetImgKey(ctx)
+	if err != nil {
+		return dataKey, "", err
 	}
 
 	return dataKey, imgKey, nil

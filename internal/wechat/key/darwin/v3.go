@@ -190,3 +190,15 @@ func (e *V3Extractor) SearchKey(ctx context.Context, memory []byte) (string, boo
 func (e *V3Extractor) SetValidate(validator *decrypt.Validator) {
 	e.validator = validator
 }
+
+// ExtractDataKey 仅提取数据库密钥
+func (e *V3Extractor) ExtractDataKey(ctx context.Context, proc *model.Process) (string, error) {
+	dataKey, _, err := e.Extract(ctx, proc)
+	return dataKey, err
+}
+
+// ExtractImgKey 仅提取图片密钥（V3 版本不需要图片密钥）
+func (e *V3Extractor) ExtractImgKey(ctx context.Context, proc *model.Process) (string, error) {
+	// V3 版本不需要图片密钥
+	return "", nil
+}

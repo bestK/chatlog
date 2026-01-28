@@ -359,6 +359,18 @@ func (e *V4Extractor) SetValidate(validator *decrypt.Validator) {
 	e.validator = validator
 }
 
+// ExtractDataKey 仅提取数据库密钥
+func (e *V4Extractor) ExtractDataKey(ctx context.Context, proc *model.Process) (string, error) {
+	dataKey, _, err := e.Extract(ctx, proc)
+	return dataKey, err
+}
+
+// ExtractImgKey 仅提取图片密钥
+func (e *V4Extractor) ExtractImgKey(ctx context.Context, proc *model.Process) (string, error) {
+	_, imgKey, err := e.Extract(ctx, proc)
+	return imgKey, err
+}
+
 type KeyPatternInfo struct {
 	Pattern []byte
 	Offsets []int

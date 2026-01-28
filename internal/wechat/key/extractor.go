@@ -12,9 +12,15 @@ import (
 
 // Extractor 定义密钥提取器接口
 type Extractor interface {
-	// Extract 从进程中提取密钥
+	// Extract 从进程中提取密钥（兼容旧接口）
 	// dataKey, imgKey, error
 	Extract(ctx context.Context, proc *model.Process) (string, string, error)
+
+	// ExtractDataKey 仅提取数据库密钥
+	ExtractDataKey(ctx context.Context, proc *model.Process) (string, error)
+
+	// ExtractImgKey 仅提取图片密钥
+	ExtractImgKey(ctx context.Context, proc *model.Process) (string, error)
 
 	// SearchKey 在内存中搜索密钥
 	SearchKey(ctx context.Context, memory []byte) (string, bool)
