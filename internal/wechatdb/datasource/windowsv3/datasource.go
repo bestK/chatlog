@@ -133,65 +133,68 @@ func (ds *DataSource) initMessageDbs() error {
 	// 处理每个数据库文件
 	infos := make([]MessageDBInfo, 0)
 	for _, filePath := range dbPaths {
-		db, err := ds.dbm.OpenDB(filePath)
-		if err != nil {
-			log.Err(err).Msgf("获取数据库 %s 失败", filePath)
-			continue
-		}
+		func() {
+			db, err := ds.dbm.OpenDB(filePath)
+			if err != nil {
+				log.Err(err).Msgf("获取数据库 %s 失败", filePath)
+				return
+			}
+			defer db.Close()
 
-		// 获取 DBInfo 表中的开始时间
-		var startTime time.Time
+			// 获取 DBInfo 表中的开始时间
+			var startTime time.Time
 
-		rows, err := db.Query("SELECT tableIndex, tableVersion, tableDesc FROM DBInfo")
-		if err != nil {
-			log.Err(err).Msgf("查询数据库 %s 的 DBInfo 表失败", filePath)
-			continue
-		}
-
-		for rows.Next() {
-			var tableIndex int
-			var tableVersion int64
-			var tableDesc string
-
-			if err := rows.Scan(&tableIndex, &tableVersion, &tableDesc); err != nil {
-				log.Err(err).Msg("扫描 DBInfo 行失败")
-				continue
+			rows, err := db.Query("SELECT tableIndex, tableVersion, tableDesc FROM DBInfo")
+			if err != nil {
+				log.Err(err).Msgf("查询数据库 %s 的 DBInfo 表失败", filePath)
+				return
 			}
 
-			// 查找描述为 "Start Time" 的记录
-			if strings.Contains(tableDesc, "Start Time") {
-				startTime = time.Unix(tableVersion/1000, (tableVersion%1000)*1000000)
-				break
+			for rows.Next() {
+				var tableIndex int
+				var tableVersion int64
+				var tableDesc string
+
+				if err := rows.Scan(&tableIndex, &tableVersion, &tableDesc); err != nil {
+					log.Err(err).Msg("扫描 DBInfo 行失败")
+					continue
+				}
+
+				// 查找描述为 "Start Time" 的记录
+				if strings.Contains(tableDesc, "Start Time") {
+					startTime = time.Unix(tableVersion/1000, (tableVersion%1000)*1000000)
+					break
+				}
 			}
-		}
-		rows.Close()
+			rows.Close()
 
-		// 组织 TalkerMap
-		talkerMap := make(map[string]int)
-		rows, err = db.Query("SELECT UsrName FROM Name2ID")
-		if err != nil {
-			log.Err(err).Msgf("查询数据库 %s 的 Name2ID 表失败", filePath)
-			continue
-		}
-
-		i := 1
-		for rows.Next() {
-			var userName string
-			if err := rows.Scan(&userName); err != nil {
-				log.Err(err).Msg("扫描 Name2ID 行失败")
-				continue
+			// 组织 TalkerMap
+			talkerMap := make(map[string]int)
+			rows, err = db.Query("SELECT UsrName FROM Name2ID")
+			if err != nil {
+				log.Err(err).Msgf("查询数据库 %s 的 Name2ID 表失败", filePath)
+				return
 			}
-			talkerMap[userName] = i
-			i++
-		}
-		rows.Close()
 
-		// 保存数据库信息
-		infos = append(infos, MessageDBInfo{
-			FilePath:  filePath,
-			StartTime: startTime,
-			TalkerMap: talkerMap,
-		})
+			i := 1
+			for rows.Next() {
+				var userName string
+				if err := rows.Scan(&userName); err != nil {
+					log.Err(err).Msg("扫描 Name2ID 行失败")
+					continue
+				}
+				talkerMap[userName] = i
+				i++
+			}
+			rows.Close()
+
+			// 保存数据库信息
+			infos = append(infos, MessageDBInfo{
+				FilePath:  filePath,
+				StartTime: startTime,
+				TalkerMap: talkerMap,
+			})
+		}()
 	}
 
 	// 按照 StartTime 排序数据库文件
@@ -326,6 +329,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 				)
 				if err != nil {
 					rows.Close()
+					db.Close()
 					return nil, errors.ScanRowFailed(err)
 				}
 				msg.CompressContent = compressContent
@@ -363,6 +367,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 				if limit > 0 && len(filteredMessages) >= offset+limit {
 					// 已经获取了足够的消息，可以提前返回
 					rows.Close()
+					db.Close()
 
 					// 对所有消息按时间排序
 					sort.Slice(filteredMessages, func(i, j int) bool {
@@ -382,6 +387,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 			}
 			rows.Close()
 		}
+		db.Close()
 	}
 
 	// 对所有消息按时间排序
@@ -433,6 +439,7 @@ func (ds *DataSource) GetContacts(ctx context.Context, key string, limit, offset
 	if err != nil {
 		return nil, err
 	}
+	defer db.Close()
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, errors.QueryFailed(query, err)
@@ -475,6 +482,7 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 		if err != nil {
 			return nil, err
 		}
+		defer db.Close()
 		rows, err := db.QueryContext(ctx, query, args...)
 		if err != nil {
 			return nil, errors.QueryFailed(query, err)
@@ -556,6 +564,7 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 		if err != nil {
 			return nil, err
 		}
+		defer db.Close()
 		rows, err := db.QueryContext(ctx, query, args...)
 		if err != nil {
 			return nil, errors.QueryFailed(query, err)
@@ -614,6 +623,7 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 	if err != nil {
 		return nil, err
 	}
+	defer db.Close()
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, errors.QueryFailed(query, err)
@@ -679,6 +689,7 @@ func (ds *DataSource) GetMedia(ctx context.Context, _type string, key string) (*
 	if err != nil {
 		return nil, err
 	}
+	defer db.Close()
 
 	query := fmt.Sprintf(`
         SELECT 
@@ -743,6 +754,11 @@ func (ds *DataSource) GetVoice(ctx context.Context, key string) (*model.Media, e
 	if err != nil {
 		return nil, errors.DBConnectFailed("", err)
 	}
+	defer func() {
+		for _, db := range dbs {
+			db.Close()
+		}
+	}()
 
 	for _, db := range dbs {
 		rows, err := db.QueryContext(ctx, query, args...)
