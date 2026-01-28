@@ -69,7 +69,7 @@ func (r *Repository) parseTalkerAndSender(ctx context.Context, talker, sender st
 		for i := 0; i < len(talkers); i++ {
 			if contact, _ := r.GetContact(ctx, talkers[i]); contact != nil {
 				talkers[i] = contact.UserName
-			} else if chatRoom, _ := r.GetChatRoom(ctx, talker); chatRoom != nil {
+			} else if chatRoom, _ := r.GetChatRoom(ctx, talkers[i]); chatRoom != nil {
 				talkers[i] = chatRoom.Name
 			}
 		}
@@ -93,6 +93,12 @@ func (r *Repository) parseTalkerAndSender(ctx context.Context, talker, sender st
 			if user, ok := displayName2User[senders[i]]; ok {
 				senders[i] = user
 			} else {
+				// 尝试直接获取联系人
+				if contact, _ := r.GetContact(ctx, senders[i]); contact != nil {
+					senders[i] = contact.UserName
+					continue
+				}
+
 				// FIXME 大量群聊用户名称重复，无法直接通过 GetContact 获取 ID，后续再优化
 				for user := range users {
 					if contact := r.getFullContact(user); contact != nil {

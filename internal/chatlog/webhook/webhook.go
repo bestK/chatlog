@@ -159,7 +159,7 @@ func NewMessageWebhook(conf *conf.WebhookItem, db *wechatdb.DB, host string) *Me
 func (m *MessageWebhook) Do(event fsnotify.Event) {
 	messages, err := m.db.GetMessages(m.lastTime, time.Now().Add(time.Minute*10), m.conf.Talker, m.conf.Sender, m.conf.Keyword, 0, 0)
 	if err != nil {
-		log.Error().Err(err).Msgf("get messages failed")
+		log.Error().Err(err).Msgf("webhook get messages failed")
 		return
 	}
 
