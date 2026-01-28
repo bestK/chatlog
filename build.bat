@@ -18,7 +18,7 @@ if exist %OUTPUT% (
 
 REM 编译项目
 echo 开始编译...
-go build -o %OUTPUT% .
+go build -ldflags="-s -w" -o %OUTPUT% .
 
 REM 检查编译结果
 if %ERRORLEVEL% EQU 0 (
