@@ -164,6 +164,10 @@ func (s *Service) DecryptDBFile(dbFile string) error {
 		outputFile.Close()
 		if err := os.Rename(outputTemp, output); err != nil {
 			log.Debug().Err(err).Msgf("failed to rename %s to %s", outputTemp, output)
+			// 清理失败的临时文件
+			if removeErr := os.Remove(outputTemp); removeErr != nil {
+				log.Debug().Err(removeErr).Msgf("failed to remove temp file %s", outputTemp)
+			}
 		}
 	}()
 
