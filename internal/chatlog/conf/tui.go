@@ -21,6 +21,7 @@ type ProcessConfig struct {
 	WorkDir     string `mapstructure:"work_dir" json:"work_dir"`
 	HTTPEnabled bool   `mapstructure:"http_enabled" json:"http_enabled"`
 	HTTPAddr    string `mapstructure:"http_addr" json:"http_addr"`
+	AutoDecrypt bool   `mapstructure:"auto_decrypt" json:"auto_decrypt"`
 	LastTime    int64  `mapstructure:"last_time" json:"last_time"`
 	Files       []File `mapstructure:"files" json:"files"`
 }
