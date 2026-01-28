@@ -31,3 +31,4 @@ chatlog.exe# Added by goreleaser init:
 dist/
 .ace-tool/
 .vscode/settings.json
+chatlog.upx
