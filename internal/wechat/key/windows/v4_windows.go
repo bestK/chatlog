@@ -2,6 +2,7 @@ package windows
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rs/zerolog/log"
 
@@ -15,61 +16,100 @@ const (
 )
 
 func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string, string, error) {
+	dataKey, err := e.ExtractDataKey(ctx, proc)
+	if err != nil && dataKey == "" {
+		// 如果 dataKey 获取失败，仍然尝试获取 imgKey
+		log.Error().Err(err).Msg("Failed to get data key, trying image key")
+	}
+
+	imgKey, imgErr := e.ExtractImgKey(ctx, proc)
+	if imgErr != nil && imgKey == "" {
+		log.Error().Err(imgErr).Msg("Failed to get image key")
+	}
+
+	if dataKey == "" && imgKey == "" {
+		return "", "", errors.ErrNoValidKey
+	}
+
+	return dataKey, imgKey, nil
+}
+
+// ExtractDataKey 仅提取数据库密钥
+func (e *V4Extractor) ExtractDataKey(ctx context.Context, proc *model.Process) (string, error) {
 	if proc.Status == model.StatusOffline {
-		return "", "", errors.ErrWeChatOffline
+		return "", errors.ErrWeChatOffline
 	}
 
 	resultChan := make(chan struct {
 		dataKey string
-		imgKey  string
 		err     error
 	})
 
 	go func() {
-		// 获取数据库密钥
-		dbKeyResult := GetDbKey(DllPath, proc.PID, 15, func(msg string) {
+		// 获取数据库密钥 - 使用完整流程（自动重启微信）
+		dbKeyResult := GetDbKeyFull(DllPath, 60, func(msg string) {
 			log.Debug().Msg(msg)
 		})
 
-		var dataKey string
 		if dbKeyResult.Success {
-			dataKey = dbKeyResult.Key
-		} else {
-			log.Error().Msgf("Failed to get DB key: %s", dbKeyResult.Error)
-		}
-
-		// 获取图片密钥
-		imgKeyResult := GetImageKeys("", func(msg string) {
-			log.Debug().Msg(msg)
-		})
-
-		var imgKey string
-		if imgKeyResult.Success {
-			imgKey = imgKeyResult.AesKey
-		} else {
-			log.Error().Msgf("Failed to get Image key: %s", imgKeyResult.Error)
-		}
-
-		if dataKey == "" && imgKey == "" {
 			resultChan <- struct {
 				dataKey string
-				imgKey  string
 				err     error
-			}{"", "", errors.ErrNoValidKey}
-			return
+			}{dbKeyResult.Key, nil}
+		} else {
+			resultChan <- struct {
+				dataKey string
+				err     error
+			}{"", errors.ErrNoValidKey}
 		}
-
-		resultChan <- struct {
-			dataKey string
-			imgKey  string
-			err     error
-		}{dataKey, imgKey, nil}
 	}()
 
 	select {
 	case <-ctx.Done():
-		return "", "", ctx.Err()
+		return "", ctx.Err()
 	case res := <-resultChan:
-		return res.dataKey, res.imgKey, res.err
+		return res.dataKey, res.err
+	}
+}
+
+// ExtractImgKey 仅提取图片密钥
+func (e *V4Extractor) ExtractImgKey(ctx context.Context, proc *model.Process) (string, error) {
+	if proc.Status == model.StatusOffline {
+		return "", errors.ErrWeChatOffline
+	}
+
+	resultChan := make(chan struct {
+		imgKey string
+		err    error
+	})
+
+	go func() {
+		// 获取图片密钥 - 如果 DataDir 为空，让 GetImageKeys 自动查找缓存目录
+		dataDir := proc.DataDir
+		if dataDir == "" {
+			log.Debug().Msg("DataDir is empty, will auto-detect cache directory")
+		}
+		imgKeyResult := GetImageKeys(dataDir, func(msg string) {
+			log.Debug().Msg(msg)
+		})
+
+		if imgKeyResult.Success {
+			resultChan <- struct {
+				imgKey string
+				err    error
+			}{imgKeyResult.AesKey, nil}
+		} else {
+			resultChan <- struct {
+				imgKey string
+				err    error
+			}{"", fmt.Errorf("%s", imgKeyResult.Error)}
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case res := <-resultChan:
+		return res.imgKey, res.err
 	}
 }

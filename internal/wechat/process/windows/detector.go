@@ -36,19 +36,24 @@ func (d *Detector) FindProcesses() ([]*model.Process, error) {
 	var result []*model.Process
 	for _, p := range processes {
 		name, err := p.Name()
+		if err != nil {
+			continue
+		}
 		name = strings.TrimSuffix(name, ".exe")
-		if err != nil || (name != V3ProcessName && name != V4ProcessName) {
+		if name != V3ProcessName && name != V4ProcessName {
 			continue
 		}
 
 		// v4 存在同名进程，需要继续判断 cmdline
+		// 只跳过有 --type= 参数的子进程（如 wxocr, wxutility, wxplayer）
 		if name == V4ProcessName {
 			cmdline, err := p.Cmdline()
 			if err != nil {
 				log.Err(err).Msg("获取进程命令行失败")
 				continue
 			}
-			if strings.Contains(cmdline, "--") {
+			// 跳过子进程：只有带 --type= 的才是真正的子进程
+			if strings.Contains(cmdline, "--type=") {
 				continue
 			}
 		}

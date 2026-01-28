@@ -839,7 +839,7 @@ func (a *App) handleKeyRetrieval(isDB, isImage bool) {
 func (a *App) doGetKey(isDB, isImage bool) {
 	modal := tview.NewModal()
 	if isDB {
-		modal.SetText("正在获取数据库密钥...\n如果微信正在运行，请重启微信并登录，以捕获密钥。\n此过程最多等待 15 秒。")
+		modal.SetText("正在获取数据库密钥...\n如果微信正在运行，请重启微信并登录，以捕获密钥。\n此过程最多等待 60 秒。")
 	} else {
 		modal.SetText("正在获取图片密钥...\n请在微信中随意浏览几张朋友圈大图，以生成缓存。\n工具正在扫描缓存文件...")
 	}
@@ -848,15 +848,42 @@ func (a *App) doGetKey(isDB, isImage bool) {
 	a.SetFocus(modal)
 
 	go func() {
-		// 这里暂时复用 getdatakey，后续可以拆分
-		err := a.m.GetDataKey()
+		var dataKey, imgKey string
+		var err error
+
+		if isDB && isImage {
+			// 同时获取两个密钥
+			dataKey, imgKey, err = a.m.GetDataKey()
+		} else if isDB {
+			// 只获取数据库密钥
+			dataKey, imgKey, err = a.m.GetDataKey()
+		} else if isImage {
+			// 只获取图片密钥（不会重启微信）
+			imgKey, err = a.m.GetImgKey()
+		}
 
 		// 在主线程中更新UI
 		a.QueueUpdateDraw(func() {
 			if err != nil {
 				modal.SetText("获取失败: " + err.Error())
 			} else {
-				modal.SetText("获取成功")
+				// 根据请求类型显示对应的密钥
+				var resultText string
+				if isDB && dataKey != "" {
+					resultText = fmt.Sprintf("数据库密钥:\n%s", dataKey)
+				}
+				if isImage && imgKey != "" {
+					if resultText != "" {
+						resultText += "\n\n"
+					}
+					resultText += fmt.Sprintf("图片密钥:\n%s", imgKey)
+				}
+				if resultText == "" {
+					resultText = "未获取到有效密钥"
+				} else {
+					resultText = "获取成功！\n\n" + resultText
+				}
+				modal.SetText(resultText)
 			}
 
 			modal.AddButtons([]string{"OK"})
