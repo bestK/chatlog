@@ -130,6 +130,9 @@ func (ds *DataSource) initMessageDbs() error {
 			log.Err(err).Msgf("获取数据库 %s 失败", filePath)
 			continue
 		}
+		// 不需要 defer，直接在循环末尾关闭，或者使用 func 闭包。
+		// 在这里直接使用 defer 可能会导致直到 initMessageDbs 结束才关闭。
+		// 更好的做法是显式调用 Close。
 
 		// 获取 Timestamp 表中的开始时间
 		var startTime time.Time
@@ -147,6 +150,8 @@ func (ds *DataSource) initMessageDbs() error {
 			FilePath:  filePath,
 			StartTime: startTime,
 		})
+
+		db.Close()
 	}
 
 	// 按照 StartTime 排序数据库文件
@@ -225,6 +230,11 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 			log.Error().Msgf("数据库 %s 未打开", dbInfo.FilePath)
 			continue
 		}
+		// 使用 defer 确保关闭，但在循环中这会堆积 defer，所以还是显式关闭或用 func 包装
+		// 由于 db 作用域在 for 内部，可以使用 defer 配合匿名函数，或者在循环结束处关闭
+		// 这里最简单的是在 continue 前 和 循环结束时调用 close。
+		// 但为了健壮性，使用 defer func(){ db.Close() }() 包裹这一轮循环逻辑比较麻烦。
+		// 让我们在循环尾部关闭。
 
 		// 对每个talker进行查询
 		for _, talkerItem := range talkers {
@@ -244,6 +254,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 					// 表不存在，继续下一个talker
 					continue
 				}
+				db.Close()
 				return nil, errors.QueryFailed("", err)
 			}
 
@@ -287,6 +298,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 				)
 				if err != nil {
 					rows.Close()
+					db.Close()
 					return nil, errors.ScanRowFailed(err)
 				}
 
@@ -322,6 +334,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 				if limit > 0 && len(filteredMessages) >= offset+limit {
 					// 已经获取了足够的消息，可以提前返回
 					rows.Close()
+					db.Close()
 
 					// 对所有消息按时间排序
 					sort.Slice(filteredMessages, func(i, j int) bool {
@@ -341,6 +354,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 			}
 			rows.Close()
 		}
+		db.Close()
 	}
 
 	// 对所有消息按时间排序
@@ -393,6 +407,7 @@ func (ds *DataSource) GetContacts(ctx context.Context, key string, limit, offset
 	if err != nil {
 		return nil, err
 	}
+	defer db.Close()
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, errors.QueryFailed(query, err)
@@ -430,6 +445,7 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 	if err != nil {
 		return nil, err
 	}
+	defer db.Close()
 
 	if key != "" {
 		// 按照关键字查询
@@ -571,6 +587,7 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 	if err != nil {
 		return nil, err
 	}
+	defer db.Close()
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, errors.QueryFailed(query, err)
@@ -718,13 +735,18 @@ func (ds *DataSource) GetVoice(ctx context.Context, key string) (*model.Media, e
 	if err != nil {
 		return nil, errors.DBConnectFailed("", err)
 	}
+	defer func() {
+		for _, db := range dbs {
+			db.Close()
+		}
+	}()
 
 	for _, db := range dbs {
 		rows, err := db.QueryContext(ctx, query, args...)
 		if err != nil {
-			return nil, errors.QueryFailed(query, err)
+			log.Err(err).Msgf("Query media failed")
+			continue
 		}
-		defer rows.Close()
 
 		for rows.Next() {
 			var voiceData []byte
@@ -732,9 +754,11 @@ func (ds *DataSource) GetVoice(ctx context.Context, key string) (*model.Media, e
 				&voiceData,
 			)
 			if err != nil {
+				rows.Close() // 遇到错误关闭
 				return nil, errors.ScanRowFailed(err)
 			}
 			if len(voiceData) > 0 {
+				rows.Close() // 找到结果关闭
 				return &model.Media{
 					Type: "voice",
 					Key:  key,
@@ -742,6 +766,7 @@ func (ds *DataSource) GetVoice(ctx context.Context, key string) (*model.Media, e
 				}, nil
 			}
 		}
+		rows.Close() // 未找到结果关闭
 	}
 
 	return nil, errors.ErrMediaNotFound
