@@ -56,6 +56,17 @@ func (m *Manager) Run(configPath string) error {
 		m.ctx.SwitchCurrent(m.ctx.WeChatInstances[0])
 	}
 
+	// 启动时自动恢复自动解密
+	if m.ctx.AutoDecrypt {
+		go func() {
+			if err := m.StartAutoDecrypt(); err != nil {
+				log.Error().Err(err).Msg("启动时自动开启自动解密失败")
+			} else {
+				log.Info().Msg("启动时已自动开启自动解密服务")
+			}
+		}()
+	}
+
 	if m.ctx.HTTPEnabled {
 		// 启动HTTP服务
 		if err := m.StartService(); err != nil {
@@ -83,6 +94,17 @@ func (m *Manager) Switch(info *iwechat.Account, history string) error {
 		m.ctx.SwitchCurrent(info)
 	} else {
 		m.ctx.SwitchHistory(history)
+	}
+
+	// 切换账号后自动恢复自动解密
+	if m.ctx.AutoDecrypt {
+		go func() {
+			if err := m.StartAutoDecrypt(); err != nil {
+				log.Error().Err(err).Msg("切换账号后自动开启自动解密失败")
+			} else {
+				log.Info().Msg("切换账号后已自动开启自动解密服务")
+			}
+		}()
 	}
 
 	if m.ctx.HTTPEnabled {
