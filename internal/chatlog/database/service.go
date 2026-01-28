@@ -144,3 +144,19 @@ func (s *Service) CloseDB(path string) error {
 	}
 	return nil
 }
+
+// LockDB locks a specific database file, preventing new connections
+func (s *Service) LockDB(path string) error {
+	if s.db != nil {
+		return s.db.LockDB(path)
+	}
+	return nil
+}
+
+// UnlockDB unlocks a specific database file
+func (s *Service) UnlockDB(path string) error {
+	if s.db != nil {
+		return s.db.UnlockDB(path)
+	}
+	return nil
+}

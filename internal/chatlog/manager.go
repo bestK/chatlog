@@ -364,8 +364,8 @@ func (m *Manager) CommandHTTPServer(configPath string, cmdConf map[string]any) e
 
 	m.db = database.NewService(m.sc)
 
-	// 注入关闭DB的回调，用于在解密替换文件时释放连接
-	m.wechat.CloseDBCallback = m.db.CloseDB
+	// 注入 DBController，用于在解密替换文件时控制连接（锁定、关闭、解锁）
+	m.wechat.SetDBController(m.db)
 
 	m.http = http.NewService(m.sc, m.db)
 

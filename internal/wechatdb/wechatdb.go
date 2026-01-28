@@ -47,6 +47,14 @@ func (w *DB) CloseDB(path string) error {
 	return w.ds.CloseDB(path)
 }
 
+func (w *DB) LockDB(path string) error {
+	return w.ds.LockDB(path)
+}
+
+func (w *DB) UnlockDB(path string) error {
+	return w.ds.UnlockDB(path)
+}
+
 func (w *DB) Initialize() error {
 	var err error
 	w.ds, err = datasource.New(w.path, w.platform, w.version)

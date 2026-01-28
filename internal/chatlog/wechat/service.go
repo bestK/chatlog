@@ -24,13 +24,19 @@ var (
 	MaxWaitTime  = 10 * time.Second
 )
 
+type DBController interface {
+	CloseDB(path string) error
+	LockDB(path string) error
+	UnlockDB(path string) error
+}
+
 type Service struct {
-	conf            Config
-	lastEvents      map[string]time.Time
-	pendingActions  map[string]bool
-	mutex           sync.Mutex
-	fm              *filemonitor.FileMonitor
-	CloseDBCallback func(string) error
+	conf           Config
+	lastEvents     map[string]time.Time
+	pendingActions map[string]bool
+	mutex          sync.Mutex
+	fm             *filemonitor.FileMonitor
+	dbController   DBController
 }
 
 type Config interface {
@@ -47,6 +53,10 @@ func NewService(conf Config) *Service {
 		lastEvents:     make(map[string]time.Time),
 		pendingActions: make(map[string]bool),
 	}
+}
+
+func (s *Service) SetDBController(ctrl DBController) {
+	s.dbController = ctrl
 }
 
 // GetWeChatInstances returns all running WeChat instances
@@ -166,37 +176,44 @@ func (s *Service) DecryptDBFile(dbFile string) error {
 	defer func() {
 		outputFile.Close()
 
-		// 重试机制：尝试多次替换文件
-		maxRetries := 10
-		for i := 0; i < maxRetries; i++ {
-			// 1. 尝试关闭连接
-			if s.CloseDBCallback != nil {
-				s.CloseDBCallback(output)
-				// 稍微等待文件锁释放
-				time.Sleep(time.Duration(100*(i+1)) * time.Millisecond)
-			}
+		// 使用文件锁机制保证替换过程的原子性
+		if s.dbController != nil {
+			// 1. 锁定路径，阻止新的 OpenDB
+			s.dbController.LockDB(output)
+			defer s.dbController.UnlockDB(output)
 
-			// 2. 尝试直接重命名
+			// 2. 关闭现有连接
+			s.dbController.CloseDB(output)
+
+			// 稍微给一点时间让连接关闭
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		// 3. 执行替换（简单的重试机制以防万一）
+		maxRetries := 5
+		for i := 0; i < maxRetries; i++ {
+			// 尝试直接重命名
 			err := os.Rename(outputTemp, output)
 			if err == nil {
 				// log.Info().Msgf("successfully replaced %s", output)
 				return // 成功，退出
 			}
 
-			// 3. 如果重命名失败，尝试删除目标文件
+			// 如果重命名失败，尝试删除目标文件
 			if os.IsExist(err) || strings.Contains(err.Error(), "exist") || strings.Contains(err.Error(), "access") || strings.Contains(err.Error(), "used by another process") {
-				if removeErr := os.Remove(output); removeErr != nil {
-					log.Debug().Err(removeErr).Msgf("failed to remove target file %s (retry %d)", output, i)
-				} else {
-					// 删除成功后再次尝试重命名
-					if renameErr := os.Rename(outputTemp, output); renameErr == nil {
-						// log.Info().Msgf("successfully replaced %s after remove", output)
-						return // 成功，退出
-					}
+				_ = os.Remove(output)
+				if renameErr := os.Rename(outputTemp, output); renameErr == nil {
+					// log.Info().Msgf("successfully replaced %s after remove", output)
+					return // 成功，退出
 				}
 			}
 
-			log.Debug().Err(err).Msgf("retry %d: replace file failed, waiting...", i)
+			// 如果还有 Controller，再次尝试关闭（可能锁加晚了？）
+			if s.dbController != nil {
+				s.dbController.CloseDB(output)
+			}
+
+			time.Sleep(200 * time.Millisecond)
 		}
 
 		// 4. 所有重试都失败，清理临时文件
