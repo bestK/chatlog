@@ -2,6 +2,7 @@ package dbm
 
 import (
 	"database/sql"
+	"fmt"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -12,7 +13,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/sjzar/chatlog/internal/errors"
-	"github.com/sjzar/chatlog/pkg/filecopy"
 	"github.com/sjzar/chatlog/pkg/filemonitor"
 )
 
@@ -118,20 +118,25 @@ func (d *DBManager) OpenDB(path string) (*sql.DB, error) {
 	if ok {
 		return db, nil
 	}
-	var err error
-	tempPath := path
+
+	// 构建连接字符串
+	var connStr string
 	if runtime.GOOS == "windows" {
-		tempPath, err = filecopy.GetTempCopy(d.id, path)
-		if err != nil {
-			log.Err(err).Msgf("获取临时拷贝文件 %s 失败", path)
-			return nil, err
-		}
+		// 在 Windows 上使用 immutable=1 参数绕过独占锁
+		// 这样可以避免复制大文件，大幅节省磁盘空间和时间
+		uri := filepath.ToSlash(path)
+		connStr = fmt.Sprintf("file:%s?immutable=1&mode=ro", uri)
+	} else {
+		// 其他平台直接使用路径
+		connStr = path
 	}
-	db, err = sql.Open("sqlite3", tempPath)
+
+	db, err := sql.Open("sqlite3", connStr)
 	if err != nil {
 		log.Err(err).Msgf("连接数据库 %s 失败", path)
 		return nil, err
 	}
+
 	d.mutex.Lock()
 	d.dbs[path] = db
 	d.mutex.Unlock()
