@@ -112,11 +112,24 @@ func (s *Service) initWebhook() error {
 	if s.webhook == nil {
 		return nil
 	}
+
+	// 输出详细的 webhook 配置
+	config := s.webhook.GetConfig()
+	if config != nil {
+		log.Info().Msgf("webhook config: host=%s, delay_ms=%d, items=%d",
+			config.Host, config.DelayMs, len(config.Items))
+		for i, item := range config.Items {
+			log.Info().Msgf("  item[%d]: type=%s, url=%s, talker=%s, sender=%s, keyword=%s, disabled=%v",
+				i, item.Type, item.URL, item.Talker, item.Sender, item.Keyword, item.Disabled)
+		}
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s.webhookCancel = cancel
 	hooks := s.webhook.GetHooks(ctx, s.db)
+	log.Info().Msgf("webhook: %d hooks registered", len(hooks))
 	for _, hook := range hooks {
-		log.Info().Msgf("set callback %#v", hook)
+		log.Info().Msgf("set callback for group: %v", hook.Group())
 		if err := s.db.SetCallback(hook.Group(), hook.Callback); err != nil {
 			log.Error().Err(err).Msgf("set callback %#v failed", hook)
 			return err

@@ -59,6 +59,10 @@ func New(config Config) *Service {
 	return s
 }
 
+func (s *Service) GetConfig() *conf.Webhook {
+	return s.config
+}
+
 func (s *Service) GetHooks(ctx context.Context, db *wechatdb.DB) []*Group {
 
 	if len(s.hooks) == 0 {
