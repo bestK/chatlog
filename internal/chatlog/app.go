@@ -3,7 +3,6 @@ package chatlog
 import (
 	"fmt"
 	"path/filepath"
-	"runtime"
 	"time"
 
 	"github.com/sjzar/chatlog/internal/chatlog/ctx"
@@ -200,41 +199,21 @@ func (a *App) inputCapture(event *tcell.EventKey) *tcell.EventKey {
 }
 
 func (a *App) initMenu() {
-	getDataKey := &menu.Item{
+	getDBKey := &menu.Item{
 		Index:       2,
-		Name:        "获取密钥",
-		Description: "从进程获取数据密钥 & 图片密钥",
+		Name:        "获取数据库密钥",
+		Description: "通过 DLL 注入获取数据库密钥 (需重启微信)",
 		Selected: func(i *menu.Item) {
-			modal := tview.NewModal()
-			if runtime.GOOS == "darwin" {
-				modal.SetText("获取密钥中...\n预计需要 20 秒左右的时间，期间微信会卡住，请耐心等待")
-			} else {
-				modal.SetText("获取密钥中...")
-			}
-			a.mainPages.AddPage("modal", modal, true, true)
-			a.SetFocus(modal)
+			a.handleKeyRetrieval(true, false)
+		},
+	}
 
-			go func() {
-				err := a.m.GetDataKey()
-
-				// 在主线程中更新UI
-				a.QueueUpdateDraw(func() {
-					if err != nil {
-						// 解密失败
-						modal.SetText("获取密钥失败: " + err.Error())
-					} else {
-						// 解密成功
-						modal.SetText("获取密钥成功")
-					}
-
-					// 添加确认按钮
-					modal.AddButtons([]string{"OK"})
-					modal.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
-						a.mainPages.RemovePage("modal")
-					})
-					a.SetFocus(modal)
-				})
-			}()
+	getImageKey := &menu.Item{
+		Index:       2,
+		Name:        "获取图片密钥",
+		Description: "通过扫描缓存文件获取图片密钥 (需浏览图片)",
+		Selected: func(i *menu.Item) {
+			a.handleKeyRetrieval(false, true)
 		},
 	}
 
@@ -442,7 +421,8 @@ func (a *App) initMenu() {
 		Selected:    a.selectAccountSelected,
 	}
 
-	a.menu.AddItem(getDataKey)
+	a.menu.AddItem(getDBKey)
+	a.menu.AddItem(getImageKey)
 	a.menu.AddItem(decryptData)
 	a.menu.AddItem(httpServer)
 	a.menu.AddItem(autoDecrypt)
@@ -839,4 +819,91 @@ func (a *App) showInfo(text string) {
 	a.showModal(text, []string{"OK"}, func(buttonIndex int, buttonLabel string) {
 		a.mainPages.RemovePage("modal")
 	})
+}
+
+// handleKeyRetrieval 处理密钥获取请求
+func (a *App) handleKeyRetrieval(isDB, isImage bool) {
+	// 如果当前未关联账号（PID），尝试手动选择
+	if a.ctx.Current == nil {
+		a.showProcessSelectionModal(func(instance *wechat.Account) {
+			a.m.Switch(instance, "")
+			a.doGetKey(isDB, isImage)
+		})
+		return
+	}
+
+	a.doGetKey(isDB, isImage)
+}
+
+// doGetKey 执行密钥获取
+func (a *App) doGetKey(isDB, isImage bool) {
+	modal := tview.NewModal()
+	if isDB {
+		modal.SetText("正在获取数据库密钥...\n如果微信正在运行，请重启微信并登录，以捕获密钥。\n此过程最多等待 15 秒。")
+	} else {
+		modal.SetText("正在获取图片密钥...\n请在微信中随意浏览几张朋友圈大图，以生成缓存。\n工具正在扫描缓存文件...")
+	}
+
+	a.mainPages.AddPage("modal", modal, true, true)
+	a.SetFocus(modal)
+
+	go func() {
+		// 这里暂时复用 getdatakey，后续可以拆分
+		err := a.m.GetDataKey()
+
+		// 在主线程中更新UI
+		a.QueueUpdateDraw(func() {
+			if err != nil {
+				modal.SetText("获取失败: " + err.Error())
+			} else {
+				modal.SetText("获取成功")
+			}
+
+			modal.AddButtons([]string{"OK"})
+			modal.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+				a.mainPages.RemovePage("modal")
+			})
+			a.SetFocus(modal)
+		})
+	}()
+}
+
+// showProcessSelectionModal 显示进程选择模态框
+func (a *App) showProcessSelectionModal(onSelected func(*wechat.Account)) {
+	instances := a.m.wechat.GetWeChatInstances()
+	if len(instances) == 0 {
+		a.showError(fmt.Errorf("未检测到运行中的微信进程"))
+		return
+	}
+
+	list := tview.NewList().ShowSecondaryText(true)
+	list.SetTitle("请选择一个微信进程").SetBorder(true)
+
+	for _, instance := range instances {
+		list.AddItem(fmt.Sprintf("%s [PID:%d]", instance.Name, instance.PID),
+			fmt.Sprintf("版本: %s 目录: %s", instance.FullVersion, instance.DataDir),
+			0,
+			func(inst *wechat.Account) func() {
+				return func() {
+					a.mainPages.RemovePage("process_select")
+					onSelected(inst)
+				}
+			}(instance))
+	}
+
+	list.AddItem("取消", "", 'q', func() {
+		a.mainPages.RemovePage("process_select")
+	})
+
+	// 居中显示
+	flex := tview.NewFlex().
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
+			AddItem(nil, 0, 1, false).
+			AddItem(list, 20, 1, true).
+			AddItem(nil, 0, 1, false), 60, 1, true).
+		AddItem(nil, 0, 1, false)
+
+	a.mainPages.AddPage("process_select", flex, true, true)
+	a.SetFocus(list)
 }
