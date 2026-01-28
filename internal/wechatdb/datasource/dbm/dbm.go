@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -111,6 +112,46 @@ func (d *DBManager) GetDBPath(name string) ([]string, error) {
 	return dbPaths, nil
 }
 
+func (d *DBManager) CloseDB(path string) {
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
+	// 规范化路径以避免斜杠问题
+	normalizedPath := filepath.Clean(path)
+
+	// 尝试直接查找
+	db, ok := d.dbs[path]
+	if !ok {
+		// 尝试规范化路径查找
+		db, ok = d.dbs[normalizedPath]
+	}
+	// 如果还是没找到，遍历查找（忽略大小写和斜杠差异，针对 Windows）
+	if !ok && runtime.GOOS == "windows" {
+		lowerPath := strings.ToLower(normalizedPath)
+		for k, v := range d.dbs {
+			if strings.ToLower(filepath.Clean(k)) == lowerPath {
+				db = v
+				ok = true
+				// 更新 map key 以便后续删除
+				delete(d.dbs, k)
+				break
+			}
+		}
+	} else if ok {
+		delete(d.dbs, path)
+		if path != normalizedPath {
+			delete(d.dbs, normalizedPath)
+		}
+	}
+
+	if ok {
+		// 必须同步关闭，否则在Windows上无法立即释放文件锁
+		if err := db.Close(); err != nil {
+			// 仅记录错误，不影响流程
+		}
+	}
+}
+
 func (d *DBManager) OpenDB(path string) (*sql.DB, error) {
 	d.mutex.RLock()
 	db, ok := d.dbs[path]
@@ -144,7 +185,9 @@ func (d *DBManager) OpenDB(path string) (*sql.DB, error) {
 }
 
 func (d *DBManager) Callback(event fsnotify.Event) error {
-	if !event.Op.Has(fsnotify.Create) {
+	// 监听 Create 和 Write 事件，当文件变化时关闭旧连接
+	// 这样下次访问时会重新打开，读取最新数据
+	if !(event.Op.Has(fsnotify.Create) || event.Op.Has(fsnotify.Write)) {
 		return nil
 	}
 

@@ -128,9 +128,19 @@ func (s *Service) initWebhook() error {
 // Close closes the database connection
 func (s *Service) Close() {
 	// Add cleanup code if needed
-	s.db.Close()
+	if s.db != nil {
+		s.db.Close()
+	}
 	if s.webhookCancel != nil {
 		s.webhookCancel()
 		s.webhookCancel = nil
 	}
+}
+
+// CloseDB closes a specific database file connection
+func (s *Service) CloseDB(path string) error {
+	if s.db != nil {
+		return s.db.CloseDB(path)
+	}
+	return nil
 }
