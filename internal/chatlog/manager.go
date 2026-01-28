@@ -194,6 +194,13 @@ func (m *Manager) GetDataKey() (string, string, error) {
 	}
 	m.ctx.Refresh()
 	m.ctx.UpdateConfig()
+
+	// 如果是 4.0 版本，更新图片解密密钥
+	if m.ctx.Version == 4 && imgKey != "" {
+		dat2img.SetAesKey(imgKey)
+		go dat2img.ScanAndSetXorKey(m.ctx.DataDir)
+	}
+
 	return dataKey, imgKey, nil
 }
 
@@ -227,6 +234,13 @@ func (m *Manager) GetImgKey() (string, error) {
 	}
 	m.ctx.Refresh()
 	m.ctx.UpdateConfig()
+
+	// 如果是 4.0 版本，更新图片解密密钥
+	if m.ctx.Version == 4 && imgKey != "" {
+		dat2img.SetAesKey(imgKey)
+		go dat2img.ScanAndSetXorKey(m.ctx.DataDir)
+	}
+
 	return imgKey, nil
 }
 
