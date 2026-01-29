@@ -90,6 +90,14 @@ func (r *Repository) initContactCache(ctx context.Context) error {
 	r.aliasList = aliasList
 	r.remarkList = remarkList
 	r.nickNameList = nickNameList
+
+	// 提取本人昵称
+	if r.SelfID != "" {
+		if self, ok := r.contactCache[r.SelfID]; ok {
+			r.SelfName = self.NickName
+		}
+	}
+
 	return nil
 }
 

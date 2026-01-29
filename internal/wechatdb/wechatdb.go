@@ -2,6 +2,7 @@ package wechatdb
 
 import (
 	"context"
+	"path/filepath"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -16,6 +17,7 @@ type DB struct {
 	path     string
 	platform string
 	version  int
+	SelfID   string
 	ds       datasource.DataSource
 	repo     *repository.Repository
 }
@@ -62,7 +64,9 @@ func (w *DB) Initialize() error {
 		return err
 	}
 
-	w.repo, err = repository.New(w.ds)
+	w.SelfID = filepath.Base(w.path)
+
+	w.repo, err = repository.New(w.ds, w.SelfID)
 	if err != nil {
 		return err
 	}

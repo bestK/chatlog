@@ -38,6 +38,18 @@ func (r *Repository) EnrichMessages(ctx context.Context, messages []*model.Messa
 
 // enrichMessage 补充单条消息的额外信息
 func (r *Repository) enrichMessage(msg *model.Message) {
+	// 通过 SelfID 二次核对 IsSelf 标识
+	if r.SelfID != "" && msg.Sender != "" {
+		if strings.Contains(r.SelfID, msg.Sender) {
+			msg.IsSelf = true
+		}
+	}
+
+	// 通用“提到我”判定
+	if r.SelfName != "" && strings.Contains(msg.Content, "@"+r.SelfName) {
+		msg.IsMentionMe = true
+	}
+
 	// 处理群聊消息
 	if msg.IsChatRoom {
 		// 补充群聊名称
@@ -48,6 +60,15 @@ func (r *Repository) enrichMessage(msg *model.Message) {
 			if displayName, ok := chatRoom.User2DisplayName[msg.Sender]; ok {
 				msg.SenderName = displayName
 			}
+		}
+	}
+
+	// 如果是自己发送的消息，补充名称（优先使用实名，其次为“我”）
+	if msg.IsSelf && msg.SenderName == "" {
+		if r.SelfName != "" {
+			msg.SenderName = r.SelfName
+		} else {
+			msg.SenderName = "我"
 		}
 	}
 

@@ -33,13 +33,13 @@ type SessionV4 struct {
 	LastSenderDisplayName string `json:"last_sender_display_name"`
 	LastMsgType           int    `json:"last_msg_type"`
 	LastMsgSubType        int    `json:"last_msg_sub_type"`
+	Status                int    `json:"status"`
 
 	// Type                     int    `json:"type"`
 	// UnreadCount              int    `json:"unread_count"`
 	// UnreadFirstMsgSrvID      int    `json:"unread_first_msg_srv_id"`
 	// IsHidden                 int    `json:"is_hidden"`
 	// Draft                    string `json:"draft"`
-	// Status                   int    `json:"status"`
 	// SortTimestamp            int    `json:"sort_timestamp"`
 	// LastClearUnreadTimestamp int    `json:"last_clear_unread_timestamp"`
 	// LastMsgLocaldID          int    `json:"last_msg_locald_id"`
@@ -91,6 +91,7 @@ func (s *SessionV4) Wrap() *Session {
 		NOrder:  s.LastTimestamp,
 		Content: content,
 		NTime:   time.Unix(int64(s.LastTimestamp), 0),
+		IsSelf:  s.Status == 2,
 	}
 	if strings.HasSuffix(s.Username, "@chatroom") {
 		res.GroupID = s.Username

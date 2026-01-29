@@ -13,7 +13,9 @@ import (
 
 // Repository 实现了 repository.Repository 接口
 type Repository struct {
-	ds datasource.DataSource
+	ds       datasource.DataSource
+	SelfID   string
+	SelfName string
 
 	// Cache for contact
 	contactCache      map[string]*model.Contact
@@ -39,9 +41,10 @@ type Repository struct {
 }
 
 // New 创建一个新的 Repository
-func New(ds datasource.DataSource) (*Repository, error) {
+func New(ds datasource.DataSource, selfID string) (*Repository, error) {
 	r := &Repository{
 		ds:                 ds,
+		SelfID:             selfID,
 		contactCache:       make(map[string]*model.Contact),
 		aliasToContact:     make(map[string][]*model.Contact),
 		remarkToContact:    make(map[string][]*model.Contact),
