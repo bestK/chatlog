@@ -15,6 +15,7 @@ type ServerConfig struct {
 	WorkDir     string   `mapstructure:"work_dir"`
 	HTTPAddr    string   `mapstructure:"http_addr"`
 	AutoDecrypt bool     `mapstructure:"auto_decrypt"`
+	Debug       bool     `mapstructure:"debug"`
 	Webhook     *Webhook `mapstructure:"webhook"`
 }
 
@@ -69,4 +70,8 @@ func (c *ServerConfig) GetHTTPAddr() string {
 
 func (c *ServerConfig) GetWebhook() *Webhook {
 	return c.Webhook
+}
+
+func (c *ServerConfig) GetDebug() bool {
+	return c.Debug
 }

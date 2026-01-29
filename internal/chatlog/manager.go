@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sjzar/chatlog/internal/chatlog/conf"
 	"github.com/sjzar/chatlog/internal/chatlog/ctx"
@@ -427,6 +428,11 @@ func (m *Manager) CommandHTTPServer(configPath string, cmdConf map[string]any) e
 	m.sc, m.scm, err = conf.LoadServiceConfig(configPath, cmdConf)
 	if err != nil {
 		return err
+	}
+
+	// 根据配置设置日志级别
+	if m.sc.GetDebug() {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 
 	dataDir := m.sc.GetDataDir()
