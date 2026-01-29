@@ -74,5 +74,8 @@ func getServerConfig() map[string]any {
 	if serverAutoDecrypt {
 		cmdConf["auto_decrypt"] = true
 	}
+	if Debug {
+		cmdConf["debug"] = true
+	}
 	return cmdConf
 }
