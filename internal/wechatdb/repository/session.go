@@ -37,9 +37,21 @@ func (r *Repository) EnrichSessions(ctx context.Context, sessions []*model.Sessi
 			}
 		}
 
-		// 通过 SelfName 核对 IsMentionMe 标识
-		if r.SelfName != "" && strings.Contains(s.Content, "@"+r.SelfName) {
-			s.IsMentionMe = true
+		// 检测艾特消息
+		if !s.IsSelf {
+			if r.SelfName != "" && strings.Contains(s.Content, "@"+r.SelfName) {
+				s.IsMentionMe = true
+			}
+			// 尝试通过 Alias 或 Remark 进一步核核对
+			selfContact := r.findContact(r.SelfID)
+			if !s.IsMentionMe && selfContact != nil {
+				if selfContact.Remark != "" && strings.Contains(s.Content, "@"+selfContact.Remark) {
+					s.IsMentionMe = true
+				}
+				if selfContact.Alias != "" && strings.Contains(s.Content, "@"+selfContact.Alias) {
+					s.IsMentionMe = true
+				}
+			}
 		}
 
 		if s.IsChatroom {
@@ -93,13 +105,22 @@ func (r *Repository) EnrichSessions(ctx context.Context, sessions []*model.Sessi
 			if s.IsSelf {
 				s.PersonID = r.SelfID
 				s.PersonName = r.SelfName
+
+				// 尝试获取更准确的本人展示名
+				selfContact := r.findContact(r.SelfID)
+				if selfContact != nil {
+					displayName := selfContact.DisplayName()
+					if displayName != "" {
+						s.PersonName = displayName
+					}
+					// 补充本人 Alias
+					if selfContact.Alias != "" {
+						s.PersonID = selfContact.Alias
+					}
+				}
+
 				if s.PersonName == "" {
 					s.PersonName = "Self"
-				}
-				// 尝试补充本人 Alias
-				selfContact := r.findContact(r.SelfID)
-				if selfContact != nil && selfContact.Alias != "" {
-					s.PersonID = selfContact.Alias
 				}
 			} else {
 				// 单聊对方，如果 PersonID 还是空的（通常不应该），则使用会话 ID
