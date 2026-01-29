@@ -28,6 +28,8 @@ type SessionV4 struct {
 	LastTimestamp         int    `json:"last_timestamp"`
 	LastMsgSender         string `json:"last_msg_sender"`
 	LastSenderDisplayName string `json:"last_sender_display_name"`
+	LastMsgType           int    `json:"last_msg_type"`
+	LastMsgSubType        int    `json:"last_msg_sub_type"`
 
 	// Type                     int    `json:"type"`
 	// UnreadCount              int    `json:"unread_count"`
@@ -38,17 +40,55 @@ type SessionV4 struct {
 	// SortTimestamp            int    `json:"sort_timestamp"`
 	// LastClearUnreadTimestamp int    `json:"last_clear_unread_timestamp"`
 	// LastMsgLocaldID          int    `json:"last_msg_locald_id"`
-	// LastMsgType              int    `json:"last_msg_type"`
-	// LastMsgSubType           int    `json:"last_msg_sub_type"`
 	// LastMsgExtType           int    `json:"last_msg_ext_type"`
 }
 
 func (s *SessionV4) Wrap() *Session {
+	content := s.Summary
+	if content == "" {
+		switch s.LastMsgType {
+		case MessageTypeImage:
+			content = "[图片]"
+		case MessageTypeVoice:
+			content = "[语音]"
+		case MessageTypeVideo:
+			content = "[视频]"
+		case MessageTypeLocation:
+			content = "[位置]"
+		case MessageTypeAnimation:
+			content = "[表情]"
+		case MessageTypeVOIP:
+			content = "[语音通话]"
+		case MessageTypeCard:
+			content = "[名片]"
+		case MessageTypeShare:
+			switch s.LastMsgSubType {
+			case MessageSubTypeFile:
+				content = "[文件]"
+			case MessageSubTypeLink, MessageSubTypeLink2:
+				content = "[链接]"
+			case MessageSubTypeMiniProgram, MessageSubTypeMiniProgram2:
+				content = "[小程序]"
+			case MessageSubTypeChannel:
+				content = "[视频号]"
+			case MessageSubTypeMusic:
+				content = "[音乐]"
+			default:
+				content = "[分享]"
+			}
+		case MessageTypeSystem:
+			if s.LastMsgSubType == MessageSubTypePat {
+				content = "[拍一拍]"
+			} else {
+				content = "[系统消息]"
+			}
+		}
+	}
 	return &Session{
 		UserName: s.Username,
 		NOrder:   s.LastTimestamp,
 		NickName: s.LastSenderDisplayName,
-		Content:  s.Summary,
+		Content:  content,
 		NTime:    time.Unix(int64(s.LastTimestamp), 0),
 	}
 }
