@@ -32,17 +32,18 @@ type SessionDarwinV3 struct {
 	// IntRes1               int    `json:"intRes1"`
 	// IntRes2               int    `json:"intRes2"`
 	// IntRes3               int    `json:"intRes3"`
-	// PackedMMSessionInfo   string `json:"_packed_MMSessionInfo"` // TODO: decode
 }
 
 func (s *SessionDarwinV3) Wrap() *Session {
+	isChatroom := strings.HasSuffix(s.M_nsUserName, "@chatroom")
 	res := &Session{
-		NOrder: s.M_uLastTime,
-		NTime:  time.Unix(int64(s.M_uLastTime), 0),
+		TopicName:  s.M_nsUserName,
+		TopicID:    s.M_nsUserName,
+		NOrder:     s.M_uLastTime,
+		NTime:      time.Unix(int64(s.M_uLastTime), 0),
+		IsChatroom: isChatroom,
 	}
-	if strings.HasSuffix(s.M_nsUserName, "@chatroom") {
-		res.GroupID = s.M_nsUserName
-	} else {
+	if !isChatroom {
 		res.PersonID = s.M_nsUserName
 	}
 	return res

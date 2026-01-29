@@ -87,19 +87,20 @@ func (s *SessionV4) Wrap() *Session {
 			}
 		}
 	}
+	isChatroom := strings.HasSuffix(s.Username, "@chatroom")
 	res := &Session{
-		NOrder:  s.LastTimestamp,
-		Content: content,
-		NTime:   time.Unix(int64(s.LastTimestamp), 0),
-		IsSelf:  s.Status == 2,
+		TopicName:  s.LastSenderDisplayName,
+		TopicID:    s.Username,
+		NOrder:     s.LastTimestamp,
+		Content:    content,
+		NTime:      time.Unix(int64(s.LastTimestamp), 0),
+		IsSelf:     s.Status == 2,
+		IsChatroom: isChatroom,
+		PersonID:   s.LastMsgSender,
+		PersonName: s.LastSenderDisplayName,
 	}
-	if strings.HasSuffix(s.Username, "@chatroom") {
-		res.GroupID = s.Username
-		res.PersonID = s.LastMsgSender
-		res.PersonName = s.LastSenderDisplayName
-	} else {
-		res.PersonID = s.Username
-		res.PersonName = s.LastSenderDisplayName
+	if res.TopicName == "" {
+		res.TopicName = s.Username
 	}
 	return res
 }

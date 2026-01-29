@@ -271,10 +271,10 @@ func (s *Service) handleSessions(c *gin.Context) {
 		c.Writer.Header().Set("Connection", "keep-alive")
 		c.Writer.Flush()
 
-		c.Writer.WriteString("GroupName,GroupID,PersonName,PersonID,NOrder,Content,NTime\n")
+		c.Writer.WriteString("TopicName,TopicID,PersonName,PersonID,IsChatroom,NOrder,Content,NTime\n")
 		for _, session := range sessions.Items {
-			c.Writer.WriteString(fmt.Sprintf("%s,%s,%s,%s,%d,%s,%s\n",
-				session.GroupName, session.GroupID, session.PersonName, session.PersonID,
+			c.Writer.WriteString(fmt.Sprintf("%s,%s,%s,%s,%v,%d,%s,%s\n",
+				session.TopicName, session.TopicID, session.PersonName, session.PersonID, session.IsChatroom,
 				session.NOrder, strings.ReplaceAll(session.Content, "\n", "\\n"), session.NTime))
 		}
 		c.Writer.Flush()
