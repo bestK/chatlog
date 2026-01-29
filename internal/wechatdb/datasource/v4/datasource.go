@@ -249,6 +249,13 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 	// 解析sender参数，支持多个发送者（以英文逗号分隔）
 	senders := util.Str2List(sender, ",")
 
+	log.Debug().Msgf("talkers: %+v", talkers)
+	log.Debug().Msgf("senders: %+v", senders)
+	log.Debug().Msgf("keyword: %+v", keyword)
+	log.Debug().Msgf("limit: %+v", limit)
+	log.Debug().Msgf("offset: %+v", offset)
+	log.Debug().Msgf("selfID: %+v", selfID)
+
 	// 预编译正则表达式（如果有keyword）
 	var regex *regexp.Regexp
 	if keyword != "" {
@@ -284,6 +291,8 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 				talkerMd5 := hex.EncodeToString(_talkerMd5Bytes[:])
 				tableName := "Msg_" + talkerMd5
 
+				log.Debug().Msgf("tableName: %+v", tableName)
+
 				// 检查表是否存在
 				var exists bool
 				err = db.QueryRowContext(ctx,
@@ -293,6 +302,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 				if err != nil {
 					if err == sql.ErrNoRows {
 						// 表不存在，继续下一个talker
+						log.Debug().Msgf("table %s not found", tableName)
 						continue
 					}
 					log.Debug().Err(err).Msgf("Check table %s exists failed", tableName)
@@ -346,6 +356,8 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 					msg.SenderName = ds.contactCache[msg.UserName]
 					message := msg.Wrap(talkerItem)
 
+					log.Debug().Msgf("message: %+v", message)
+
 					// 应用sender过滤
 					if len(senders) > 0 {
 						senderMatch := false
@@ -356,6 +368,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 							}
 						}
 						if !senderMatch {
+							log.Debug().Msgf("sender %s not match", message.Sender)
 							continue
 						}
 					}
@@ -363,7 +376,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 					// 应用keyword过滤
 					if regex != nil {
 						if !regex.MatchString(message.PlainTextContent()) {
-							continue
+							log.Debug().Msgf("keyword not match: %s", message.PlainTextContent())
 						}
 					}
 
