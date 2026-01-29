@@ -18,7 +18,19 @@ type ServerConfig struct {
 	Webhook     *Webhook `mapstructure:"webhook"`
 }
 
-var ServerDefaults = map[string]any{}
+var ServerDefaults = map[string]any{
+	"webhook": &Webhook{
+		Host: "localhost:5030",
+		Items: []*WebhookItem{
+			{
+				Keyword: "",
+				Sender:  "momo",
+				Talker:  "测试群",
+				URL:     "http://127.0.0.1:3000/api/v1/webhook",
+			},
+		},
+	},
+}
 
 func (c *ServerConfig) GetDataDir() string {
 	return c.DataDir

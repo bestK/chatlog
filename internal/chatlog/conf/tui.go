@@ -10,20 +10,21 @@ type TUIConfig struct {
 var TUIDefaults = map[string]any{}
 
 type ProcessConfig struct {
-	Type        string `mapstructure:"type" json:"type"`
-	Account     string `mapstructure:"account" json:"account"`
-	Platform    string `mapstructure:"platform" json:"platform"`
-	Version     int    `mapstructure:"version" json:"version"`
-	FullVersion string `mapstructure:"full_version" json:"full_version"`
-	DataDir     string `mapstructure:"data_dir" json:"data_dir"`
-	DataKey     string `mapstructure:"data_key" json:"data_key"`
-	ImgKey      string `mapstructure:"img_key" json:"img_key"`
-	WorkDir     string `mapstructure:"work_dir" json:"work_dir"`
-	HTTPEnabled bool   `mapstructure:"http_enabled" json:"http_enabled"`
-	HTTPAddr    string `mapstructure:"http_addr" json:"http_addr"`
-	AutoDecrypt bool   `mapstructure:"auto_decrypt" json:"auto_decrypt"`
-	LastTime    int64  `mapstructure:"last_time" json:"last_time"`
-	Files       []File `mapstructure:"files" json:"files"`
+	Type        string   `mapstructure:"type" json:"type"`
+	Account     string   `mapstructure:"account" json:"account"`
+	Platform    string   `mapstructure:"platform" json:"platform"`
+	Version     int      `mapstructure:"version" json:"version"`
+	FullVersion string   `mapstructure:"full_version" json:"full_version"`
+	DataDir     string   `mapstructure:"data_dir" json:"data_dir"`
+	DataKey     string   `mapstructure:"data_key" json:"data_key"`
+	ImgKey      string   `mapstructure:"img_key" json:"img_key"`
+	WorkDir     string   `mapstructure:"work_dir" json:"work_dir"`
+	HTTPEnabled bool     `mapstructure:"http_enabled" json:"http_enabled"`
+	HTTPAddr    string   `mapstructure:"http_addr" json:"http_addr"`
+	AutoDecrypt bool     `mapstructure:"auto_decrypt" json:"auto_decrypt"`
+	LastTime    int64    `mapstructure:"last_time" json:"last_time"`
+	Files       []File   `mapstructure:"files" json:"files"`
+	Webhook     *Webhook `mapstructure:"webhook" json:"webhook"`
 }
 
 type File struct {

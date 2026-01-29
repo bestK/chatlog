@@ -265,6 +265,7 @@ func (c *Context) UpdateConfig() {
 		HTTPEnabled: c.HTTPEnabled,
 		HTTPAddr:    c.HTTPAddr,
 		AutoDecrypt: c.AutoDecrypt,
+		Webhook:     c.conf.Webhook,
 	}
 
 	if c.conf.History == nil {
