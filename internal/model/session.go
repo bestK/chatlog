@@ -6,11 +6,12 @@ import (
 )
 
 type Session struct {
+	TopicName   string    `json:"topicName"`
+	TopicID     string    `json:"topicId"`
 	NOrder      int       `json:"nOrder"`
 	Content     string    `json:"content"`
 	NTime       time.Time `json:"nTime"`
-	GroupName   string    `json:"groupName"`
-	GroupID     string    `json:"groupID"`
+	IsChatroom  bool      `json:"isChatroom"`
 	PersonName  string    `json:"personName"`
 	PersonID    string    `json:"personID"`
 	IsSelf      bool      `json:"isSelf"`
@@ -67,46 +68,45 @@ type SessionV3 struct {
 }
 
 func (s *SessionV3) Wrap() *Session {
+	isChatroom := strings.HasSuffix(s.StrUsrName, "@chatroom")
 	res := &Session{
-		NOrder:  s.NOrder,
-		Content: s.StrContent,
-		NTime:   time.Unix(int64(s.NTime), 0),
-		IsSelf:  s.NIsSend == 1,
+		TopicName:  s.StrNickName,
+		TopicID:    s.StrUsrName,
+		NOrder:     s.NOrder,
+		Content:    s.StrContent,
+		NTime:      time.Unix(int64(s.NTime), 0),
+		IsSelf:     s.NIsSend == 1,
+		IsChatroom: isChatroom,
 	}
-	if strings.HasSuffix(s.StrUsrName, "@chatroom") {
-		res.GroupID = s.StrUsrName
-		res.GroupName = s.StrNickName
-	} else {
-		res.PersonID = s.StrUsrName
-		res.PersonName = s.StrNickName
+	if res.TopicName == "" {
+		res.TopicName = s.StrUsrName
+	}
+	if !isChatroom {
+		if s.NIsSend == 1 {
+			res.PersonID = "" // 留空，Repo 会补充 SelfID
+		} else {
+			res.PersonID = s.StrUsrName
+			res.PersonName = s.StrNickName
+		}
 	}
 	return res
 }
 
 func (s *Session) PlainText(limit int) string {
 	buf := strings.Builder{}
-	if s.GroupName != "" {
-		buf.WriteString(s.GroupName)
-		buf.WriteString("(")
-		buf.WriteString(s.GroupID)
-		buf.WriteString(")")
-		buf.WriteString(" - ")
-		buf.WriteString(s.NTime.Format("2006-01-02 15:04:05"))
-		if s.PersonID != "" {
-			buf.WriteString("\n")
-			buf.WriteString(s.PersonName)
-			buf.WriteString("(")
-			buf.WriteString(s.PersonID)
-			buf.WriteString(")")
-		}
-	} else {
-		buf.WriteString(s.PersonName)
-		buf.WriteString("(")
-		buf.WriteString(s.PersonID)
-		buf.WriteString(")")
-	}
+	// 第一行：会话名称(ID) 时间
+	buf.WriteString(s.TopicName)
+	buf.WriteString("(")
+	buf.WriteString(s.TopicID)
+	buf.WriteString(") ")
+	buf.WriteString(s.NTime.Format("2006-01-02 15:04:05"))
+	buf.WriteString("\n")
 
-	buf.WriteString(":")
+	// 第二行：发言人(ID): 内容
+	buf.WriteString(s.PersonName)
+	buf.WriteString("(")
+	buf.WriteString(s.PersonID)
+	buf.WriteString("): ")
 
 	if limit > 0 {
 		if len(s.Content) > limit {
