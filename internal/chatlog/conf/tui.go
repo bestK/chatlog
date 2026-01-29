@@ -3,6 +3,7 @@ package conf
 type TUIConfig struct {
 	ConfigDir   string          `mapstructure:"-" json:"config_dir"`
 	LastAccount string          `mapstructure:"last_account" json:"last_account"`
+	Debug       bool            `mapstructure:"debug" json:"debug"`
 	History     []ProcessConfig `mapstructure:"history" json:"history"`
 	Webhook     *Webhook        `mapstructure:"webhook" json:"webhook"`
 }

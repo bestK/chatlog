@@ -46,15 +46,28 @@ func initLog(cmd *cobra.Command, args []string) {
 func initTuiLog(cmd *cobra.Command, args []string) {
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	debug, _ := cmd.Flags().GetBool("debug")
+	// 也支持环境变量 CHATLOG_DEBUG
+	if !debug && os.Getenv("CHATLOG_DEBUG") == "true" {
+		debug = true
+	}
 	if debug {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 
-	logOutput := io.Discard
-	if fw := getLogWriter(); fw != nil {
-		logOutput = fw
+	// debug 模式时同时输出到控制台和文件
+	if debug {
+		writers := []io.Writer{zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}}
+		if fw := getLogWriter(); fw != nil {
+			writers = append(writers, fw)
+		}
+		log.Logger = log.Output(io.MultiWriter(writers...))
+		logrus.SetOutput(os.Stderr)
+	} else {
+		logOutput := io.Discard
+		if fw := getLogWriter(); fw != nil {
+			logOutput = fw
+		}
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: logOutput, NoColor: true, TimeFormat: time.RFC3339})
+		logrus.SetOutput(logOutput)
 	}
-
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: logOutput, NoColor: true, TimeFormat: time.RFC3339})
-	logrus.SetOutput(logOutput)
 }
