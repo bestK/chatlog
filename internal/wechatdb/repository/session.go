@@ -24,6 +24,18 @@ func (r *Repository) GetSessions(ctx context.Context, key string, limit, offset 
 // EnrichSessions 补充会话的额外信息
 func (r *Repository) EnrichSessions(ctx context.Context, sessions []*model.Session) error {
 	for _, s := range sessions {
+		// 通过 SelfID 二次核对 IsSelf 标识
+		if r.SelfID != "" && s.PersonID != "" {
+			if strings.Contains(r.SelfID, s.PersonID) {
+				s.IsSelf = true
+			}
+		}
+
+		// 通过 SelfName 核对 IsMentionMe 标识
+		if r.SelfName != "" && strings.Contains(s.Content, "@"+r.SelfName) {
+			s.IsMentionMe = true
+		}
+
 		if s.GroupID != "" {
 			// 群聊
 			// 获取更准确的群名（如果有）

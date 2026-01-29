@@ -605,7 +605,7 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 		args = []interface{}{key, key}
 	} else {
 		// 查询所有会话
-		query = `SELECT strUsrName, nOrder, strNickName, strContent, nTime 
+		query = `SELECT strUsrName, nOrder, strNickName, strContent, nTime, nIsSend 
                 FROM Session 
                 ORDER BY nOrder DESC`
 	}
@@ -639,6 +639,7 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 			&sessionV3.StrNickName,
 			&sessionV3.StrContent,
 			&sessionV3.NTime,
+			&sessionV3.NIsSend,
 		)
 
 		if err != nil {

@@ -6,13 +6,15 @@ import (
 )
 
 type Session struct {
-	NOrder     int       `json:"nOrder"`
-	Content    string    `json:"content"`
-	NTime      time.Time `json:"nTime"`
-	GroupName  string    `json:"groupName"`
-	GroupID    string    `json:"groupID"`
-	PersonName string    `json:"personName"`
-	PersonID   string    `json:"personID"`
+	NOrder      int       `json:"nOrder"`
+	Content     string    `json:"content"`
+	NTime       time.Time `json:"nTime"`
+	GroupName   string    `json:"groupName"`
+	GroupID     string    `json:"groupID"`
+	PersonName  string    `json:"personName"`
+	PersonID    string    `json:"personID"`
+	IsSelf      bool      `json:"isSelf"`
+	IsMentionMe bool      `json:"isMentionMe"`
 }
 
 // CREATE TABLE Session(
@@ -44,6 +46,7 @@ type SessionV3 struct {
 	StrNickName string `json:"strNickName"`
 	StrContent  string `json:"strContent"`
 	NTime       int64  `json:"nTime"`
+	NIsSend     int    `json:"nIsSend"`
 
 	// NUnReadCount int    `json:"nUnReadCount"`
 	// ParentRef    string `json:"parentRef"`
@@ -68,6 +71,7 @@ func (s *SessionV3) Wrap() *Session {
 		NOrder:  s.NOrder,
 		Content: s.StrContent,
 		NTime:   time.Unix(int64(s.NTime), 0),
+		IsSelf:  s.NIsSend == 1,
 	}
 	if strings.HasSuffix(s.StrUsrName, "@chatroom") {
 		res.GroupID = s.StrUsrName
@@ -111,6 +115,9 @@ func (s *Session) PlainText(limit int) string {
 		} else {
 			buf.WriteString(s.Content)
 		}
+	}
+	if s.IsSelf {
+		buf.WriteString(" (Self)")
 	}
 	buf.WriteString("\n")
 	return buf.String()
