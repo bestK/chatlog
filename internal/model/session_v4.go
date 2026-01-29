@@ -42,7 +42,7 @@ type SessionV4 struct {
 	// Draft                    string `json:"draft"`
 	// SortTimestamp            int    `json:"sort_timestamp"`
 	// LastClearUnreadTimestamp int    `json:"last_clear_unread_timestamp"`
-	// LastMsgLocaldID          int    `json:"last_msg_locald_id"`
+	LastMsgLocaldID int `json:"last_msg_locald_id"`
 	// LastMsgExtType           int    `json:"last_msg_ext_type"`
 }
 
@@ -89,15 +89,16 @@ func (s *SessionV4) Wrap() *Session {
 	}
 	isChatroom := strings.HasSuffix(s.Username, "@chatroom")
 	res := &Session{
-		TopicName:  s.LastSenderDisplayName,
-		TopicID:    s.Username,
-		NOrder:     s.LastTimestamp,
-		Content:    content,
-		NTime:      time.Unix(int64(s.LastTimestamp), 0),
-		IsSelf:     s.Status == 2,
-		IsChatroom: isChatroom,
-		PersonID:   s.LastMsgSender,
-		PersonName: s.LastSenderDisplayName,
+		TopicName:      s.LastSenderDisplayName,
+		TopicID:        s.Username,
+		NOrder:         s.LastTimestamp,
+		Content:        content,
+		NTime:          time.Unix(int64(s.LastTimestamp), 0),
+		IsSelf:         s.Status == 2,
+		IsChatroom:     isChatroom,
+		PersonID:       s.LastMsgSender,
+		PersonName:     s.LastSenderDisplayName,
+		LastMsgLocalID: s.LastMsgLocaldID,
 	}
 	if res.TopicName == "" {
 		res.TopicName = s.Username

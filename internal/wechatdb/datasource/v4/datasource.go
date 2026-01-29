@@ -597,14 +597,14 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 
 	if key != "" {
 		// 按照关键字查询
-		query = `SELECT username, summary, last_timestamp, last_msg_sender, last_sender_display_name, last_msg_type, last_msg_sub_type, status 
+		query = `SELECT username, summary, last_timestamp, last_msg_sender, last_sender_display_name, last_msg_type, last_msg_sub_type, status, IFNULL(last_msg_locald_id, 0)
 				FROM SessionTable 
 				WHERE username = ? OR last_sender_display_name = ?
 				ORDER BY sort_timestamp DESC`
 		args = []interface{}{key, key}
 	} else {
 		// 查询所有会话
-		query = `SELECT username, summary, last_timestamp, last_msg_sender, last_sender_display_name, last_msg_type, last_msg_sub_type, status 
+		query = `SELECT username, summary, last_timestamp, last_msg_sender, last_sender_display_name, last_msg_type, last_msg_sub_type, status, IFNULL(last_msg_locald_id, 0)
 				FROM SessionTable 
 				ORDER BY sort_timestamp DESC`
 	}
@@ -641,6 +641,7 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 			&sessionV4.LastMsgType,
 			&sessionV4.LastMsgSubType,
 			&sessionV4.Status,
+			&sessionV4.LastMsgLocaldID,
 		)
 
 		if err != nil {
@@ -825,4 +826,50 @@ func (ds *DataSource) LockDB(path string) error {
 func (ds *DataSource) UnlockDB(path string) error {
 	ds.dbm.UnlockDB(path)
 	return nil
+}
+
+// GetSenderByLocalID 通过 topicID 和 localID 查询消息表获取发送人 username
+// 表名格式: Msg_ + md5(topicID)
+// 查询: 通过 local_id 获取 real_sender_id，再从 Name2Id 表获取 username
+func (ds *DataSource) GetSenderByLocalID(ctx context.Context, topicID string, localID int) (string, error) {
+	if topicID == "" || localID == 0 {
+		return "", nil
+	}
+
+	// 构建表名
+	_topicMd5Bytes := md5.Sum([]byte(topicID))
+	topicMd5 := hex.EncodeToString(_topicMd5Bytes[:])
+	tableName := "Msg_" + topicMd5
+
+	// 查询语句: 从消息表获取 real_sender_id，再 JOIN Name2Id 表获取 username
+	query := fmt.Sprintf(`
+		SELECT IFNULL(n.user_name, '')
+		FROM %s m
+		LEFT JOIN Name2Id n ON m.real_sender_id = n.rowid
+		WHERE m.local_id = ?
+		LIMIT 1
+	`, tableName)
+
+	// 遍历所有消息数据库查找
+	for _, dbInfo := range ds.messageInfos {
+		// message_0.db
+		if !strings.Contains(dbInfo.FilePath, "message_0.db") {
+			continue
+		}
+
+		db, err := ds.dbm.OpenDB(dbInfo.FilePath)
+		if err != nil {
+			continue
+		}
+
+		var username string
+		err = db.QueryRowContext(ctx, query, localID).Scan(&username)
+		db.Close()
+
+		if err == nil && username != "" {
+			return username, nil
+		}
+	}
+
+	return "", nil
 }

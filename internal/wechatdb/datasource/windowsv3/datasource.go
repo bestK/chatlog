@@ -811,3 +811,8 @@ func (ds *DataSource) UnlockDB(path string) error {
 	ds.dbm.UnlockDB(path)
 	return nil
 }
+
+// GetSenderByLocalID V3 不支持此功能，返回空字符串
+func (ds *DataSource) GetSenderByLocalID(ctx context.Context, topicID string, localID int) (string, error) {
+	return "", nil
+}
