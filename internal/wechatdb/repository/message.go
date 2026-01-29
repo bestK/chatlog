@@ -45,9 +45,23 @@ func (r *Repository) enrichMessage(msg *model.Message) {
 		}
 	}
 
-	// 通用“提到我”判定
-	if r.SelfName != "" && strings.Contains(msg.Content, "@"+r.SelfName) {
-		msg.IsMentionMe = true
+	// 检测提到了我 (IsMentionMe)
+	if !msg.IsSelf {
+		if r.SelfName != "" && strings.Contains(msg.Content, "@"+r.SelfName) {
+			msg.IsMentionMe = true
+		}
+		// 特殊情况补全：如果昵称有特殊字符导致匹配失败，尝试使用微信号或备注进行二次核对
+		if !msg.IsMentionMe && r.SelfID != "" {
+			selfContact := r.findContact(r.SelfID)
+			if selfContact != nil {
+				if selfContact.Alias != "" && strings.Contains(msg.Content, "@"+selfContact.Alias) {
+					msg.IsMentionMe = true
+				}
+				if selfContact.Remark != "" && strings.Contains(msg.Content, "@"+selfContact.Remark) {
+					msg.IsMentionMe = true
+				}
+			}
+		}
 	}
 
 	// 处理群聊消息
