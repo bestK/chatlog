@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // 注意，v4 session 是独立数据库文件
 // CREATE TABLE SessionTable(
@@ -84,11 +87,18 @@ func (s *SessionV4) Wrap() *Session {
 			}
 		}
 	}
-	return &Session{
-		UserName: s.Username,
-		NOrder:   s.LastTimestamp,
-		NickName: s.LastSenderDisplayName,
-		Content:  content,
-		NTime:    time.Unix(int64(s.LastTimestamp), 0),
+	res := &Session{
+		NOrder:  s.LastTimestamp,
+		Content: content,
+		NTime:   time.Unix(int64(s.LastTimestamp), 0),
 	}
+	if strings.HasSuffix(s.Username, "@chatroom") {
+		res.GroupID = s.Username
+		res.PersonID = s.LastMsgSender
+		res.PersonName = s.LastSenderDisplayName
+	} else {
+		res.PersonID = s.Username
+		res.PersonName = s.LastSenderDisplayName
+	}
+	return res
 }

@@ -575,14 +575,22 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 		session := sessionDarwinV3.Wrap()
 
 		// 尝试获取联系人信息以补充会话信息
-		contacts, err := ds.GetContacts(ctx, session.UserName, 1, 0)
+		id := session.PersonID
+		if id == "" {
+			id = session.GroupID
+		}
+		contacts, err := ds.GetContacts(ctx, id, 1, 0)
 		if err == nil && len(contacts) > 0 {
-			session.NickName = contacts[0].DisplayName()
+			if session.GroupID != "" {
+				session.GroupName = contacts[0].DisplayName()
+			} else {
+				session.PersonName = contacts[0].DisplayName()
+			}
 		} else {
 			// 尝试获取群聊信息
-			chatRooms, err := ds.GetChatRooms(ctx, session.UserName, 1, 0)
+			chatRooms, err := ds.GetChatRooms(ctx, id, 1, 0)
 			if err == nil && len(chatRooms) > 0 {
-				session.NickName = chatRooms[0].DisplayName()
+				session.GroupName = chatRooms[0].DisplayName()
 			}
 		}
 

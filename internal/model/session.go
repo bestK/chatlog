@@ -6,11 +6,13 @@ import (
 )
 
 type Session struct {
-	UserName string    `json:"userName"`
-	NOrder   int       `json:"nOrder"`
-	NickName string    `json:"nickName"`
-	Content  string    `json:"content"`
-	NTime    time.Time `json:"nTime"`
+	NOrder     int       `json:"nOrder"`
+	Content    string    `json:"content"`
+	NTime      time.Time `json:"nTime"`
+	GroupName  string    `json:"groupName"`
+	GroupID    string    `json:"groupID"`
+	PersonName string    `json:"personName"`
+	PersonID   string    `json:"personID"`
 }
 
 // CREATE TABLE Session(
@@ -62,23 +64,46 @@ type SessionV3 struct {
 }
 
 func (s *SessionV3) Wrap() *Session {
-	return &Session{
-		UserName: s.StrUsrName,
-		NOrder:   s.NOrder,
-		NickName: s.StrNickName,
-		Content:  s.StrContent,
-		NTime:    time.Unix(int64(s.NTime), 0),
+	res := &Session{
+		NOrder:  s.NOrder,
+		Content: s.StrContent,
+		NTime:   time.Unix(int64(s.NTime), 0),
 	}
+	if strings.HasSuffix(s.StrUsrName, "@chatroom") {
+		res.GroupID = s.StrUsrName
+		res.GroupName = s.StrNickName
+	} else {
+		res.PersonID = s.StrUsrName
+		res.PersonName = s.StrNickName
+	}
+	return res
 }
 
 func (s *Session) PlainText(limit int) string {
 	buf := strings.Builder{}
-	buf.WriteString(s.NickName)
-	buf.WriteString("(")
-	buf.WriteString(s.UserName)
-	buf.WriteString(") ")
-	buf.WriteString(s.NTime.Format("2006-01-02 15:04:05"))
-	buf.WriteString("\n")
+	if s.GroupName != "" {
+		buf.WriteString(s.GroupName)
+		buf.WriteString("(")
+		buf.WriteString(s.GroupID)
+		buf.WriteString(")")
+		buf.WriteString(" - ")
+		buf.WriteString(s.NTime.Format("2006-01-02 15:04:05"))
+		if s.PersonID != "" {
+			buf.WriteString("\n")
+			buf.WriteString(s.PersonName)
+			buf.WriteString("(")
+			buf.WriteString(s.PersonID)
+			buf.WriteString(")")
+		}
+	} else {
+		buf.WriteString(s.PersonName)
+		buf.WriteString("(")
+		buf.WriteString(s.PersonID)
+		buf.WriteString(")")
+	}
+
+	buf.WriteString(":")
+
 	if limit > 0 {
 		if len(s.Content) > limit {
 			buf.WriteString(s.Content[:limit])
