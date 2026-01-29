@@ -30,6 +30,9 @@ type DataSource interface {
 	// 媒体
 	GetMedia(ctx context.Context, _type string, key string) (*model.Media, error)
 
+	// 通过 topicID 和 localID 查询发送人 (V4 专用，V3 返回空字符串)
+	GetSenderByLocalID(ctx context.Context, topicID string, localID int) (string, error)
+
 	// 设置回调函数
 	SetCallback(group string, callback func(event fsnotify.Event) error) error
 

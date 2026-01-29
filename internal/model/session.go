@@ -6,16 +6,17 @@ import (
 )
 
 type Session struct {
-	TopicName   string    `json:"topicName"`
-	TopicID     string    `json:"topicId"`
-	NOrder      int       `json:"nOrder"`
-	Content     string    `json:"content"`
-	NTime       time.Time `json:"nTime"`
-	IsChatroom  bool      `json:"isChatroom"`
-	PersonName  string    `json:"personName"`
-	PersonID    string    `json:"personID"`
-	IsSelf      bool      `json:"isSelf"`
-	IsMentionMe bool      `json:"isMentionMe"`
+	TopicName      string    `json:"topicName"`
+	TopicID        string    `json:"topicId"`
+	NOrder         int       `json:"nOrder"`
+	Content        string    `json:"content"`
+	NTime          time.Time `json:"nTime"`
+	IsChatroom     bool      `json:"isChatroom"`
+	PersonName     string    `json:"personName"`
+	PersonID       string    `json:"personID"`
+	IsSelf         bool      `json:"isSelf"`
+	IsMentionMe    bool      `json:"isMentionMe"`
+	LastMsgLocalID int       `json:"-"` // 内部使用，用于查询发送人
 }
 
 // CREATE TABLE Session(

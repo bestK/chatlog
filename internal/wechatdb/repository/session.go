@@ -24,10 +24,17 @@ func (r *Repository) GetSessions(ctx context.Context, key string, limit, offset 
 // EnrichSessions 补充会话的额外信息
 func (r *Repository) EnrichSessions(ctx context.Context, sessions []*model.Session) error {
 	for _, s := range sessions {
-		// 强制要求：如果发送人 ID 为空，默认为本人
-		if s.PersonID == "" && r.SelfID != "" {
+		// 如果 last_sender_id 为空，通过 last_msg_local_id 获取 Msg_md5(topicID) 表 local_id 对应的 real_sender_id,
+		// 查找 name2id 表第 real_sender_id 条的 username 作为 PersonID
+		if s.PersonID == "" && s.LastMsgLocalID > 0 {
+			// TODO 优化速度
+			if sender, err := r.ds.GetSenderByLocalID(ctx, s.TopicID, s.LastMsgLocalID); err == nil && sender != "" {
+				s.PersonID = sender
+			}
+		}
+		// 如果仍然为空，且 IsSelf 已被标记（通过 Status 判断），则使用 SelfID
+		if s.PersonID == "" && s.IsSelf {
 			s.PersonID = r.SelfID
-			s.IsSelf = true
 		}
 
 		// 通过 SelfID 二次核对 IsSelf 标识
