@@ -15,7 +15,7 @@ import (
 func (r *Repository) GetMessages(ctx context.Context, startTime, endTime time.Time, talker string, sender string, keyword string, limit, offset int) ([]*model.Message, error) {
 
 	talker, sender = r.parseTalkerAndSender(ctx, talker, sender)
-	messages, err := r.ds.GetMessages(ctx, startTime, endTime, talker, sender, keyword, limit, offset)
+	messages, err := r.ds.GetMessages(ctx, startTime, endTime, r.SelfID, talker, sender, keyword, limit, offset)
 	if err != nil {
 		return nil, err
 	}

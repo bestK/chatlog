@@ -132,7 +132,7 @@ func (s *Service) StopAutoDecrypt() error {
 
 func (s *Service) DecryptFileCallback(event fsnotify.Event) error {
 	// Local file system and Syncthing checks...
-	if !(event.Op.Has(fsnotify.Write) || event.Op.Has(fsnotify.Create)) {
+	if !(event.Op.Has(fsnotify.Write) || event.Op.Has(fsnotify.Create) || event.Op.Has(fsnotify.Rename)) {
 		return nil
 	}
 
@@ -214,7 +214,15 @@ func (s *Service) DecryptDBFile(dbFile string) error {
 		}
 	}
 
-	return s.replaceDB(tmp, output)
+	if err := s.replaceDB(tmp, output); err != nil {
+		log.Logger.Error().Err(err).Msgf("failed to replace db %s", output)
+
+		return err
+	}
+
+	// 清理工作目录下残留的 WAL/SHM 文件，防止 SQLite 读取加密的 WAL 导致失败
+	s.removeWalFiles(output)
+	return nil
 }
 
 func (s *Service) replaceDB(tmp, target string) error {
@@ -241,7 +249,6 @@ func (s *Service) replaceDB(tmp, target string) error {
 	return fmt.Errorf("failed to replace db %s", target)
 }
 
-
 func (s *Service) DecryptDBFiles() error {
 	dbGroup, err := filemonitor.NewFileGroup("wechat", s.conf.GetDataDir(), `.*\.db$`, []string{"fts"})
 	if err != nil {
@@ -261,4 +268,18 @@ func (s *Service) DecryptDBFiles() error {
 	}
 
 	return nil
+}
+
+// removeWalFiles 删除数据库对应的 WAL 和 SHM 文件
+// 这是必要的，因为微信使用加密的 WAL 模式，解密后这些文件仍是加密的
+// 如果不删除，SQLite 会尝试读取加密的 WAL 导致查询失败或返回空数据
+func (s *Service) removeWalFiles(dbFile string) {
+	walFile := dbFile + "-wal"
+	shmFile := dbFile + "-shm"
+	if err := os.Remove(walFile); err != nil && !os.IsNotExist(err) {
+		log.Debug().Err(err).Msgf("failed to remove wal file %s", walFile)
+	}
+	if err := os.Remove(shmFile); err != nil && !os.IsNotExist(err) {
+		log.Debug().Err(err).Msgf("failed to remove shm file %s", shmFile)
+	}
 }

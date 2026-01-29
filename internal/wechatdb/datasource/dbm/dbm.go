@@ -251,9 +251,9 @@ func (d *DBManager) openDB(path string) (*sql.DB, error) {
 }
 
 func (d *DBManager) Callback(event fsnotify.Event) error {
-	// 监听 Create 和 Write 事件，当文件变化时关闭旧连接
+	// 监听 Create, Write 和 Rename 事件，当文件变化时关闭旧连接
 	// 这样下次访问时会重新打开，读取最新数据
-	if !(event.Op.Has(fsnotify.Create) || event.Op.Has(fsnotify.Write)) {
+	if !(event.Op.Has(fsnotify.Create) || event.Op.Has(fsnotify.Write) || event.Op.Has(fsnotify.Rename)) {
 		return nil
 	}
 

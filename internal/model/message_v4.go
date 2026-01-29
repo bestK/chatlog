@@ -42,6 +42,8 @@ type MessageV4 struct {
 	MessageContent []byte `json:"message_content"`  // 消息内容，文字聊天内容 或 zstd 压缩内容
 	PackedInfoData []byte `json:"packed_info_data"` // 额外数据，类似 proto，格式与 v3 有差异
 	Status         int    `json:"status"`           // 消息状态，2 是已发送，4 是已接收，可以用于判断 IsSender（FIXME 不准, 需要判断 UserName）
+	SenderName     string `json:"sender_name"`      // 发送人名称
+	SelfID         string `json:"self_id"`          // 登录用户 ID
 }
 
 func (m *MessageV4) Wrap(talker string) *Message {
@@ -52,13 +54,19 @@ func (m *MessageV4) Wrap(talker string) *Message {
 		Talker:     talker,
 		IsChatRoom: strings.HasSuffix(talker, "@chatroom"),
 		Sender:     m.UserName,
+		SenderName: m.SenderName,
 		Type:       m.LocalType,
 		Contents:   make(map[string]interface{}),
 		Version:    WeChatV4,
 	}
 
-	// FIXME 后续通过 UserName 判断是否是自己发送的消息，目前可能不准确
-	_m.IsSelf = m.Status == 2 || (!_m.IsChatRoom && talker != m.UserName)
+	// 优先通过 SelfID 判断是否是自己发送的消息
+	if m.SelfID != "" && m.UserName != "" {
+		_m.IsSelf = strings.Contains(m.SelfID, m.UserName)
+	} else {
+		// FIXME 后续通过 UserName 判断是否是自己发送的消息，目前可能不准确
+		_m.IsSelf = m.Status == 2 || (!_m.IsChatRoom && talker != m.UserName)
+	}
 
 	content := ""
 	if bytes.HasPrefix(m.MessageContent, []byte{0x28, 0xb5, 0x2f, 0xfd}) {
