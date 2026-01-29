@@ -70,6 +70,9 @@ type DataSource struct {
 
 	// 消息数据库信息
 	messageInfos []MessageDBInfo
+
+	// 联系人缓存
+	contactCache map[string]string
 }
 
 func New(path string) (*DataSource, error) {
@@ -78,6 +81,7 @@ func New(path string) (*DataSource, error) {
 		path:         path,
 		dbm:          dbm.NewDBManager(path),
 		messageInfos: make([]MessageDBInfo, 0),
+		contactCache: make(map[string]string),
 	}
 
 	for _, g := range Groups {
@@ -92,12 +96,26 @@ func New(path string) (*DataSource, error) {
 		return nil, errors.DBInitFailed(err)
 	}
 
+	if err := ds.initContactCache(); err != nil {
+		log.Err(err).Msg("Failed to initialize contact cache")
+	}
+
 	ds.dbm.AddCallback(Message, func(event fsnotify.Event) error {
-		if !event.Op.Has(fsnotify.Create) {
+		if !(event.Op.Has(fsnotify.Create) || event.Op.Has(fsnotify.Write) || event.Op.Has(fsnotify.Rename)) {
 			return nil
 		}
 		if err := ds.initMessageDbs(); err != nil {
 			log.Err(err).Msgf("Failed to reinitialize message DBs: %s", event.Name)
+		}
+		return nil
+	})
+
+	ds.dbm.AddCallback(Contact, func(event fsnotify.Event) error {
+		if !(event.Op.Has(fsnotify.Create) || event.Op.Has(fsnotify.Write) || event.Op.Has(fsnotify.Rename)) {
+			return nil
+		}
+		if err := ds.initContactCache(); err != nil {
+			log.Err(err).Msgf("Failed to reinitialize contact cache: %s", event.Name)
 		}
 		return nil
 	})
@@ -175,6 +193,31 @@ func (ds *DataSource) initMessageDbs() error {
 	return nil
 }
 
+func (ds *DataSource) initContactCache() error {
+	db, err := ds.dbm.GetDB(Contact)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	rows, err := db.Query("SELECT username, IFNULL(nick_name, IFNULL(remark, username)) FROM contact")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	cache := make(map[string]string)
+	for rows.Next() {
+		var username, displayName string
+		if err := rows.Scan(&username, &displayName); err != nil {
+			continue
+		}
+		cache[username] = displayName
+	}
+	ds.contactCache = cache
+	return nil
+}
+
 // getDBInfosForTimeRange 获取时间范围内的数据库信息
 func (ds *DataSource) getDBInfosForTimeRange(startTime, endTime time.Time) []MessageDBInfo {
 	var dbs []MessageDBInfo
@@ -186,7 +229,7 @@ func (ds *DataSource) getDBInfosForTimeRange(startTime, endTime time.Time) []Mes
 	return dbs
 }
 
-func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.Time, talker string, sender string, keyword string, limit, offset int) ([]*model.Message, error) {
+func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.Time, selfID string, talker string, sender string, keyword string, limit, offset int) ([]*model.Message, error) {
 	if talker == "" {
 		return nil, errors.ErrTalkerEmpty
 	}
@@ -261,7 +304,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 				args := []interface{}{startTime.Unix(), endTime.Unix()}
 
 				query := fmt.Sprintf(`
-					SELECT m.sort_seq, m.server_id, m.local_type, n.user_name, m.create_time, m.message_content, m.packed_info_data, m.status
+					SELECT m.sort_seq, m.server_id, m.local_type, IFNULL(n.user_name, ''), m.create_time, m.message_content, m.packed_info_data, m.status
 					FROM %s m
 					LEFT JOIN Name2Id n ON m.real_sender_id = n.rowid
 					WHERE %s 
@@ -271,11 +314,11 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 				// 执行查询
 				rows, err := db.QueryContext(ctx, query, args...)
 				if err != nil {
+					log.Err(err).Msgf("从数据库 %s 查询消息失败 %v", dbInfo.FilePath, err)
 					// 如果表不存在，SQLite 会返回错误
 					if strings.Contains(err.Error(), "no such table") {
 						continue
 					}
-					log.Err(err).Msgf("从数据库 %s 查询消息失败", dbInfo.FilePath)
 					continue
 				}
 
@@ -299,6 +342,8 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 					}
 
 					// 将消息转换为标准格式
+					msg.SelfID = selfID
+					msg.SenderName = ds.contactCache[msg.UserName]
 					message := msg.Wrap(talkerItem)
 
 					// 应用sender过滤

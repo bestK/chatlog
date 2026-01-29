@@ -103,7 +103,7 @@ func NewGroup(ctx context.Context, group string, hooks []Webhook, delayMs int64)
 
 func (g *Group) Callback(event fsnotify.Event) error {
 	// skip remove event
-	if !event.Op.Has(fsnotify.Create) {
+	if !(event.Op.Has(fsnotify.Create) || event.Op.Has(fsnotify.Write) || event.Op.Has(fsnotify.Rename)) {
 		return nil
 	}
 

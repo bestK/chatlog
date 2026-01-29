@@ -32,3 +32,4 @@ dist/
 .ace-tool/
 .vscode/settings.json
 chatlog.upx
+__debug_bin.exe*

@@ -99,7 +99,7 @@ func New(path string) (*DataSource, error) {
 	}
 
 	ds.dbm.AddCallback(Message, func(event fsnotify.Event) error {
-		if !event.Op.Has(fsnotify.Create) {
+		if !(event.Op.Has(fsnotify.Create) || event.Op.Has(fsnotify.Write) || event.Op.Has(fsnotify.Rename)) {
 			return nil
 		}
 		if err := ds.initMessageDbs(); err != nil {
@@ -229,7 +229,7 @@ func (ds *DataSource) getDBInfosForTimeRange(startTime, endTime time.Time) []Mes
 	return dbs
 }
 
-func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.Time, talker string, sender string, keyword string, limit, offset int) ([]*model.Message, error) {
+func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.Time, selfID string, talker string, sender string, keyword string, limit, offset int) ([]*model.Message, error) {
 	if talker == "" {
 		return nil, errors.ErrTalkerEmpty
 	}
