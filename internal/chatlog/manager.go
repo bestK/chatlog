@@ -431,8 +431,10 @@ func (m *Manager) CommandHTTPServer(configPath string, cmdConf map[string]any) e
 	}
 
 	// 根据配置设置日志级别
+	log.Info().Msgf("debug config: %v", m.sc.GetDebug())
 	if m.sc.GetDebug() {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+		log.Info().Msg("debug mode enabled")
 	}
 
 	dataDir := m.sc.GetDataDir()
