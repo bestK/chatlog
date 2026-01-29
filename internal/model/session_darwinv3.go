@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // CREATE TABLE SessionAbstract(
 // m_nsUserName TEXT PRIMARY KEY,
@@ -33,9 +36,14 @@ type SessionDarwinV3 struct {
 }
 
 func (s *SessionDarwinV3) Wrap() *Session {
-	return &Session{
-		UserName: s.M_nsUserName,
-		NOrder:   s.M_uLastTime,
-		NTime:    time.Unix(int64(s.M_uLastTime), 0),
+	res := &Session{
+		NOrder: s.M_uLastTime,
+		NTime:  time.Unix(int64(s.M_uLastTime), 0),
 	}
+	if strings.HasSuffix(s.M_nsUserName, "@chatroom") {
+		res.GroupID = s.M_nsUserName
+	} else {
+		res.PersonID = s.M_nsUserName
+	}
+	return res
 }
