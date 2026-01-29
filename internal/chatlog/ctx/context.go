@@ -187,6 +187,10 @@ func (c *Context) GetWebhook() *conf.Webhook {
 	return c.conf.Webhook
 }
 
+func (c *Context) GetDebug() bool {
+	return c.conf.Debug
+}
+
 func (c *Context) SetHTTPEnabled(enabled bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -46,6 +46,11 @@ func (m *Manager) Run(configPath string) error {
 		return err
 	}
 
+	// 根据配置设置日志级别
+	if m.ctx.GetDebug() {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	}
+
 	m.wechat = wechat.NewService(m.ctx)
 
 	m.db = database.NewService(m.ctx)
