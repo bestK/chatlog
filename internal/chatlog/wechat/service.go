@@ -3,6 +3,7 @@ package wechat
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -177,87 +178,69 @@ func (s *Service) waitAndProcess(dbFile string) {
 		s.mutex.Unlock()
 	}
 }
-
 func (s *Service) DecryptDBFile(dbFile string) error {
-
 	decryptor, err := decrypt.NewDecryptor(s.conf.GetPlatform(), s.conf.GetVersion())
 	if err != nil {
 		return err
 	}
 
-	output := filepath.Join(s.conf.GetWorkDir(), dbFile[len(s.conf.GetDataDir()):])
+	rel, err := filepath.Rel(s.conf.GetDataDir(), dbFile)
+	if err != nil {
+		return err
+	}
+	output := filepath.Join(s.conf.GetWorkDir(), rel)
+
 	if err := util.PrepareDir(filepath.Dir(output)); err != nil {
 		return err
 	}
 
-	outputTemp := output + ".tmp"
-	outputFile, err := os.Create(outputTemp)
+	tmp := output + ".tmp"
+
+	f, err := os.Create(tmp)
 	if err != nil {
-		return fmt.Errorf("failed to create output file: %v", err)
-	}
-	defer func() {
-		outputFile.Close()
-
-		// 使用文件锁机制保证替换过程的原子性
-		if s.dbController != nil {
-			// 1. 锁定路径，阻止新的 OpenDB
-			s.dbController.LockDB(output)
-			defer s.dbController.UnlockDB(output)
-
-			// 2. 关闭现有连接
-			s.dbController.CloseDB(output)
-
-			// 稍微给一点时间让连接关闭
-			time.Sleep(100 * time.Millisecond)
-		}
-
-		// 3. 执行替换（简单的重试机制以防万一）
-		maxRetries := 5
-		for i := 0; i < maxRetries; i++ {
-			// 尝试直接重命名
-			err := os.Rename(outputTemp, output)
-			if err == nil {
-				// log.Info().Msgf("successfully replaced %s", output)
-				return // 成功，退出
-			}
-
-			// 如果重命名失败，尝试删除目标文件
-			if os.IsExist(err) || strings.Contains(err.Error(), "exist") || strings.Contains(err.Error(), "access") || strings.Contains(err.Error(), "used by another process") {
-				_ = os.Remove(output)
-				if renameErr := os.Rename(outputTemp, output); renameErr == nil {
-					// log.Info().Msgf("successfully replaced %s after remove", output)
-					return // 成功，退出
-				}
-			}
-
-			// 如果还有 Controller，再次尝试关闭（可能锁加晚了？）
-			if s.dbController != nil {
-				s.dbController.CloseDB(output)
-			}
-
-			time.Sleep(200 * time.Millisecond)
-		}
-
-		// 4. 所有重试都失败，清理临时文件
-		log.Error().Msgf("failed to replace %s after %d retries, cleaning up", output, maxRetries)
-		os.Remove(outputTemp)
-	}()
-
-	if err := decryptor.Decrypt(context.Background(), dbFile, s.conf.GetDataKey(), outputFile); err != nil {
-		if err == errors.ErrAlreadyDecrypted {
-			if data, err := os.ReadFile(dbFile); err == nil {
-				outputFile.Write(data)
-			}
-			return nil
-		}
-		log.Err(err).Msgf("failed to decrypt %s", dbFile)
 		return err
 	}
 
-	log.Debug().Msgf("Decrypted %s to %s", dbFile, output)
+	err = decryptor.Decrypt(context.Background(), dbFile, s.conf.GetDataKey(), f)
+	f.Close()
 
-	return nil
+	if err != nil {
+		if err == errors.ErrAlreadyDecrypted {
+			data, _ := os.ReadFile(dbFile)
+			_ = os.WriteFile(tmp, data, 0644)
+		} else {
+			_ = os.Remove(tmp)
+			return err
+		}
+	}
+
+	return s.replaceDB(tmp, output)
 }
+
+func (s *Service) replaceDB(tmp, target string) error {
+	if s.dbController != nil {
+		s.dbController.LockDB(target)
+		defer s.dbController.UnlockDB(target)
+		s.dbController.CloseDB(target)
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	for i := 0; i < 5; i++ {
+		err := os.Rename(tmp, target)
+		if err == nil {
+			return nil
+		}
+
+		if errors.Is(err, fs.ErrPermission) {
+			_ = os.Remove(target)
+		}
+
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	return fmt.Errorf("failed to replace db %s", target)
+}
+
 
 func (s *Service) DecryptDBFiles() error {
 	dbGroup, err := filemonitor.NewFileGroup("wechat", s.conf.GetDataDir(), `.*\.db$`, []string{"fts"})

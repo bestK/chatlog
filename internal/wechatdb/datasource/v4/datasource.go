@@ -230,131 +230,108 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 			log.Error().Msgf("数据库 %s 未打开", dbInfo.FilePath)
 			continue
 		}
-		// 使用 defer 确保关闭，但在循环中这会堆积 defer，所以还是显式关闭或用 func 包装
-		// 由于 db 作用域在 for 内部，可以使用 defer 配合匿名函数，或者在循环结束处关闭
-		// 这里最简单的是在 continue 前 和 循环结束时调用 close。
-		// 但为了健壮性，使用 defer func(){ db.Close() }() 包裹这一轮循环逻辑比较麻烦。
-		// 让我们在循环尾部关闭。
 
-		// 对每个talker进行查询
-		for _, talkerItem := range talkers {
-			// 构建表名
-			_talkerMd5Bytes := md5.Sum([]byte(talkerItem))
-			talkerMd5 := hex.EncodeToString(_talkerMd5Bytes[:])
-			tableName := "Msg_" + talkerMd5
+		// 使用匿名函数确保每轮循环的数据库和行都能及时关闭
+		func() {
+			defer db.Close()
+			// 对每个talker进行查询
+			for _, talkerItem := range talkers {
+				// 构建表名
+				_talkerMd5Bytes := md5.Sum([]byte(talkerItem))
+				talkerMd5 := hex.EncodeToString(_talkerMd5Bytes[:])
+				tableName := "Msg_" + talkerMd5
 
-			// 检查表是否存在
-			var exists bool
-			err = db.QueryRowContext(ctx,
-				"SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
-				tableName).Scan(&exists)
+				// 检查表是否存在
+				var exists bool
+				err = db.QueryRowContext(ctx,
+					"SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+					tableName).Scan(&exists)
 
-			if err != nil {
-				if err == sql.ErrNoRows {
-					// 表不存在，继续下一个talker
-					continue
-				}
-				db.Close()
-				return nil, errors.QueryFailed("", err)
-			}
-
-			// 构建查询条件
-			conditions := []string{"create_time >= ? AND create_time <= ?"}
-			args := []interface{}{startTime.Unix(), endTime.Unix()}
-			log.Debug().Msgf("Table name: %s", tableName)
-			log.Debug().Msgf("Start time: %d, End time: %d", startTime.Unix(), endTime.Unix())
-
-			query := fmt.Sprintf(`
-				SELECT m.sort_seq, m.server_id, m.local_type, n.user_name, m.create_time, m.message_content, m.packed_info_data, m.status
-				FROM %s m
-				LEFT JOIN Name2Id n ON m.real_sender_id = n.rowid
-				WHERE %s 
-				ORDER BY m.sort_seq ASC
-			`, tableName, strings.Join(conditions, " AND "))
-
-			// 执行查询
-			rows, err := db.QueryContext(ctx, query, args...)
-			if err != nil {
-				// 如果表不存在，SQLite 会返回错误
-				if strings.Contains(err.Error(), "no such table") {
-					continue
-				}
-				log.Err(err).Msgf("从数据库 %s 查询消息失败", dbInfo.FilePath)
-				continue
-			}
-
-			// 处理查询结果，在读取时进行过滤
-			for rows.Next() {
-				var msg model.MessageV4
-				err := rows.Scan(
-					&msg.SortSeq,
-					&msg.ServerID,
-					&msg.LocalType,
-					&msg.UserName,
-					&msg.CreateTime,
-					&msg.MessageContent,
-					&msg.PackedInfoData,
-					&msg.Status,
-				)
 				if err != nil {
-					rows.Close()
-					db.Close()
-					return nil, errors.ScanRowFailed(err)
+					if err == sql.ErrNoRows {
+						// 表不存在，继续下一个talker
+						continue
+					}
+					log.Debug().Err(err).Msgf("Check table %s exists failed", tableName)
+					continue
 				}
 
-				// 将消息转换为标准格式
-				message := msg.Wrap(talkerItem)
+				// 构建查询条件
+				conditions := []string{"create_time >= ? AND create_time <= ?"}
+				args := []interface{}{startTime.Unix(), endTime.Unix()}
 
-				// 应用sender过滤
-				if len(senders) > 0 {
-					senderMatch := false
-					for _, s := range senders {
-						if message.Sender == s {
-							senderMatch = true
-							break
+				query := fmt.Sprintf(`
+					SELECT m.sort_seq, m.server_id, m.local_type, n.user_name, m.create_time, m.message_content, m.packed_info_data, m.status
+					FROM %s m
+					LEFT JOIN Name2Id n ON m.real_sender_id = n.rowid
+					WHERE %s 
+					ORDER BY m.sort_seq ASC
+				`, tableName, strings.Join(conditions, " AND "))
+
+				// 执行查询
+				rows, err := db.QueryContext(ctx, query, args...)
+				if err != nil {
+					// 如果表不存在，SQLite 会返回错误
+					if strings.Contains(err.Error(), "no such table") {
+						continue
+					}
+					log.Err(err).Msgf("从数据库 %s 查询消息失败", dbInfo.FilePath)
+					continue
+				}
+
+				// 处理查询结果，在读取时进行过滤
+				for rows.Next() {
+					var msg model.MessageV4
+					err := rows.Scan(
+						&msg.SortSeq,
+						&msg.ServerID,
+						&msg.LocalType,
+						&msg.UserName,
+						&msg.CreateTime,
+						&msg.MessageContent,
+						&msg.PackedInfoData,
+						&msg.Status,
+					)
+					if err != nil {
+						log.Error().Err(err).Msg("Scan message failed")
+						rows.Close()
+						return
+					}
+
+					// 将消息转换为标准格式
+					message := msg.Wrap(talkerItem)
+
+					// 应用sender过滤
+					if len(senders) > 0 {
+						senderMatch := false
+						for _, s := range senders {
+							if message.Sender == s {
+								senderMatch = true
+								break
+							}
+						}
+						if !senderMatch {
+							continue
 						}
 					}
-					if !senderMatch {
-						continue // 不匹配sender，跳过此消息
+
+					// 应用keyword过滤
+					if regex != nil {
+						if !regex.MatchString(message.PlainTextContent()) {
+							continue
+						}
 					}
+
+					// 通过所有过滤条件，保留此消息
+					filteredMessages = append(filteredMessages, message)
+
+					// 检查是否已经满足分页处理数量（注意：这里是在多库查询，提前限制可能导致结果不全，但为了性能暂时保持逻辑）
+					// 不过用户说慢点没关系，我们可以等所有查询结束后再排序分页。
+					// 为保持用户原有逻辑的一致性，这里仅做修正。
 				}
-
-				// 应用keyword过滤
-				if regex != nil {
-					plainText := message.PlainTextContent()
-					if !regex.MatchString(plainText) {
-						continue // 不匹配keyword，跳过此消息
-					}
-				}
-
-				// 通过所有过滤条件，保留此消息
-				filteredMessages = append(filteredMessages, message)
-
-				// 检查是否已经满足分页处理数量
-				if limit > 0 && len(filteredMessages) >= offset+limit {
-					// 已经获取了足够的消息，可以提前返回
-					rows.Close()
-					db.Close()
-
-					// 对所有消息按时间排序
-					sort.Slice(filteredMessages, func(i, j int) bool {
-						return filteredMessages[i].Seq < filteredMessages[j].Seq
-					})
-
-					// 处理分页
-					if offset >= len(filteredMessages) {
-						return []*model.Message{}, nil
-					}
-					end := offset + limit
-					if end > len(filteredMessages) {
-						end = len(filteredMessages)
-					}
-					return filteredMessages[offset:end], nil
-				}
+				rows.Close()
 			}
-			rows.Close()
-		}
-		db.Close()
+		}()
 	}
 
 	// 对所有消息按时间排序
@@ -587,6 +564,7 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 	if err != nil {
 		return nil, err
 	}
+	defer db.Close()
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, errors.QueryFailed(query, err)
@@ -669,11 +647,8 @@ func (ds *DataSource) GetMedia(ctx context.Context, _type string, key string) (*
 	if err != nil {
 		return nil, err
 	}
+	defer db.Close()
 	rows, err := db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, errors.QueryFailed(query, err)
-	}
-	defer rows.Close()
 
 	var media *model.Media
 	for rows.Next() {
@@ -710,6 +685,7 @@ func (ds *DataSource) IsExist(_db string, table string) bool {
 	if err != nil {
 		return false
 	}
+	defer db.Close()
 	var tableName string
 	query := "SELECT name FROM sqlite_master WHERE type='table' AND name=?;"
 	if err = db.QueryRow(query, table).Scan(&tableName); err != nil {
