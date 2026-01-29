@@ -274,23 +274,25 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 			continue
 		}
 
-		// 对每个talker进行查询
-		for _, talkerItem := range talkers {
-			// 构建查询条件
-			conditions := []string{"Sequence >= ? AND Sequence <= ?"}
-			args := []interface{}{startTime.Unix() * 1000, endTime.Unix() * 1000}
+		func() {
+			defer db.Close()
+			// 对每个talker进行查询
+			for _, talkerItem := range talkers {
+				// 构建查询条件
+				conditions := []string{"Sequence >= ? AND Sequence <= ?"}
+				args := []interface{}{startTime.Unix() * 1000, endTime.Unix() * 1000}
 
-			// 添加talker条件
-			talkerID, ok := dbInfo.TalkerMap[talkerItem]
-			if ok {
-				conditions = append(conditions, "TalkerId = ?")
-				args = append(args, talkerID)
-			} else {
-				conditions = append(conditions, "StrTalker = ?")
-				args = append(args, talkerItem)
-			}
+				// 添加talker条件
+				talkerID, ok := dbInfo.TalkerMap[talkerItem]
+				if ok {
+					conditions = append(conditions, "TalkerId = ?")
+					args = append(args, talkerID)
+				} else {
+					conditions = append(conditions, "StrTalker = ?")
+					args = append(args, talkerItem)
+				}
 
-			query := fmt.Sprintf(`
+				query := fmt.Sprintf(`
 				SELECT MsgSvrID, Sequence, CreateTime, StrTalker, IsSender, 
 					Type, SubType, StrContent, CompressContent, BytesExtra
 				FROM MSG 
@@ -298,96 +300,97 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 				ORDER BY Sequence ASC
 			`, strings.Join(conditions, " AND "))
 
-			// 执行查询
-			rows, err := db.QueryContext(ctx, query, args...)
-			if err != nil {
-				// 如果表不存在，跳过此talker
-				if strings.Contains(err.Error(), "no such table") {
+				// 执行查询
+				rows, err := db.QueryContext(ctx, query, args...)
+				if err != nil {
+					// 如果表不存在，跳过此talker
+					if strings.Contains(err.Error(), "no such table") {
+						continue
+					}
+					log.Err(err).Msgf("从数据库 %s 查询消息失败", dbInfo.FilePath)
 					continue
 				}
-				log.Err(err).Msgf("从数据库 %s 查询消息失败", dbInfo.FilePath)
-				continue
-			}
 
-			// 处理查询结果，在读取时进行过滤
-			for rows.Next() {
-				var msg model.MessageV3
-				var compressContent []byte
-				var bytesExtra []byte
+				// 处理查询结果，在读取时进行过滤
+				for rows.Next() {
+					var msg model.MessageV3
+					var compressContent []byte
+					var bytesExtra []byte
 
-				err := rows.Scan(
-					&msg.MsgSvrID,
-					&msg.Sequence,
-					&msg.CreateTime,
-					&msg.StrTalker,
-					&msg.IsSender,
-					&msg.Type,
-					&msg.SubType,
-					&msg.StrContent,
-					&compressContent,
-					&bytesExtra,
-				)
-				if err != nil {
-					rows.Close()
-					db.Close()
-					return nil, errors.ScanRowFailed(err)
-				}
-				msg.CompressContent = compressContent
-				msg.BytesExtra = bytesExtra
+					err := rows.Scan(
+						&msg.MsgSvrID,
+						&msg.Sequence,
+						&msg.CreateTime,
+						&msg.StrTalker,
+						&msg.IsSender,
+						&msg.Type,
+						&msg.SubType,
+						&msg.StrContent,
+						&compressContent,
+						&bytesExtra,
+					)
+					if err != nil {
+						rows.Close()
+						// db.Close() // Removed, handled by defer
+						return // Return from the anonymous function
+					}
+					msg.CompressContent = compressContent
+					msg.BytesExtra = bytesExtra
 
-				// 将消息转换为标准格式
-				message := msg.Wrap()
+					// 将消息转换为标准格式
+					message := msg.Wrap()
 
-				// 应用sender过滤
-				if len(senders) > 0 {
-					senderMatch := false
-					for _, s := range senders {
-						if message.Sender == s {
-							senderMatch = true
-							break
+					// 应用sender过滤
+					if len(senders) > 0 {
+						senderMatch := false
+						for _, s := range senders {
+							if message.Sender == s {
+								senderMatch = true
+								break
+							}
+						}
+						if !senderMatch {
+							continue // 不匹配sender，跳过此消息
 						}
 					}
-					if !senderMatch {
-						continue // 不匹配sender，跳过此消息
+
+					// 应用keyword过滤
+					if regex != nil {
+						plainText := message.PlainTextContent()
+						if !regex.MatchString(plainText) {
+							continue // 不匹配keyword，跳过此消息
+						}
+					}
+
+					// 通过所有过滤条件，保留此消息
+					filteredMessages = append(filteredMessages, message)
+
+					// 检查是否已经满足分页处理数量
+					if limit > 0 && len(filteredMessages) >= offset+limit {
+						// 已经获取了足够的消息，可以提前返回
+						rows.Close()
+						// db.Close() // Removed, handled by defer
+
+						// 对所有消息按时间排序
+						sort.Slice(filteredMessages, func(i, j int) bool {
+							return filteredMessages[i].Seq < filteredMessages[j].Seq
+						})
+
+						// 处理分页
+						if offset >= len(filteredMessages) {
+							return // Return from the anonymous function
+						}
+						end := offset + limit
+						if end > len(filteredMessages) {
+							end = len(filteredMessages)
+						}
+						filteredMessages = filteredMessages[offset:end]
+						return // Return from the anonymous function
 					}
 				}
-
-				// 应用keyword过滤
-				if regex != nil {
-					plainText := message.PlainTextContent()
-					if !regex.MatchString(plainText) {
-						continue // 不匹配keyword，跳过此消息
-					}
-				}
-
-				// 通过所有过滤条件，保留此消息
-				filteredMessages = append(filteredMessages, message)
-
-				// 检查是否已经满足分页处理数量
-				if limit > 0 && len(filteredMessages) >= offset+limit {
-					// 已经获取了足够的消息，可以提前返回
-					rows.Close()
-					db.Close()
-
-					// 对所有消息按时间排序
-					sort.Slice(filteredMessages, func(i, j int) bool {
-						return filteredMessages[i].Seq < filteredMessages[j].Seq
-					})
-
-					// 处理分页
-					if offset >= len(filteredMessages) {
-						return []*model.Message{}, nil
-					}
-					end := offset + limit
-					if end > len(filteredMessages) {
-						end = len(filteredMessages)
-					}
-					return filteredMessages[offset:end], nil
-				}
+				rows.Close()
 			}
-			rows.Close()
-		}
-		db.Close()
+		}()
 	}
 
 	// 对所有消息按时间排序

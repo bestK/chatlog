@@ -150,7 +150,7 @@ func (d *DBManager) CloseDB(path string) {
 	if ok {
 		// 必须同步关闭，否则在Windows上无法立即释放文件锁
 		if err := db.Close(); err != nil {
-			// 仅记录错误，不影响流程
+			log.Debug().Err(err).Str("path", path).Msg("dbm: close db failed")
 		}
 	}
 }
@@ -193,16 +193,35 @@ func (d *DBManager) OpenDB(path string) (*sql.DB, error) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	// 在 Windows 上不使用缓存（配合短连接模式）
-	if runtime.GOOS != "windows" {
-		d.mutex.RLock()
-		db, ok := d.dbs[path]
-		d.mutex.RUnlock()
-		if ok {
-			return db, nil
+	// 在 Windows 上不使用并发缓存，确保每次获取都是新连接，以便在 Close 后立即释放文件锁
+	if runtime.GOOS == "windows" {
+		db, err := d.openDB(path)
+		if err != nil {
+			return nil, err
 		}
+		return db, nil
 	}
 
+	d.mutex.RLock()
+	db, ok := d.dbs[path]
+	d.mutex.RUnlock()
+	if ok {
+		return db, nil
+	}
+
+	db, err := d.openDB(path)
+	if err != nil {
+		return nil, err
+	}
+
+	d.mutex.Lock()
+	d.dbs[path] = db
+	d.mutex.Unlock()
+
+	return db, nil
+}
+
+func (d *DBManager) openDB(path string) (*sql.DB, error) {
 	// 构建连接字符串
 	var connStr string
 	if runtime.GOOS == "windows" {
@@ -221,11 +240,13 @@ func (d *DBManager) OpenDB(path string) (*sql.DB, error) {
 		return nil, err
 	}
 
-	if runtime.GOOS != "windows" {
-		d.mutex.Lock()
-		d.dbs[path] = db
-		d.mutex.Unlock()
+	// 在 Windows 上，我们将连接池限制为 1 个连接以最大程度减少文件句柄占用
+	if runtime.GOOS == "windows" {
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+		db.SetConnMaxLifetime(time.Minute)
 	}
+
 	return db, nil
 }
 
@@ -240,10 +261,18 @@ func (d *DBManager) Callback(event fsnotify.Event) error {
 	db, ok := d.dbs[event.Name]
 	if ok {
 		delete(d.dbs, event.Name)
-		go func(db *sql.DB) {
-			time.Sleep(time.Second * 5)
-			db.Close()
-		}(db)
+		// 在 Windows 上不再使用 goroutine 异步关闭，避免 database is closed 竞争
+		// 我们依赖 CloseDB 被显式调用或者连接自然失效
+		if runtime.GOOS != "windows" {
+			go func(db *sql.DB) {
+				time.Sleep(time.Second * 5)
+				db.Close()
+			}(db)
+		} else {
+			// Windows 下同步尝试关闭（如果当前无活跃查询，Close 会成功并释放锁）
+			// 但由于我们使用了缓存池，这里其实很难直接关闭成功，
+			// 正确的做法是在 DecryptDBFile 的 defer 中调用 CloseDB。
+		}
 	}
 	d.mutex.Unlock()
 
