@@ -23,15 +23,35 @@ func (r *Repository) GetSessions(ctx context.Context, key string, limit, offset 
 
 // EnrichSessions 补充会话的额外信息
 func (r *Repository) EnrichSessions(ctx context.Context, sessions []*model.Session) error {
+	// 1. 收集需要查询发送人的请求
+	var senderRequests []model.SenderRequest
 	for _, s := range sessions {
-		// 如果 last_sender_id 为空，通过 last_msg_local_id 获取 Msg_md5(topicID) 表 local_id 对应的 real_sender_id,
-		// 查找 name2id 表第 real_sender_id 条的 username 作为 PersonID
 		if s.PersonID == "" && s.LastMsgLocalID > 0 {
-			// TODO 优化速度
-			if sender, err := r.ds.GetSenderByLocalID(ctx, s.TopicID, s.LastMsgLocalID); err == nil && sender != "" {
+			senderRequests = append(senderRequests, model.SenderRequest{
+				TopicID: s.TopicID,
+				LocalID: s.LastMsgLocalID,
+			})
+		}
+	}
+
+	// 2. 批量查询发送人信息
+	var senderMap map[model.SenderRequest]string
+	if len(senderRequests) > 0 {
+		var err error
+		senderMap, err = r.ds.GetSendersByLocalIDs(ctx, senderRequests)
+		if err != nil {
+			log.Debug().Err(err).Msg("Batch get senders failed")
+		}
+	}
+
+	for _, s := range sessions {
+		// 3. 填入查询到的发送人 ID
+		if s.PersonID == "" && s.LastMsgLocalID > 0 && senderMap != nil {
+			if sender, ok := senderMap[model.SenderRequest{TopicID: s.TopicID, LocalID: s.LastMsgLocalID}]; ok && sender != "" {
 				s.PersonID = sender
 			}
 		}
+
 		// 如果仍然为空，且 IsSelf 已被标记（通过 Status 判断），则使用 SelfID
 		if s.PersonID == "" && s.IsSelf {
 			s.PersonID = r.SelfID
