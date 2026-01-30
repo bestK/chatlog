@@ -156,6 +156,12 @@ func New() *InfoBar {
 		tview.NewTableCell(fmt.Sprintf(" [%s::]%s", headerColor, "Auto Decrypt:")),
 	)
 	table.SetCell(autoDecryptRow, valueCol1, tview.NewTableCell(""))
+	table.SetCell(
+		autoDecryptRow,
+		labelCol2,
+		tview.NewTableCell(fmt.Sprintf(" [%s::]%s", headerColor, "Debug:")),
+	)
+	table.SetCell(autoDecryptRow, valueCol2, tview.NewTableCell(""))
 
 	// infobar
 	infoBar := &InfoBar{
@@ -215,6 +221,14 @@ func (info *InfoBar) UpdateImageKey(key string) {
 // UpdateAutoDecrypt updates Auto Decrypt value.
 func (info *InfoBar) UpdateAutoDecrypt(text string) {
 	info.table.GetCell(autoDecryptRow, valueCol1).SetText(text)
+}
+
+func (info *InfoBar) UpdateDebug(enabled bool) {
+	if enabled {
+		info.table.GetCell(autoDecryptRow, valueCol2).SetText("[green][已开启][white]")
+	} else {
+		info.table.GetCell(autoDecryptRow, valueCol2).SetText("[未开启]")
+	}
 }
 
 // Draw draws this primitive onto the screen.

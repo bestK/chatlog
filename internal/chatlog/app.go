@@ -173,6 +173,7 @@ func (a *App) refresh() {
 			} else {
 				a.infoBar.UpdateAutoDecrypt("[未开启]")
 			}
+			a.infoBar.UpdateDebug(a.ctx.GetDebug())
 
 			a.Draw()
 		}

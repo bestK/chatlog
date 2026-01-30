@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/rs/zerolog"
@@ -15,6 +16,7 @@ import (
 	"github.com/sjzar/chatlog/internal/chatlog/wechat"
 	iwechat "github.com/sjzar/chatlog/internal/wechat"
 	"github.com/sjzar/chatlog/pkg/config"
+	"github.com/sjzar/chatlog/pkg/filemonitor"
 	"github.com/sjzar/chatlog/pkg/util"
 	"github.com/sjzar/chatlog/pkg/util/dat2img"
 )
@@ -79,6 +81,10 @@ func (m *Manager) Run(configPath string) error {
 			m.StopService()
 		}
 	}
+
+	// 启动时异步检查数据更新
+	go m.CheckAndSyncData()
+
 	// 启动终端UI
 	m.app = NewApp(m.ctx, m)
 	m.app.Run() // 阻塞
@@ -478,6 +484,9 @@ func (m *Manager) CommandHTTPServer(configPath string, cmdConf map[string]any) e
 		log.Info().Msg("auto decrypt is enabled")
 	}
 
+	// 启动时异步检查数据更新
+	go m.CheckAndSyncData()
+
 	// init db
 	go func() {
 		// 如果工作目录为空，则解密数据
@@ -509,4 +518,91 @@ func (m *Manager) CommandHTTPServer(configPath string, cmdConf map[string]any) e
 	}()
 
 	return m.http.ListenAndServe()
+}
+
+func (m *Manager) CheckAndSyncData() {
+	var dataKey, dataDir, workDir string
+
+	if m.ctx != nil {
+		dataKey = m.ctx.DataKey
+		dataDir = m.ctx.DataDir
+		workDir = m.ctx.WorkDir
+	} else if m.sc != nil {
+		dataKey = m.sc.DataKey
+		dataDir = m.sc.DataDir
+		workDir = m.sc.WorkDir
+	}
+
+	if dataKey == "" || dataDir == "" || workDir == "" {
+		return
+	}
+
+	log.Info().Msgf("开始启动后异步数据检查... (DataDir: %s, WorkDir: %s)", dataDir, workDir)
+
+	// 使用与原本逻辑一致的 FileGroup 进行文件扫描
+	dbGroup, err := filemonitor.NewFileGroup("check_sync", dataDir, `.*\.db$`, []string{"fts"})
+	if err != nil {
+		log.Error().Err(err).Msg("异步检查创建文件组失败")
+		return
+	}
+
+	dbFiles, err := dbGroup.List()
+	if err != nil {
+		log.Error().Err(err).Msg("异步检查扫描文件失败")
+		return
+	}
+
+	updatedCount := 0
+	for _, srcPath := range dbFiles {
+		rel, err := filepath.Rel(dataDir, srcPath)
+		if err != nil {
+			continue
+		}
+		dstPath := filepath.Join(workDir, rel)
+
+		srcInfo, err := os.Stat(srcPath)
+		if err != nil {
+			continue
+		}
+
+		needsUpdate := false
+		dstInfo, err := os.Stat(dstPath)
+		if err != nil {
+			// 如果目标文件不存在，需要更新
+			if os.IsNotExist(err) {
+				needsUpdate = true
+			} else {
+				continue
+			}
+		} else {
+			// 如果源文件比目标文件新，则需要更新
+			if srcInfo.ModTime().After(dstInfo.ModTime()) {
+				needsUpdate = true
+			}
+		}
+
+		if needsUpdate {
+			log.Debug().Msgf("检测到文件需要同步: %s", rel)
+			if err := m.wechat.DecryptDBFile(srcPath); err != nil {
+				log.Error().Err(err).Msgf("异步解密文件失败: %s", rel)
+			} else {
+				updatedCount++
+			}
+		}
+	}
+
+	if updatedCount > 0 {
+		log.Info().Msgf("异步数据检查完成，共更新 %d 个文件", updatedCount)
+		if m.ctx != nil {
+			m.ctx.Refresh()
+			m.ctx.UpdateConfig()
+		}
+		if m.app != nil {
+			m.app.QueueUpdateDraw(func() {
+				m.RefreshSession()
+			})
+		}
+	} else {
+		log.Info().Msg("异步数据检查完成，未发现更新")
+	}
 }
