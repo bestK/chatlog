@@ -96,43 +96,45 @@ func (r *Repository) initChatRoomCache(ctx context.Context) error {
 	return nil
 }
 
-func (r *Repository) GetChatRooms(ctx context.Context, key string, limit, offset int) ([]*model.ChatRoom, error) {
+func (r *Repository) GetChatRooms(ctx context.Context, key string, limit, offset int) (int, []*model.ChatRoom, error) {
 
 	ret := make([]*model.ChatRoom, 0)
 	if key != "" {
 		ret = r.findChatRooms(key)
 		if len(ret) == 0 {
-			return []*model.ChatRoom{}, nil
+			return 0, []*model.ChatRoom{}, nil
 		}
 
+		total := len(ret)
 		if limit > 0 {
 			end := offset + limit
 			if end > len(ret) {
 				end = len(ret)
 			}
 			if offset >= len(ret) {
-				return []*model.ChatRoom{}, nil
+				return total, []*model.ChatRoom{}, nil
 			}
-			return ret[offset:end], nil
+			return total, ret[offset:end], nil
 		}
+		return total, ret, nil
 	} else {
 		list := r.chatRoomList
+		total := len(list)
 		if limit > 0 {
 			end := offset + limit
 			if end > len(list) {
 				end = len(list)
 			}
 			if offset >= len(list) {
-				return []*model.ChatRoom{}, nil
+				return total, []*model.ChatRoom{}, nil
 			}
 			list = list[offset:end]
 		}
 		for _, name := range list {
 			ret = append(ret, r.chatRoomCache[name])
 		}
+		return total, ret, nil
 	}
-
-	return ret, nil
 }
 
 func (r *Repository) GetChatRoom(ctx context.Context, key string) (*model.ChatRoom, error) {

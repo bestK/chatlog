@@ -17,12 +17,15 @@ type DataSource interface {
 
 	// 消息
 	GetMessages(ctx context.Context, startTime, endTime time.Time, speakerto string, talker string, sender string, keyword string, limit, offset int) ([]*model.Message, error)
+	GetMessagesCount(ctx context.Context, startTime, endTime time.Time, speakerto string, talker string, sender string, keyword string) (int, error)
 
 	// 联系人
 	GetContacts(ctx context.Context, key string, limit, offset int) ([]*model.Contact, error)
+	GetContactsCount(ctx context.Context, key string) (int, error)
 
 	// 群聊
 	GetChatRooms(ctx context.Context, key string, limit, offset int) ([]*model.ChatRoom, error)
+	GetChatRoomsCount(ctx context.Context, key string) (int, error)
 
 	// 最近会话
 	GetSessions(ctx context.Context, key string, limit, offset int) ([]*model.Session, error)

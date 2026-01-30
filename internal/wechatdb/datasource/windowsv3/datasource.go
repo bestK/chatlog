@@ -413,6 +413,14 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 	return filteredMessages, nil
 }
 
+func (ds *DataSource) GetMessagesCount(ctx context.Context, startTime, endTime time.Time, speakerto string, talker string, sender string, keyword string) (int, error) {
+	messages, err := ds.GetMessages(ctx, startTime, endTime, speakerto, talker, sender, keyword, 0, 0)
+	if err != nil {
+		return 0, err
+	}
+	return len(messages), nil
+}
+
 // GetContacts 实现获取联系人信息的方法
 func (ds *DataSource) GetContacts(ctx context.Context, key string, limit, offset int) ([]*model.Contact, error) {
 	var query string
@@ -468,6 +476,33 @@ func (ds *DataSource) GetContacts(ctx context.Context, key string, limit, offset
 	}
 
 	return contacts, nil
+}
+
+func (ds *DataSource) GetContactsCount(ctx context.Context, key string) (int, error) {
+	var query string
+	var args []interface{}
+
+	if key != "" {
+		query = `SELECT COUNT(*) FROM Contact 
+                WHERE UserName = ? OR Alias = ? OR Remark = ? OR NickName = ?`
+		args = []interface{}{key, key, key, key}
+	} else {
+		query = `SELECT COUNT(*) FROM Contact`
+	}
+
+	db, err := ds.dbm.GetDB(Contact)
+	if err != nil {
+		return 0, err
+	}
+	defer db.Close()
+
+	var count int
+	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, errors.QueryFailed(query, err)
+	}
+
+	return count, nil
 }
 
 // GetChatRooms 实现获取群聊信息的方法
@@ -592,6 +627,14 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 
 		return chatRooms, nil
 	}
+}
+
+func (ds *DataSource) GetChatRoomsCount(ctx context.Context, key string) (int, error) {
+	rooms, err := ds.GetChatRooms(ctx, key, 0, 0)
+	if err != nil {
+		return 0, err
+	}
+	return len(rooms), nil
 }
 
 // GetSessions 实现获取会话信息的方法

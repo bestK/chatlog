@@ -93,7 +93,7 @@ func (s *SessionV4) Wrap() *Session {
 		TopicID:        s.Username,
 		NOrder:         s.LastTimestamp,
 		Content:        content,
-		NTime:          time.Unix(int64(s.LastTimestamp), 0),
+		NTime:          JSONTime(time.Unix(int64(s.LastTimestamp), 0)),
 		IsSelf:         s.Status == 2,
 		IsChatroom:     isChatroom,
 		PersonID:       s.LastMsgSender,

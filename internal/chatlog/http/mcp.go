@@ -13,6 +13,7 @@ import (
 
 	"github.com/sjzar/chatlog/internal/chatlog/conf"
 	"github.com/sjzar/chatlog/internal/errors"
+	"github.com/sjzar/chatlog/internal/model"
 	"github.com/sjzar/chatlog/pkg/util"
 	"github.com/sjzar/chatlog/pkg/version"
 )
@@ -298,10 +299,10 @@ func (s *Service) handleMCPChatLog(ctx context.Context, request mcp.CallToolRequ
 	}
 
 	buf := &bytes.Buffer{}
-	if len(messages) == 0 {
+	if len(messages.Items) == 0 {
 		buf.WriteString("未找到符合查询条件的聊天记录")
 	}
-	for _, m := range messages {
+	for _, m := range messages.Items {
 		buf.WriteString(m.PlainText(strings.Contains(req.Talker, ","), util.PerfectTimeFormat(start, end), ""))
 		buf.WriteString("\n")
 	}
@@ -321,7 +322,7 @@ func (s *Service) handleMCPCurrentTime(ctx context.Context, request mcp.CallTool
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: time.Now().Local().Format(time.RFC3339),
+				Text: model.JSONTime(time.Now().Local()).String(),
 			},
 		},
 	}, nil

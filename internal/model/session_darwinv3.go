@@ -40,7 +40,7 @@ func (s *SessionDarwinV3) Wrap() *Session {
 		TopicName:  s.M_nsUserName,
 		TopicID:    s.M_nsUserName,
 		NOrder:     s.M_uLastTime,
-		NTime:      time.Unix(int64(s.M_uLastTime), 0),
+		NTime:      JSONTime(time.Unix(int64(s.M_uLastTime), 0)),
 		IsChatroom: isChatroom,
 	}
 	if !isChatroom {

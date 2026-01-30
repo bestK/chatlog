@@ -117,11 +117,13 @@ func (s *Service) handleChatlog(c *gin.Context) {
 		q.Offset = 0
 	}
 
-	messages, err := s.db.GetMessages(start, end, q.Talker, q.Sender, q.Keyword, q.Limit, q.Offset)
+	resp, err := s.db.GetMessages(start, end, q.Talker, q.Sender, q.Keyword, q.Limit, q.Offset)
 	if err != nil {
 		errors.Err(c, err)
 		return
 	}
+
+	c.Header("X-Total-Count", fmt.Sprintf("%d", resp.Total))
 
 	switch strings.ToLower(q.Format) {
 	case "csv":
@@ -133,13 +135,13 @@ func (s *Service) handleChatlog(c *gin.Context) {
 
 		csvWriter := csv.NewWriter(c.Writer)
 		csvWriter.Write([]string{"Time", "SenderName", "Sender", "TalkerName", "Talker", "Content"})
-		for _, m := range messages {
+		for _, m := range resp.Items {
 			csvWriter.Write(m.CSV(c.Request.Host))
 		}
 		csvWriter.Flush()
 	case "json":
 		// json
-		c.JSON(http.StatusOK, messages)
+		c.JSON(http.StatusOK, resp)
 	default:
 		// plain text
 		c.Writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -147,7 +149,7 @@ func (s *Service) handleChatlog(c *gin.Context) {
 		c.Writer.Header().Set("Connection", "keep-alive")
 		c.Writer.Flush()
 
-		for _, m := range messages {
+		for _, m := range resp.Items {
 			c.Writer.WriteString(m.PlainText(strings.Contains(q.Talker, ","), util.PerfectTimeFormat(start, end), c.Request.Host))
 			c.Writer.WriteString("\n")
 			c.Writer.Flush()
@@ -174,6 +176,8 @@ func (s *Service) handleContacts(c *gin.Context) {
 		errors.Err(c, err)
 		return
 	}
+
+	c.Header("X-Total-Count", fmt.Sprintf("%d", list.Total))
 
 	format := strings.ToLower(q.Format)
 	switch format {
@@ -219,6 +223,9 @@ func (s *Service) handleChatRooms(c *gin.Context) {
 		errors.Err(c, err)
 		return
 	}
+
+	c.Header("X-Total-Count", fmt.Sprintf("%d", list.Total))
+
 	format := strings.ToLower(q.Format)
 	switch format {
 	case "json":
@@ -267,6 +274,9 @@ func (s *Service) handleSessions(c *gin.Context) {
 		errors.Err(c, err)
 		return
 	}
+
+	c.Header("X-Total-Count", fmt.Sprintf("%d", sessions.Total))
+
 	format := strings.ToLower(q.Format)
 	switch format {
 	case "csv":

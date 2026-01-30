@@ -6,17 +6,17 @@ import (
 )
 
 type Session struct {
-	TopicName      string    `json:"topicName"`
-	TopicID        string    `json:"topicId"`
-	NOrder         int       `json:"nOrder"`
-	Content        string    `json:"content"`
-	NTime          time.Time `json:"nTime"`
-	IsChatroom     bool      `json:"isChatroom"`
-	PersonName     string    `json:"personName"`
-	PersonID       string    `json:"personID"`
-	IsSelf         bool      `json:"isSelf"`
-	IsMentionMe    bool      `json:"isMentionMe"`
-	LastMsgLocalID int       `json:"-"` // 内部使用，用于查询发送人
+	TopicName      string   `json:"topicName"`
+	TopicID        string   `json:"topicId"`
+	NOrder         int      `json:"seq"`
+	Content        string   `json:"content"`
+	NTime          JSONTime `json:"time"`
+	IsChatroom     bool     `json:"isChatroom"`
+	PersonName     string   `json:"personName"`
+	PersonID       string   `json:"personID"`
+	IsSelf         bool     `json:"isSelf"`
+	IsMentionMe    bool     `json:"isMentionMe"`
+	LastMsgLocalID int      `json:"-"` // 内部使用，用于查询发送人
 }
 
 // CREATE TABLE Session(
@@ -44,10 +44,10 @@ type Session struct {
 // )
 type SessionV3 struct {
 	StrUsrName  string `json:"strUsrName"`
-	NOrder      int    `json:"nOrder"`
+	NOrder      int    `json:"seq"`
 	StrNickName string `json:"strNickName"`
 	StrContent  string `json:"strContent"`
-	NTime       int64  `json:"nTime"`
+	NTime       int64  `json:"time"`
 	NIsSend     int    `json:"nIsSend"`
 
 	// NUnReadCount int    `json:"nUnReadCount"`
@@ -75,7 +75,7 @@ func (s *SessionV3) Wrap() *Session {
 		TopicID:    s.StrUsrName,
 		NOrder:     s.NOrder,
 		Content:    s.StrContent,
-		NTime:      time.Unix(int64(s.NTime), 0),
+		NTime:      JSONTime(time.Unix(int64(s.NTime), 0)),
 		IsSelf:     s.NIsSend == 1,
 		IsChatroom: isChatroom,
 	}

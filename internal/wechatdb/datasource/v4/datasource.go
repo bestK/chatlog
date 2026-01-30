@@ -412,6 +412,14 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 	return filteredMessages, nil
 }
 
+func (ds *DataSource) GetMessagesCount(ctx context.Context, startTime, endTime time.Time, speakerto string, talker string, sender string, keyword string) (int, error) {
+	messages, err := ds.GetMessages(ctx, startTime, endTime, speakerto, talker, sender, keyword, 0, 0)
+	if err != nil {
+		return 0, err
+	}
+	return len(messages), nil
+}
+
 // 联系人
 func (ds *DataSource) GetContacts(ctx context.Context, key string, limit, offset int) ([]*model.Contact, error) {
 	var query string
@@ -468,6 +476,32 @@ func (ds *DataSource) GetContacts(ctx context.Context, key string, limit, offset
 	}
 
 	return contacts, nil
+}
+
+func (ds *DataSource) GetContactsCount(ctx context.Context, key string) (int, error) {
+	var query string
+	var args []interface{}
+
+	if key != "" {
+		query = `SELECT COUNT(*) FROM contact WHERE username = ? OR alias = ? OR remark = ? OR nick_name = ?`
+		args = []interface{}{key, key, key, key}
+	} else {
+		query = `SELECT COUNT(*) FROM contact`
+	}
+
+	db, err := ds.dbm.GetDB(Contact)
+	if err != nil {
+		return 0, err
+	}
+	defer db.Close()
+
+	var count int
+	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, errors.QueryFailed(query, err)
+	}
+
+	return count, nil
 }
 
 // 群聊
@@ -588,6 +622,16 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 
 		return chatRooms, nil
 	}
+}
+
+func (ds *DataSource) GetChatRoomsCount(ctx context.Context, key string) (int, error) {
+	// 由于 GetChatRooms 逻辑包含从联系人表中模拟群聊，这里直接复用 GetChatRooms 逻辑取长度
+	// 对于群聊数量来说，量级通常较小，直接取列表长度尚可接受
+	rooms, err := ds.GetChatRooms(ctx, key, 0, 0)
+	if err != nil {
+		return 0, err
+	}
+	return len(rooms), nil
 }
 
 // 最近会话

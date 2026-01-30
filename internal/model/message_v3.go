@@ -56,7 +56,7 @@ func (m *MessageV3) Wrap() *Message {
 
 	_m := &Message{
 		Seq:        m.Sequence,
-		Time:       time.Unix(m.CreateTime, 0),
+		Time:       JSONTime(time.Unix(m.CreateTime, 0)),
 		Talker:     m.StrTalker,
 		IsChatRoom: strings.HasSuffix(m.StrTalker, "@chatroom"),
 		IsSelf:     m.IsSender == 1,
