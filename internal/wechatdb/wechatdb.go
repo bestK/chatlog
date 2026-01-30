@@ -74,48 +74,60 @@ func (w *DB) Initialize() error {
 	return nil
 }
 
-func (w *DB) GetMessages(start, end time.Time, talker string, sender string, keyword string, limit, offset int) ([]*model.Message, error) {
+type GetMessagesResp struct {
+	Total int              `json:"total"`
+	Items []*model.Message `json:"items"`
+}
+
+func (w *DB) GetMessages(start, end time.Time, talker string, sender string, keyword string, limit, offset int) (*GetMessagesResp, error) {
 	ctx := context.Background()
 
 	// 使用 repository 获取消息
-	messages, err := w.repo.GetMessages(ctx, start, end, talker, sender, keyword, limit, offset)
+	total, messages, err := w.repo.GetMessages(ctx, start, end, talker, sender, keyword, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 
-	return messages, nil
+	return &GetMessagesResp{
+		Total: total,
+		Items: messages,
+	}, nil
 }
 
 type GetContactsResp struct {
+	Total int              `json:"total"`
 	Items []*model.Contact `json:"items"`
 }
 
 func (w *DB) GetContacts(key string, limit, offset int) (*GetContactsResp, error) {
 	ctx := context.Background()
 
-	contacts, err := w.repo.GetContacts(ctx, key, limit, offset)
+	total, contacts, err := w.repo.GetContacts(ctx, key, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 
 	return &GetContactsResp{
+		Total: total,
 		Items: contacts,
 	}, nil
 }
 
 type GetChatRoomsResp struct {
+	Total int               `json:"total"`
 	Items []*model.ChatRoom `json:"items"`
 }
 
 func (w *DB) GetChatRooms(key string, limit, offset int) (*GetChatRoomsResp, error) {
 	ctx := context.Background()
 
-	chatRooms, err := w.repo.GetChatRooms(ctx, key, limit, offset)
+	total, chatRooms, err := w.repo.GetChatRooms(ctx, key, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 
 	return &GetChatRoomsResp{
+		Total: total,
 		Items: chatRooms,
 	}, nil
 }

@@ -337,7 +337,7 @@ func (m *Manager) RefreshSession() error {
 	if len(resp.Items) == 0 {
 		return nil
 	}
-	m.ctx.LastSession = resp.Items[0].NTime
+	m.ctx.LastSession = resp.Items[0].NTime.Time()
 	return nil
 }
 

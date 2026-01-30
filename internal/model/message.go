@@ -108,7 +108,7 @@ const (
 type Message struct {
 	Version     string                 `json:"-"`                  // 消息版本，内部判断
 	Seq         int64                  `json:"seq"`                // 消息序号，10位时间戳 + 3位序号
-	Time        time.Time              `json:"time"`               // 消息创建时间，10位时间戳
+	Time        JSONTime               `json:"time"`               // 消息创建时间，10位时间戳
 	Talker      string                 `json:"talker"`             // 聊天对象，微信 ID or 群 ID
 	TalkerName  string                 `json:"talkerName"`         // 聊天对象名称
 	IsChatRoom  bool                   `json:"isChatRoom"`         // 是否为群聊消息
@@ -227,7 +227,7 @@ func (m *Message) ParseMediaInfo(data string) error {
 			}
 			subMsg := &Message{
 				Type:       int64(msg.App.ReferMsg.Type),
-				Time:       time.Unix(msg.App.ReferMsg.CreateTime, 0),
+				Time:       JSONTime(time.Unix(msg.App.ReferMsg.CreateTime, 0)),
 				Sender:     msg.App.ReferMsg.ChatUsr,
 				SenderName: msg.App.ReferMsg.DisplayName,
 			}

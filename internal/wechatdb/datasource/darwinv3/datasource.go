@@ -109,6 +109,14 @@ func New(path string) (*DataSource, error) {
 	return ds, nil
 }
 
+func (ds *DataSource) GetChatRoomsCount(ctx context.Context, key string) (int, error) {
+	rooms, err := ds.GetChatRooms(ctx, key, 0, 0)
+	if err != nil {
+		return 0, err
+	}
+	return len(rooms), nil
+}
+
 func (ds *DataSource) SetCallback(group string, callback func(event fsnotify.Event) error) error {
 	return ds.dbm.AddCallback(group, callback)
 }
@@ -349,6 +357,14 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 	return filteredMessages, nil
 }
 
+func (ds *DataSource) GetMessagesCount(ctx context.Context, startTime, endTime time.Time, speakerto string, talker string, sender string, keyword string) (int, error) {
+	messages, err := ds.GetMessages(ctx, startTime, endTime, speakerto, talker, sender, keyword, 0, 0)
+	if err != nil {
+		return 0, err
+	}
+	return len(messages), nil
+}
+
 // 从表名中提取 talker
 func extractTalkerFromTableName(tableName string) string {
 
@@ -419,6 +435,33 @@ func (ds *DataSource) GetContacts(ctx context.Context, key string, limit, offset
 	}
 
 	return contacts, nil
+}
+
+func (ds *DataSource) GetContactsCount(ctx context.Context, key string) (int, error) {
+	var query string
+	var args []interface{}
+
+	if key != "" {
+		query = `SELECT COUNT(*) FROM WCContact 
+				WHERE m_nsUsrName = ? OR nickname = ? OR m_nsRemark = ? OR m_nsAliasName = ?`
+		args = []interface{}{key, key, key, key}
+	} else {
+		query = `SELECT COUNT(*) FROM WCContact`
+	}
+
+	db, err := ds.dbm.GetDB(Contact)
+	if err != nil {
+		return 0, err
+	}
+	defer db.Close()
+
+	var count int
+	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, errors.QueryFailed(query, err)
+	}
+
+	return count, nil
 }
 
 // GetChatRooms 实现获取群聊信息的方法

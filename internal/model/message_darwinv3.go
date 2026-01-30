@@ -32,7 +32,7 @@ type MessageDarwinV3 struct {
 func (m *MessageDarwinV3) Wrap(talker string) *Message {
 
 	_m := &Message{
-		Time:       time.Unix(m.MsgCreateTime, 0),
+		Time:       JSONTime(time.Unix(m.MsgCreateTime, 0)),
 		Type:       m.MessageType,
 		Talker:     talker,
 		IsChatRoom: strings.HasSuffix(talker, "@chatroom"),

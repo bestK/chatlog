@@ -119,40 +119,43 @@ func (r *Repository) GetContact(ctx context.Context, key string) (*model.Contact
 	return contact, nil
 }
 
-func (r *Repository) GetContacts(ctx context.Context, key string, limit, offset int) ([]*model.Contact, error) {
+func (r *Repository) GetContacts(ctx context.Context, key string, limit, offset int) (int, []*model.Contact, error) {
 	ret := make([]*model.Contact, 0)
 	if key != "" {
 		ret = r.findContacts(key)
 		if len(ret) == 0 {
-			return []*model.Contact{}, nil
+			return 0, []*model.Contact{}, nil
 		}
+		total := len(ret)
 		if limit > 0 {
 			end := offset + limit
 			if end > len(ret) {
 				end = len(ret)
 			}
 			if offset >= len(ret) {
-				return []*model.Contact{}, nil
+				return total, []*model.Contact{}, nil
 			}
-			return ret[offset:end], nil
+			return total, ret[offset:end], nil
 		}
+		return total, ret, nil
 	} else {
 		list := r.contactList
+		total := len(list)
 		if limit > 0 {
 			end := offset + limit
 			if end > len(list) {
 				end = len(list)
 			}
 			if offset >= len(list) {
-				return []*model.Contact{}, nil
+				return total, []*model.Contact{}, nil
 			}
 			list = list[offset:end]
 		}
 		for _, name := range list {
 			ret = append(ret, r.contactCache[name])
 		}
+		return total, ret, nil
 	}
-	return ret, nil
 }
 
 func (r *Repository) findContact(key string) *model.Contact {

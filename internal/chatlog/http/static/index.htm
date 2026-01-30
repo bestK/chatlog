@@ -8,6 +8,9 @@
         <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
         <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css" />
         <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+        <!-- jquery_pagination 插件 -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/gbirke/jquery_pagination@master/src/pagination.css" />
+        <script src="https://cdn.jsdelivr.net/gh/gbirke/jquery_pagination@master/src/jquery.pagination.js"></script>
         <style>
             :root {
                 --primary-color: #3498db;
@@ -380,6 +383,91 @@
                 color: #666;
                 font-weight: 500;
             }
+
+            /* 分页样式 */
+            .pagination-container {
+                margin-top: 20px;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                gap: 5px;
+                padding: 10px 0;
+            }
+            .pagination-info {
+                margin-right: 15px;
+                color: #666;
+                font-size: 14px;
+            }
+            .page-btn {
+                background-color: #fff;
+                color: var(--text-color);
+                border: 1px solid var(--border-color);
+                padding: 5px 12px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                min-width: 35px;
+                transition: all 0.2s;
+            }
+            .page-btn:hover:not(:disabled) {
+                background-color: #f0f0f0;
+                border-color: #999;
+            }
+            .page-btn.active {
+                background-color: var(--primary-color);
+                color: white;
+                border-color: var(--primary-color);
+            }
+            .page-btn:disabled {
+                color: #ccc;
+                cursor: not-allowed;
+                background-color: #f9f9f9;
+            }
+            .page-dots {
+                color: #999;
+                padding: 0 5px;
+            }
+
+            /* jquery_pagination 插件样式适配 */
+            .pagination {
+                font-size: 80%;
+            }
+
+            .pagination a {
+                text-decoration: none;
+                border: 1px solid var(--border-color);
+                color: var(--primary-color);
+            }
+
+            .pagination a,
+            .pagination span {
+                display: block;
+                float: left;
+                padding: 0.3em 0.5em;
+                margin-right: 5px;
+                margin-bottom: 5px;
+                background-color: #fff;
+                border-radius: 4px;
+            }
+
+            .pagination .current {
+                background: #2a64bc;
+                color: #fff;
+                border: 1px solid #2a64bc;
+            }
+
+            .pagination .prev,
+            .pagination .next {
+                color: #666;
+                border: 1px solid #ccc;
+            }
+
+            .pagination .current.prev,
+            .pagination .current.next {
+                color: #ccc;
+                border-color: #ddd;
+                background: #fff;
+            }
         </style>
     </head>
     <body>
@@ -411,14 +499,6 @@
                         <div class="form-group">
                             <label for="session-keyword">搜索会话：<span class="optional-param">可选</span></label>
                             <input type="text" id="session-keyword" placeholder="输入用户名或昵称搜索" />
-                        </div>
-                        <div class="form-group">
-                            <label for="session-limit">返回数量：<span class="optional-param">可选</span></label>
-                            <input type="number" id="session-limit" placeholder="默认 50" />
-                        </div>
-                        <div class="form-group">
-                            <label for="session-offset">偏移量：<span class="optional-param">可选</span></label>
-                            <input type="number" id="session-offset" placeholder="默认 0" />
                         </div>
                         <div class="form-group">
                             <label for="session-format">输出格式：<span class="optional-param">可选</span></label>
@@ -500,14 +580,6 @@
                             <input type="text" id="keyword" placeholder="搜索消息内容中的关键词" />
                         </div>
                         <div class="form-group">
-                            <label for="limit">返回数量：<span class="optional-param">可选</span></label>
-                            <input type="number" id="limit" placeholder="默认不做限制" />
-                        </div>
-                        <div class="form-group">
-                            <label for="offset">偏移量：<span class="optional-param">可选</span></label>
-                            <input type="number" id="offset" placeholder="默认 0" />
-                        </div>
-                        <div class="form-group">
                             <label for="format">输出格式：<span class="optional-param">可选</span></label>
                             <select id="format">
                                 <option value="">默认</option>
@@ -528,6 +600,7 @@
                         <div class="result-container" id="api-result">
                             <p>查询结果将显示在这里...</p>
                         </div>
+                        <div id="pagination" class="pagination-container"></div>
                         <div class="button-group">
                             <button class="copy-button" id="copy-result">复制结果</button>
                         </div>
@@ -592,21 +665,38 @@
                 });
             });
 
+            let currentQueryState = {
+                tab: '',
+                params: {},
+                limit: 10,
+                total: 0,
+                isPaginating: false, // 标记是否正在由分页插件触发查询
+            };
+
             // API 测试功能
-            document.getElementById('test-api').addEventListener('click', async function () {
+            document.getElementById('test-api').addEventListener('click', function () {
+                // 重置分页标记并执行新查询
+                currentQueryState.isPaginating = false;
+                performQuery(0);
+            });
+
+            async function performQuery(offset = 0) {
                 const resultContainer = document.getElementById('api-result');
                 const requestUrlContainer = document.getElementById('request-url');
                 const errorMessage = document.getElementById('error-message');
                 const resultWrapper = document.getElementById('result-wrapper');
+                const paginationContainer = document.getElementById('pagination');
 
                 errorMessage.style.display = 'none';
                 errorMessage.textContent = '';
+                paginationContainer.innerHTML = '';
 
                 try {
                     // 获取当前活动的标签
                     const activeTab = document.querySelector('.tab.active').getAttribute('data-tab');
                     let url = '/api/v1/';
                     let params = new URLSearchParams();
+                    let limit = currentQueryState.limit || 10;
 
                     // 根据不同的标签构建不同的请求
                     switch (activeTab) {
@@ -617,18 +707,15 @@
                             const talker = document.getElementById('talker').value;
                             const sender = document.getElementById('sender').value;
                             const keyword = document.getElementById('keyword').value;
-                            const limit = document.getElementById('limit').value;
-                            const offset = document.getElementById('offset').value;
+                            const chatlogLimit = currentQueryState.limit || 10;
                             const format = document.getElementById('format').value;
 
-                            // 验证必填项
                             if (!startDate || !talker) {
                                 errorMessage.textContent = '错误: 开始日期和聊天对象为必填项！';
                                 errorMessage.style.display = 'block';
                                 return;
                             }
 
-                            // 构建时间参数
                             let time = startDate;
                             if (endDate && endDate !== startDate) {
                                 time = startDate + '~' + endDate;
@@ -638,8 +725,9 @@
                             if (talker) params.append('talker', talker);
                             if (sender) params.append('sender', sender);
                             if (keyword) params.append('keyword', keyword);
-                            if (limit) params.append('limit', limit);
-                            if (offset) params.append('offset', offset);
+                            limit = chatlogLimit;
+                            params.append('limit', limit);
+                            params.append('offset', offset);
                             if (format) params.append('format', format);
                             break;
 
@@ -647,7 +735,8 @@
                             url += 'contact';
                             const contactKeyword = document.getElementById('contact-keyword').value;
                             const contactFormat = document.getElementById('contact-format').value;
-
+                            params.append('limit', limit);
+                            params.append('offset', offset);
                             if (contactKeyword) params.append('keyword', contactKeyword);
                             if (contactFormat) params.append('format', contactFormat);
                             break;
@@ -656,7 +745,8 @@
                             url += 'chatroom';
                             const chatroomKeyword = document.getElementById('chatroom-keyword').value;
                             const chatroomFormat = document.getElementById('chatroom-format').value;
-
+                            params.append('limit', limit);
+                            params.append('offset', offset);
                             if (chatroomKeyword) params.append('keyword', chatroomKeyword);
                             if (chatroomFormat) params.append('format', chatroomFormat);
                             break;
@@ -664,57 +754,156 @@
                         case 'session':
                             url += 'session';
                             const sessionKeyword = document.getElementById('session-keyword').value;
-                            const sLimit = document.getElementById('session-limit').value;
-                            const sOffset = document.getElementById('session-offset').value;
+                            const sessionLimit = currentQueryState.limit || 10;
                             const sessionFormat = document.getElementById('session-format').value;
-
+                            limit = sessionLimit;
+                            params.append('limit', limit);
+                            params.append('offset', offset);
                             if (sessionKeyword) params.append('keyword', sessionKeyword);
-                            if (sLimit) params.append('limit', sLimit);
-                            if (sOffset) params.append('offset', sOffset);
                             if (sessionFormat) params.append('format', sessionFormat);
                             break;
                     }
 
-                    // 添加参数到URL
-                    const apiUrl = params.toString() ? `${url}?${params.toString()}` : url;
+                    // 保存当前查询状态，供分页回调使用
+                    if (!currentQueryState.isPaginating) {
+                        currentQueryState.tab = activeTab;
+                        currentQueryState.params = Object.fromEntries(params.entries());
+                        currentQueryState.limit = limit;
+                    }
 
-                    // 获取完整URL（包含域名部分）
+                    const apiUrl = params.toString() ? `${url}?${params.toString()}` : url;
                     const fullUrl = window.location.origin + apiUrl;
 
-                    // 显示完整请求URL
                     requestUrlContainer.textContent = fullUrl;
                     resultWrapper.style.display = 'block';
-
-                    // 显示加载中
                     resultContainer.innerHTML = '<div class="loading">加载中</div>';
 
-                    // 发送请求
                     const response = await fetch(apiUrl);
-
                     if (!response.ok) {
                         throw new Error(`HTTP error! Status: ${response.status}`);
                     }
 
-                    // 获取响应内容类型
                     const contentType = response.headers.get('content-type');
-                    let result;
+                    const totalFromHeader = parseInt(response.headers.get('X-Total-Count'));
 
                     if (contentType && contentType.includes('application/json')) {
-                        // 如果是JSON，格式化显示
-                        result = await response.json();
-                        resultContainer.innerHTML = JSON.stringify(result, null, 2);
+                        const data = await response.json();
+                        resultContainer.innerHTML = JSON.stringify(data, null, 2);
+
+                        // 如果包含 total 字段及项目列表，渲染分页
+                        const total = typeof data.total === 'number' ? data.total : totalFromHeader;
+                        if (!isNaN(total) && !currentQueryState.isPaginating) {
+                            renderPagination(total, limit);
+                        }
                     } else {
-                        // 其他格式直接显示文本
-                        result = await response.text();
-                        resultContainer.innerHTML = result;
+                        const text = await response.text();
+                        resultContainer.innerHTML = text;
+                        // 非JSON结果，如果Header中有total，也渲染分页
+                        if (!isNaN(totalFromHeader) && !currentQueryState.isPaginating) {
+                            renderPagination(totalFromHeader, limit);
+                        } else if (!currentQueryState.isPaginating) {
+                            paginationContainer.innerHTML = '';
+                        }
                     }
                 } catch (error) {
                     resultContainer.innerHTML = '';
                     errorMessage.textContent = `查询出错: ${error.message}`;
                     errorMessage.style.display = 'block';
                     console.error('API查询出错:', error);
+                } finally {
+                    currentQueryState.isPaginating = false;
                 }
-            });
+            }
+
+            function renderPagination(total, limit) {
+                const container = document.getElementById('pagination');
+                container.innerHTML = '';
+
+                // 统一显示分页信息（即使只有一页）
+                const infoDiv = $(
+                    '<div class="pagination-info" style="margin-bottom: 10px; text-align: center; color: #666; font-size: 14px;"></div>',
+                );
+                infoDiv.append(`<span>共计 ${total} 条数据，每页显示 </span>`);
+
+                const sizeSelect = $(
+                    '<select style="width: auto; padding: 2px 5px; margin: 0 5px; border-radius: 4px; font-size: 12px; height: 26px;"></select>',
+                );
+                [10, 20, 50, 100].forEach(size => {
+                    const option = $(`<option value="${size}">${size}</option>`);
+                    if (size === limit) option.attr('selected', 'selected');
+                    sizeSelect.append(option);
+                });
+
+                sizeSelect.on('change', function () {
+                    const newSize = parseInt($(this).val());
+                    currentQueryState.limit = newSize;
+                    currentQueryState.isPaginating = false;
+                    performQuery(0);
+                });
+
+                infoDiv.append(sizeSelect);
+                infoDiv.append('<span> 条</span>');
+                $(container).append(infoDiv);
+
+                const pagerDiv = $('<div class="pagination-buttons"></div>');
+                $(container).append(pagerDiv);
+
+                // 使用 jquery_pagination 插件
+                pagerDiv.pagination(total, {
+                    items_per_page: limit,
+                    num_display_entries: 4,
+                    num_edge_entries: 1,
+                    prev_text: 'Prev',
+                    next_text: 'Next',
+                    callback: function (page_index, jq) {
+                        // 避免初始化时的回调触发多余查询
+                        if (currentQueryState.isPaginating) return false;
+
+                        const offset = page_index * currentQueryState.limit;
+                        currentQueryState.isPaginating = true;
+
+                        // 从保存的参数中执行查询
+                        performQueryWithState(offset);
+                        return false;
+                    },
+                });
+            }
+
+            async function performQueryWithState(offset) {
+                const resultContainer = document.getElementById('api-result');
+                const requestUrlContainer = document.getElementById('request-url');
+                const resultWrapper = document.getElementById('result-wrapper');
+
+                try {
+                    let url = '/api/v1/' + currentQueryState.tab;
+                    let params = new URLSearchParams(currentQueryState.params);
+                    params.set('offset', offset);
+                    params.set('limit', currentQueryState.limit); // 确保分页时使用最新的 limit
+
+                    const apiUrl = `${url}?${params.toString()}`;
+                    const fullUrl = window.location.origin + apiUrl;
+
+                    requestUrlContainer.textContent = fullUrl;
+                    resultContainer.innerHTML = '<div class="loading">加载中</div>';
+
+                    const response = await fetch(apiUrl);
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        const data = await response.json();
+                        resultContainer.innerHTML = JSON.stringify(data, null, 2);
+                    } else {
+                        const text = await response.text();
+                        resultContainer.innerHTML = text;
+                    }
+                } catch (error) {
+                    document.getElementById('error-message').textContent = `分页查询出错: ${error.message}`;
+                    document.getElementById('error-message').style.display = 'block';
+                } finally {
+                    currentQueryState.isPaginating = false;
+                }
+            }
 
             // 复制结果功能
             document.getElementById('copy-result').addEventListener('click', function () {

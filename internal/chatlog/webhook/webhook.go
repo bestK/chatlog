@@ -177,13 +177,13 @@ func (m *MessageWebhook) Do(event fsnotify.Event) {
 		return
 	}
 
-	if len(messages) == 0 {
+	if len(messages.Items) == 0 {
 		return
 	}
 
-	m.lastTime = messages[len(messages)-1].Time.Add(time.Second)
+	m.lastTime = messages.Items[len(messages.Items)-1].Time.Add(time.Second).Time()
 
-	for _, message := range messages {
+	for _, message := range messages.Items {
 		message.SetContent("host", m.host)
 		message.Content = message.PlainTextContent()
 	}
@@ -193,8 +193,8 @@ func (m *MessageWebhook) Do(event fsnotify.Event) {
 		"sender":   m.conf.Sender,
 		"keyword":  m.conf.Keyword,
 		"lastTime": m.lastTime.Format(time.DateTime),
-		"length":   len(messages),
-		"messages": messages,
+		"length":   len(messages.Items),
+		"messages": messages.Items,
 	}
 	body, _ := json.Marshal(ret)
 	req, _ := http.NewRequest("POST", m.conf.URL, bytes.NewBuffer(body))

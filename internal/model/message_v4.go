@@ -50,7 +50,7 @@ func (m *MessageV4) Wrap(talker string) *Message {
 
 	_m := &Message{
 		Seq:        m.SortSeq,
-		Time:       time.Unix(m.CreateTime, 0),
+		Time:       JSONTime(time.Unix(m.CreateTime, 0)),
 		Talker:     talker,
 		IsChatRoom: strings.HasSuffix(talker, "@chatroom"),
 		Sender:     m.UserName,

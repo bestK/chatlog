@@ -4,7 +4,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/sjzar/chatlog/pkg/util"
 
@@ -35,7 +34,7 @@ func initLog(cmd *cobra.Command, args []string) {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 
-	writers := []io.Writer{zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}}
+	writers := []io.Writer{zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "2006-01-02 15:04:05"}}
 	if fw := getLogWriter(); fw != nil {
 		writers = append(writers, fw)
 	}
@@ -56,7 +55,7 @@ func initTuiLog(cmd *cobra.Command, args []string) {
 
 	// debug 模式时同时输出到控制台和文件
 	if debug {
-		writers := []io.Writer{zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}}
+		writers := []io.Writer{zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "2006-01-02 15:04:05"}}
 		if fw := getLogWriter(); fw != nil {
 			writers = append(writers, fw)
 		}
@@ -67,7 +66,7 @@ func initTuiLog(cmd *cobra.Command, args []string) {
 		if fw := getLogWriter(); fw != nil {
 			logOutput = fw
 		}
-		log.Logger = log.Output(zerolog.ConsoleWriter{Out: logOutput, NoColor: true, TimeFormat: time.RFC3339})
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: logOutput, NoColor: true, TimeFormat: "2006-01-02 15:04:05"})
 		logrus.SetOutput(logOutput)
 	}
 }
