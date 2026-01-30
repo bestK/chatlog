@@ -531,7 +531,7 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 		// 按照关键字查询
 		query = `SELECT m_nsUserName, m_uLastTime 
 				FROM SessionAbstract 
-				WHERE m_nsUserName = ?`
+				WHERE m_nsUserName LIKE '%' || ? || '%'`
 		args = []interface{}{key}
 	} else {
 		// 查询所有会话
@@ -683,4 +683,30 @@ func (ds *DataSource) GetSenderByLocalID(ctx context.Context, topicID string, lo
 // GetSendersByLocalIDs V3 不支持此功能，返回空 map
 func (ds *DataSource) GetSendersByLocalIDs(ctx context.Context, requests []model.SenderRequest) (map[model.SenderRequest]string, error) {
 	return make(map[model.SenderRequest]string), nil
+}
+
+func (ds *DataSource) GetSessionsCount(ctx context.Context, key string) (int, error) {
+	var query string
+	var args []interface{}
+
+	if key != "" {
+		query = `SELECT COUNT(*) FROM SessionAbstract WHERE m_nsUserName LIKE '%' || ? || '%'`
+		args = []interface{}{key}
+	} else {
+		query = `SELECT COUNT(*) FROM SessionAbstract`
+	}
+
+	db, err := ds.dbm.GetDB(Session)
+	if err != nil {
+		return 0, err
+	}
+	defer db.Close()
+
+	var count int
+	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, errors.QueryFailed(query, err)
+	}
+
+	return count, nil
 }

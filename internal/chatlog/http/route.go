@@ -258,6 +258,10 @@ func (s *Service) handleSessions(c *gin.Context) {
 		return
 	}
 
+	if q.Limit <= 0 {
+		q.Limit = 50
+	}
+
 	sessions, err := s.db.GetSessions(q.Keyword, q.Limit, q.Offset)
 	if err != nil {
 		errors.Err(c, err)
