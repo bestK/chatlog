@@ -836,40 +836,84 @@ func (ds *DataSource) GetSenderByLocalID(ctx context.Context, topicID string, lo
 		return "", nil
 	}
 
-	// 构建表名
-	_topicMd5Bytes := md5.Sum([]byte(topicID))
-	topicMd5 := hex.EncodeToString(_topicMd5Bytes[:])
-	tableName := "Msg_" + topicMd5
+	res, err := ds.GetSendersByLocalIDs(ctx, []model.SenderRequest{{TopicID: topicID, LocalID: localID}})
+	if err != nil {
+		return "", err
+	}
+	return res[model.SenderRequest{TopicID: topicID, LocalID: localID}], nil
+}
 
-	// 查询语句: 从消息表获取 real_sender_id，再 JOIN Name2Id 表获取 username
-	query := fmt.Sprintf(`
-		SELECT IFNULL(n.user_name, '')
-		FROM %s m
-		LEFT JOIN Name2Id n ON m.real_sender_id = n.rowid
-		WHERE m.local_id = ?
-		LIMIT 1
-	`, tableName)
+// GetSendersByLocalIDs 批量通过 topicID 和 localID 查询发送人 username
+func (ds *DataSource) GetSendersByLocalIDs(ctx context.Context, requests []model.SenderRequest) (map[model.SenderRequest]string, error) {
+	result := make(map[model.SenderRequest]string)
+	if len(requests) == 0 {
+		return result, nil
+	}
 
-	// 遍历所有消息数据库查找
+	// 按 TopicID 分组请求，减少重复计算 MD5 和构建查询
+	groups := make(map[string][]int)
+	for _, req := range requests {
+		groups[req.TopicID] = append(groups[req.TopicID], req.LocalID)
+	}
+
+	// 找到 message_0.db
+	var targetDBPath string
 	for _, dbInfo := range ds.messageInfos {
-		// message_0.db
-		if !strings.Contains(dbInfo.FilePath, "message_0.db") {
-			continue
-		}
-
-		db, err := ds.dbm.OpenDB(dbInfo.FilePath)
-		if err != nil {
-			continue
-		}
-
-		var username string
-		err = db.QueryRowContext(ctx, query, localID).Scan(&username)
-		db.Close()
-
-		if err == nil && username != "" {
-			return username, nil
+		if strings.Contains(dbInfo.FilePath, "message_0.db") {
+			targetDBPath = dbInfo.FilePath
+			break
 		}
 	}
 
-	return "", nil
+	if targetDBPath == "" {
+		return result, nil
+	}
+
+	db, err := ds.dbm.OpenDB(targetDBPath)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	for topicID, localIDs := range groups {
+		if len(localIDs) == 0 {
+			continue
+		}
+
+		_topicMd5Bytes := md5.Sum([]byte(topicID))
+		topicMd5 := hex.EncodeToString(_topicMd5Bytes[:])
+		tableName := "Msg_" + topicMd5
+
+		// 构建 IN 子句
+		placeholders := make([]string, len(localIDs))
+		args := make([]interface{}, len(localIDs))
+		for i, id := range localIDs {
+			placeholders[i] = "?"
+			args[i] = id
+		}
+
+		query := fmt.Sprintf(`
+			SELECT m.local_id, IFNULL(n.user_name, '')
+			FROM %s m
+			LEFT JOIN Name2Id n ON m.real_sender_id = n.rowid
+			WHERE m.local_id IN (%s)
+		`, tableName, strings.Join(placeholders, ","))
+
+		rows, err := db.QueryContext(ctx, query, args...)
+		if err != nil {
+			log.Debug().Err(err).Str("topicID", topicID).Msg("Batch query senders failed")
+			continue
+		}
+
+		for rows.Next() {
+			var localID int
+			var username string
+			if err := rows.Scan(&localID, &username); err == nil {
+				result[model.SenderRequest{TopicID: topicID, LocalID: localID}] = username
+			}
+		}
+		rows.Close()
+	}
+
+	return result, nil
 }

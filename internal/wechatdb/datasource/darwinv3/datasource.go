@@ -679,3 +679,8 @@ func (ds *DataSource) UnlockDB(path string) error {
 func (ds *DataSource) GetSenderByLocalID(ctx context.Context, topicID string, localID int) (string, error) {
 	return "", nil
 }
+
+// GetSendersByLocalIDs V3 不支持此功能，返回空 map
+func (ds *DataSource) GetSendersByLocalIDs(ctx context.Context, requests []model.SenderRequest) (map[model.SenderRequest]string, error) {
+	return make(map[model.SenderRequest]string), nil
+}
