@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	DebounceTime = 1 * time.Second
+	DebounceTime = 500 * time.Millisecond
 	MaxWaitTime  = 10 * time.Second
 )
 
@@ -226,6 +226,9 @@ func (s *Service) DecryptDBFile(dbFile string) error {
 }
 
 func (s *Service) replaceDB(tmp, target string) error {
+	// 在替换之前清理目标目录的 WAL 文件，防止 SQLite 在替换后立即读取旧的加密 WAL
+	s.removeWalFiles(target)
+
 	if s.dbController != nil {
 		s.dbController.LockDB(target)
 		defer s.dbController.UnlockDB(target)
