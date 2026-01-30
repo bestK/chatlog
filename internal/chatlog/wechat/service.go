@@ -194,7 +194,8 @@ func (s *Service) DecryptDBFile(dbFile string) error {
 		return err
 	}
 
-	tmp := output + ".tmp"
+	// 使用带纳秒级随机性的临时文件名，避免并发解密同一文件时发生冲突
+	tmp := fmt.Sprintf("%s.%d.tmp", output, time.Now().UnixNano())
 
 	f, err := os.Create(tmp)
 	if err != nil {
@@ -236,20 +237,25 @@ func (s *Service) replaceDB(tmp, target string) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	for i := 0; i < 5; i++ {
-		err := os.Rename(tmp, target)
+	// Windows 下重试 50 次，每次 200ms，总计 10s 窗口
+	// 这可以容纳绝大多数长耗时查询完成并释放句柄
+	var err error
+	for i := 0; i < 50; i++ {
+		err = os.Rename(tmp, target)
 		if err == nil {
 			return nil
 		}
 
 		if errors.Is(err, fs.ErrPermission) {
+			// 在 Windows 上，如果目标文件已存在且被锁定，Rename 会返回 Permission 错误
+			// 尝试删除（尽管如果被锁定删除也会失败，但对于非锁定的 Permission 问题有效）
 			_ = os.Remove(target)
 		}
 
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	return fmt.Errorf("failed to replace db %s", target)
+	return fmt.Errorf("failed to replace db %s within 10s: %w", target, err)
 }
 
 func (s *Service) DecryptDBFiles() error {
