@@ -599,9 +599,11 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 		// 按照关键字查询
 		query = `SELECT username, summary, last_timestamp, last_msg_sender, last_sender_display_name, last_msg_type, last_msg_sub_type, status, IFNULL(last_msg_locald_id, 0)
 				FROM SessionTable 
-				WHERE username = ? OR last_sender_display_name = ?
+				WHERE username LIKE '%' || ? || '%' 
+				   OR last_sender_display_name LIKE '%' || ? || '%' 
+				   OR summary LIKE '%' || ? || '%'
 				ORDER BY sort_timestamp DESC`
-		args = []interface{}{key, key}
+		args = []interface{}{key, key, key}
 	} else {
 		// 查询所有会话
 		query = `SELECT username, summary, last_timestamp, last_msg_sender, last_sender_display_name, last_msg_type, last_msg_sub_type, status, IFNULL(last_msg_locald_id, 0)
@@ -652,6 +654,35 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 	}
 
 	return sessions, nil
+}
+
+func (ds *DataSource) GetSessionsCount(ctx context.Context, key string) (int, error) {
+	var query string
+	var args []interface{}
+
+	if key != "" {
+		query = `SELECT COUNT(*) FROM SessionTable 
+				WHERE username LIKE '%' || ? || '%' 
+				   OR last_sender_display_name LIKE '%' || ? || '%' 
+				   OR summary LIKE '%' || ? || '%'`
+		args = []interface{}{key, key, key}
+	} else {
+		query = `SELECT COUNT(*) FROM SessionTable`
+	}
+
+	db, err := ds.dbm.GetDB(Session)
+	if err != nil {
+		return 0, err
+	}
+	defer db.Close()
+
+	var count int
+	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, errors.QueryFailed(query, err)
+	}
+
+	return count, nil
 }
 
 func (ds *DataSource) GetMedia(ctx context.Context, _type string, key string) (*model.Media, error) {

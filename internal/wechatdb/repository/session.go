@@ -8,17 +8,22 @@ import (
 	"github.com/sjzar/chatlog/internal/model"
 )
 
-func (r *Repository) GetSessions(ctx context.Context, key string, limit, offset int) ([]*model.Session, error) {
+func (r *Repository) GetSessions(ctx context.Context, key string, limit, offset int) (int, []*model.Session, error) {
+	total, err := r.ds.GetSessionsCount(ctx, key)
+	if err != nil {
+		return 0, nil, err
+	}
+
 	sessions, err := r.ds.GetSessions(ctx, key, limit, offset)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
 	if err := r.EnrichSessions(ctx, sessions); err != nil {
 		log.Debug().Msgf("EnrichSessions failed: %v", err)
 	}
 
-	return sessions, nil
+	return total, sessions, nil
 }
 
 // EnrichSessions 补充会话的额外信息

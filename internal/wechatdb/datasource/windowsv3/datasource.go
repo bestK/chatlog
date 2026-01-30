@@ -603,9 +603,11 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 		// 按照关键字查询
 		query = `SELECT strUsrName, nOrder, strNickName, strContent, nTime 
                 FROM Session 
-                WHERE strUsrName = ? OR strNickName = ?
+                WHERE strUsrName LIKE '%' || ? || '%' 
+                   OR strNickName LIKE '%' || ? || '%' 
+                   OR strContent LIKE '%' || ? || '%'
                 ORDER BY nOrder DESC`
-		args = []interface{}{key, key}
+		args = []interface{}{key, key, key}
 	} else {
 		// 查询所有会话
 		query = `SELECT strUsrName, nOrder, strNickName, strContent, nTime, nIsSend 
@@ -820,4 +822,33 @@ func (ds *DataSource) GetSenderByLocalID(ctx context.Context, topicID string, lo
 // GetSendersByLocalIDs V3 不支持此功能，返回空 map
 func (ds *DataSource) GetSendersByLocalIDs(ctx context.Context, requests []model.SenderRequest) (map[model.SenderRequest]string, error) {
 	return make(map[model.SenderRequest]string), nil
+}
+
+func (ds *DataSource) GetSessionsCount(ctx context.Context, key string) (int, error) {
+	var query string
+	var args []interface{}
+
+	if key != "" {
+		query = `SELECT COUNT(*) FROM Session 
+				WHERE strUsrName LIKE '%' || ? || '%' 
+				   OR strNickName LIKE '%' || ? || '%' 
+				   OR strContent LIKE '%' || ? || '%'`
+		args = []interface{}{key, key, key}
+	} else {
+		query = `SELECT COUNT(*) FROM Session`
+	}
+
+	db, err := ds.dbm.GetDB(Contact)
+	if err != nil {
+		return 0, err
+	}
+	defer db.Close()
+
+	var count int
+	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, errors.QueryFailed(query, err)
+	}
+
+	return count, nil
 }

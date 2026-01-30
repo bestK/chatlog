@@ -121,6 +121,7 @@ func (w *DB) GetChatRooms(key string, limit, offset int) (*GetChatRoomsResp, err
 }
 
 type GetSessionsResp struct {
+	Total int              `json:"total"`
 	Items []*model.Session `json:"items"`
 }
 
@@ -128,12 +129,13 @@ func (w *DB) GetSessions(key string, limit, offset int) (*GetSessionsResp, error
 	ctx := context.Background()
 
 	// 使用 repository 获取会话列表
-	sessions, err := w.repo.GetSessions(ctx, key, limit, offset)
+	total, sessions, err := w.repo.GetSessions(ctx, key, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 
 	return &GetSessionsResp{
+		Total: total,
 		Items: sessions,
 	}, nil
 }

@@ -26,6 +26,7 @@ type DataSource interface {
 
 	// 最近会话
 	GetSessions(ctx context.Context, key string, limit, offset int) ([]*model.Session, error)
+	GetSessionsCount(ctx context.Context, key string) (int, error)
 
 	// 媒体
 	GetMedia(ctx context.Context, _type string, key string) (*model.Media, error)
