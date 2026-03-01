@@ -3,9 +3,11 @@ package wechat
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -216,8 +218,10 @@ func (s *Service) DecryptDBFile(dbFile string) error {
 
 	if err != nil {
 		if err == errors.ErrAlreadyDecrypted {
-			data, _ := os.ReadFile(dbFile)
-			_ = os.WriteFile(tmp, data, 0644)
+			if copyErr := copyFileStream(dbFile, tmp); copyErr != nil {
+				_ = os.Remove(tmp)
+				return copyErr
+			}
 		} else {
 			_ = os.Remove(tmp)
 			return err
@@ -278,11 +282,60 @@ func (s *Service) DecryptDBFiles() error {
 		return err
 	}
 
+	if len(dbFiles) == 0 {
+		return nil
+	}
+
+	workers := runtime.NumCPU()
+	if workers < 2 {
+		workers = 2
+	}
+	if workers > 8 {
+		workers = 8
+	}
+
+	jobs := make(chan string, len(dbFiles))
+	var workerWG sync.WaitGroup
+	for idx := 0; idx < workers; idx++ {
+		workerWG.Add(1)
+		go func() {
+			defer workerWG.Done()
+			for dbFile := range jobs {
+				if err := s.DecryptDBFile(dbFile); err != nil {
+					log.Debug().Msgf("DecryptDBFile %s failed: %v", dbFile, err)
+				}
+			}
+		}()
+	}
+
 	for _, dbFile := range dbFiles {
-		if err := s.DecryptDBFile(dbFile); err != nil {
-			log.Debug().Msgf("DecryptDBFile %s failed: %v", dbFile, err)
-			continue
-		}
+		jobs <- dbFile
+	}
+	close(jobs)
+	workerWG.Wait()
+
+	return nil
+}
+
+func copyFileStream(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+
+	if _, err = io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+
+	if err = out.Close(); err != nil {
+		return err
 	}
 
 	return nil
