@@ -8,6 +8,7 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 
 	"github.com/sjzar/chatlog/internal/wechat/model"
+	"github.com/sjzar/chatlog/pkg/util"
 )
 
 // initializeProcessInfo 获取进程的数据目录和账户名
@@ -25,7 +26,7 @@ func initializeProcessInfo(p *process.Process, info *model.Process) error {
 
 	for _, f := range files {
 		if strings.HasSuffix(f.Path, dbPath) {
-			filePath := f.Path[4:] // 移除 "\\?\" 前缀
+			filePath := util.CleanExtendedLengthPath(f.Path)
 			parts := strings.Split(filePath, string(filepath.Separator))
 			if len(parts) < 4 {
 				log.Debug().Msg("无效的文件路径: " + filePath)
