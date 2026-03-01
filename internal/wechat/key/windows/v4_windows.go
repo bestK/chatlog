@@ -107,7 +107,7 @@ func (e *V4Extractor) ExtractImgKey(ctx context.Context, proc *model.Process) (s
 		if dataDir == "" {
 			log.Debug().Msg("DataDir is empty, will auto-detect cache directory")
 		}
-		imgKeyResult := GetImageKeys(dataDir, func(msg string) {
+		imgKeyResult := GetImageKeys(dataDir, proc.PID, func(msg string) {
 			log.Debug().Msg(msg)
 		})
 
