@@ -34,3 +34,4 @@ dist/
 chatlog.upx
 __debug_bin.exe*
 script/build-remote.sh
+.DS_Store

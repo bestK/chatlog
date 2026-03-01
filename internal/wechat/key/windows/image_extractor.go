@@ -125,8 +125,32 @@ func directoryHasDbStorage(dir string) bool {
 
 func directoryHasImageCache(dir string) bool {
 	imagePath := filepath.Join(dir, "FileStorage", "Image")
-	_, err := os.Stat(imagePath)
+	if _, err := os.Stat(imagePath); err == nil {
+		return true
+	}
+
+	cachePath := filepath.Join(dir, "cache")
+	_, err := os.Stat(cachePath)
 	return err == nil
+}
+
+func isCacheImageCandidatePath(path string, d fs.DirEntry) bool {
+	if d.IsDir() {
+		return false
+	}
+
+	name := d.Name()
+	if strings.Contains(name, ".") {
+		return false
+	}
+
+	if len(name) < 24 {
+		return false
+	}
+
+	lowerPath := strings.ToLower(path)
+	return strings.Contains(lowerPath, strings.ToLower(filepath.Join("cache"))+string(os.PathSeparator)) &&
+		strings.Contains(lowerPath, strings.ToLower(filepath.Join("sns", "img"))+string(os.PathSeparator))
 }
 
 // FindTemplateDatFiles 查找所有 *_t.dat 模板文件
@@ -141,7 +165,7 @@ func FindTemplateDatFiles(userDir string) ([]string, error) {
 		if d.IsDir() {
 			return nil
 		}
-		if strings.HasSuffix(d.Name(), "_t.dat") {
+		if strings.HasSuffix(d.Name(), "_t.dat") || isCacheImageCandidatePath(path, d) {
 			files = append(files, path)
 			if len(files) >= maxFiles {
 				return filepath.SkipAll
