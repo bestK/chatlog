@@ -9,11 +9,39 @@ echo.
 
 REM 设置输出文件名
 set OUTPUT=chatlog.exe
+set MANIFEST_SYSO=chatlog.manifest.syso
 
 REM 清理旧版本
 if exist %OUTPUT% (
     echo 清理旧版本...
     del %OUTPUT%
+)
+if exist %MANIFEST_SYSO% del %MANIFEST_SYSO%
+
+REM 生成 manifest 资源（不依赖 mt.exe，编译阶段直接注入）
+if exist chatlog.manifest (
+    set RSRC_CMD=
+    where rsrc >nul 2>&1
+    if %ERRORLEVEL% EQU 0 set RSRC_CMD=rsrc
+    if "%RSRC_CMD%"=="" (
+        if exist "%USERPROFILE%\go\bin\rsrc.exe" set RSRC_CMD=%USERPROFILE%\go\bin\rsrc.exe
+    )
+    if "%RSRC_CMD%"=="" (
+        echo 正在安装 rsrc 工具...
+        go install github.com/akavel/rsrc@latest >nul 2>&1
+        if exist "%USERPROFILE%\go\bin\rsrc.exe" set RSRC_CMD=%USERPROFILE%\go\bin\rsrc.exe
+    )
+
+    if not "%RSRC_CMD%"=="" (
+        "%RSRC_CMD%" -manifest chatlog.manifest -o %MANIFEST_SYSO% >nul 2>&1
+        if %ERRORLEVEL% EQU 0 (
+            echo ✓ 已生成 manifest 资源: %MANIFEST_SYSO%
+        ) else (
+            echo ✗ 生成 manifest 资源失败，继续后续构建
+        )
+    ) else (
+        echo ℹ 未找到 rsrc，跳过 manifest 资源生成
+    )
 )
 
 REM 编译项目
@@ -34,21 +62,6 @@ if %ERRORLEVEL% EQU 0 (
         echo 编译后大小: %%~zA 字节
     )
     
-    REM 注入管理员权限清单（显示盾牌图标）
-    if exist chatlog.manifest (
-        where mt >nul 2>&1
-        if %ERRORLEVEL% EQU 0 (
-            mt -manifest chatlog.manifest -outputresource:%OUTPUT%;#1 >nul 2>&1
-            if %ERRORLEVEL% EQU 0 (
-                echo ✓ 已注入管理员权限清单
-            ) else (
-                echo ✗ 清单注入失败，继续后续步骤
-            )
-        ) else (
-            echo ℹ 未找到 mt.exe，跳过清单注入
-        )
-    )
-
     REM 尝试使用 UPX 压缩
     echo.
     echo 正在压缩可执行文件...
@@ -79,3 +92,5 @@ if %ERRORLEVEL% EQU 0 (
 )
 
 pause
+
+if exist %MANIFEST_SYSO% del %MANIFEST_SYSO%
