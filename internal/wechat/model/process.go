@@ -4,7 +4,7 @@ type Process struct {
 	PID         uint32
 	ExePath     string
 	Platform    string
-	Version     int
+
 	FullVersion string
 	Status      string
 	DataDir     string

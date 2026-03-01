@@ -17,8 +17,7 @@ import (
 const (
 	ProcessNameOfficial = "WeChat"
 	ProcessNameBeta     = "Weixin"
-	V3DBFile            = "Message/msg_0.db"
-	V4DBFile            = "db_storage/session/session.db"
+	DBFile              = "db_storage/session/session.db"
 )
 
 // Detector 实现 macOS 平台的进程检测器
@@ -78,10 +77,8 @@ func (d *Detector) getProcessInfo(p *process.Process) (*model.Process, error) {
 	versionInfo, err := appver.New(exePath)
 	if err != nil {
 		log.Err(err).Msg("获取版本信息失败")
-		procInfo.Version = 3
-		procInfo.FullVersion = "3.0.0"
+		procInfo.FullVersion = "4.0.0"
 	} else {
-		procInfo.Version = versionInfo.Version
 		procInfo.FullVersion = versionInfo.FullVersion
 	}
 
@@ -103,32 +100,19 @@ func (d *Detector) initializeProcessInfo(p *process.Process, info *model.Process
 		return err
 	}
 
-	dbPath := V3DBFile
-	if info.Version == 4 {
-		dbPath = V4DBFile
-	}
-
 	for _, filePath := range files {
-		if strings.Contains(filePath, dbPath) {
+		if strings.Contains(filePath, DBFile) {
 			parts := strings.Split(filePath, string(filepath.Separator))
 			if len(parts) < 4 {
 				log.Debug().Msg("无效的文件路径格式: " + filePath)
 				continue
 			}
 
-			// v3:
-			// /Users/sarv/Library/Containers/com.tencent.xinWeChat/Data/Library/Application Support/com.tencent.xinWeChat/2.0b4.0.9/<id>/Message/msg_0.db
-			// v4:
 			// /Users/sarv/Library/Containers/com.tencent.xWeChat/Data/Documents/xwechat_files/<id>/db_storage/message/message_0.db
 
 			info.Status = model.StatusOnline
-			if info.Version == 4 {
-				info.DataDir = strings.Join(parts[:len(parts)-3], string(filepath.Separator))
-				info.AccountName = parts[len(parts)-4]
-			} else {
-				info.DataDir = strings.Join(parts[:len(parts)-2], string(filepath.Separator))
-				info.AccountName = parts[len(parts)-3]
-			}
+			info.DataDir = strings.Join(parts[:len(parts)-3], string(filepath.Separator))
+			info.AccountName = parts[len(parts)-4]
 			return nil
 		}
 	}

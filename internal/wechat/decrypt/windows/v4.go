@@ -18,6 +18,7 @@ import (
 const (
 	V4IterCount    = 256000
 	HmacSHA512Size = 64
+	PageSize       = 4096
 )
 
 // V4Decryptor 实现Windows V4版本的解密器

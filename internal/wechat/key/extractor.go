@@ -29,17 +29,13 @@ type Extractor interface {
 }
 
 // NewExtractor 创建适合当前平台的密钥提取器
-func NewExtractor(platform string, version int) (Extractor, error) {
-	switch {
-	case platform == "windows" && version == 3:
-		return windows.NewV3Extractor(), nil
-	case platform == "windows" && version == 4:
+func NewExtractor(platform string) (Extractor, error) {
+	switch platform {
+	case "windows":
 		return windows.NewV4Extractor(), nil
-	case platform == "darwin" && version == 3:
-		return darwin.NewV3Extractor(), nil
-	case platform == "darwin" && version == 4:
+	case "darwin":
 		return darwin.NewV4Extractor(), nil
 	default:
-		return nil, errors.PlatformUnsupported(platform, version)
+		return nil, errors.PlatformUnsupported(platform)
 	}
 }

@@ -16,18 +16,16 @@ import (
 type DB struct {
 	path     string
 	platform string
-	version  int
 	SelfID   string
 	ds       datasource.DataSource
 	repo     *repository.Repository
 }
 
-func New(path string, platform string, version int) (*DB, error) {
+func New(path string, platform string) (*DB, error) {
 
 	w := &DB{
 		path:     path,
 		platform: platform,
-		version:  version,
 	}
 
 	// 初始化，加载数据库文件信息
@@ -59,7 +57,7 @@ func (w *DB) UnlockDB(path string) error {
 
 func (w *DB) Initialize() error {
 	var err error
-	w.ds, err = datasource.New(w.path, w.platform, w.version)
+	w.ds, err = datasource.New(w.path, w.platform)
 	if err != nil {
 		return err
 	}

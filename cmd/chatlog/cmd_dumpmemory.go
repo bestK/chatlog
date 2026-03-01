@@ -75,9 +75,6 @@ var dumpmemoryCmd = &cobra.Command{
 
 		// step 3. copy encrypted database file
 		dbFile := "db_storage/session/session.db"
-		if account.Version == 3 {
-			dbFile = "Session/session_new.db"
-		}
 		from := filepath.Join(account.DataDir, dbFile)
 		to := filepath.Join(dir, fmt.Sprintf("wechat_%s_%d_session.db", account.FullVersion, account.PID))
 

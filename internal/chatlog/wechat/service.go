@@ -45,7 +45,6 @@ type Config interface {
 	GetDataDir() string
 	GetWorkDir() string
 	GetPlatform() string
-	GetVersion() int
 }
 
 func NewService(conf Config) *Service {
@@ -179,7 +178,7 @@ func (s *Service) waitAndProcess(dbFile string) {
 	}
 }
 func (s *Service) DecryptDBFile(dbFile string) error {
-	decryptor, err := decrypt.NewDecryptor(s.conf.GetPlatform(), s.conf.GetVersion())
+	decryptor, err := decrypt.NewDecryptor(s.conf.GetPlatform())
 	if err != nil {
 		return err
 	}

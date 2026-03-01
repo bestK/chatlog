@@ -31,18 +31,14 @@ type Decryptor interface {
 }
 
 // NewDecryptor 创建一个新的解密器
-func NewDecryptor(platform string, version int) (Decryptor, error) {
+func NewDecryptor(platform string) (Decryptor, error) {
 	// 根据平台返回对应的实现
-	switch {
-	case platform == "windows" && version == 3:
-		return windows.NewV3Decryptor(), nil
-	case platform == "windows" && version == 4:
+	switch platform {
+	case "windows":
 		return windows.NewV4Decryptor(), nil
-	case platform == "darwin" && version == 3:
-		return darwin.NewV3Decryptor(), nil
-	case platform == "darwin" && version == 4:
+	case "darwin":
 		return darwin.NewV4Decryptor(), nil
 	default:
-		return nil, errors.PlatformUnsupported(platform, version)
+		return nil, errors.PlatformUnsupported(platform)
 	}
 }

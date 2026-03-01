@@ -14,7 +14,7 @@ import (
 type Account struct {
 	Name        string
 	Platform    string
-	Version     int
+
 	FullVersion string
 	DataDir     string
 	Key         string
@@ -29,7 +29,7 @@ func NewAccount(proc *model.Process) *Account {
 	return &Account{
 		Name:        proc.AccountName,
 		Platform:    proc.Platform,
-		Version:     proc.Version,
+
 		FullVersion: proc.FullVersion,
 		DataDir:     proc.DataDir,
 		PID:         proc.PID,
@@ -54,7 +54,7 @@ func (a *Account) RefreshStatus() error {
 		a.PID = process.PID
 		a.ExePath = process.ExePath
 		a.Platform = process.Platform
-		a.Version = process.Version
+
 		a.FullVersion = process.FullVersion
 		a.Status = process.Status
 		a.DataDir = process.DataDir
@@ -81,7 +81,7 @@ func (a *Account) GetDataKey(ctx context.Context) (string, error) {
 	}
 
 	// 创建密钥提取器
-	extractor, err := key.NewExtractor(a.Platform, a.Version)
+	extractor, err := key.NewExtractor(a.Platform)
 	if err != nil {
 		return "", err
 	}
@@ -91,7 +91,7 @@ func (a *Account) GetDataKey(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	validator, err := decrypt.NewValidator(process.Platform, process.Version, process.DataDir)
+	validator, err := decrypt.NewValidator(process.Platform, process.DataDir)
 	if err != nil {
 		return "", err
 	}
@@ -124,7 +124,7 @@ func (a *Account) GetImgKey(ctx context.Context) (string, error) {
 	}
 
 	// 创建密钥提取器
-	extractor, err := key.NewExtractor(a.Platform, a.Version)
+	extractor, err := key.NewExtractor(a.Platform)
 	if err != nil {
 		return "", err
 	}
@@ -171,7 +171,7 @@ func (a *Account) DecryptDatabase(ctx context.Context, dbPath, outputPath string
 	}
 
 	// 创建解密器 - 传入平台信息和版本
-	decryptor, err := decrypt.NewDecryptor(a.Platform, a.Version)
+	decryptor, err := decrypt.NewDecryptor(a.Platform)
 	if err != nil {
 		return err
 	}

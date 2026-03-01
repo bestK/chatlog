@@ -7,7 +7,7 @@ const (
 type ServerConfig struct {
 	Type        string   `mapstructure:"type"`
 	Platform    string   `mapstructure:"platform"`
-	Version     int      `mapstructure:"version"`
+
 	FullVersion string   `mapstructure:"full_version"`
 	DataDir     string   `mapstructure:"data_dir"`
 	DataKey     string   `mapstructure:"data_key"`
@@ -45,9 +45,7 @@ func (c *ServerConfig) GetPlatform() string {
 	return c.Platform
 }
 
-func (c *ServerConfig) GetVersion() int {
-	return c.Version
-}
+
 
 func (c *ServerConfig) GetDataKey() string {
 	return c.DataKey
