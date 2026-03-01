@@ -34,6 +34,21 @@ if %ERRORLEVEL% EQU 0 (
         echo 编译后大小: %%~zA 字节
     )
     
+    REM 注入管理员权限清单（显示盾牌图标）
+    if exist chatlog.manifest (
+        where mt >nul 2>&1
+        if %ERRORLEVEL% EQU 0 (
+            mt -manifest chatlog.manifest -outputresource:%OUTPUT%;#1 >nul 2>&1
+            if %ERRORLEVEL% EQU 0 (
+                echo ✓ 已注入管理员权限清单
+            ) else (
+                echo ✗ 清单注入失败，继续后续步骤
+            )
+        ) else (
+            echo ℹ 未找到 mt.exe，跳过清单注入
+        )
+    )
+
     REM 尝试使用 UPX 压缩
     echo.
     echo 正在压缩可执行文件...

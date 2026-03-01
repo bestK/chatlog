@@ -155,8 +155,14 @@ func isCacheImageCandidatePath(path string, d fs.DirEntry) bool {
 
 // FindTemplateDatFiles 查找所有 *_t.dat 模板文件
 func FindTemplateDatFiles(userDir string) ([]string, error) {
-	var files []string
-	const maxFiles = 32
+	type candidateFile struct {
+		path    string
+		modTime int64
+	}
+
+	var files []candidateFile
+	const maxScanFiles = 5000
+	const maxSelectedFiles = 64
 
 	err := filepath.WalkDir(userDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -166,8 +172,12 @@ func FindTemplateDatFiles(userDir string) ([]string, error) {
 			return nil
 		}
 		if strings.HasSuffix(d.Name(), "_t.dat") || isCacheImageCandidatePath(path, d) {
-			files = append(files, path)
-			if len(files) >= maxFiles {
+			modTime := int64(0)
+			if info, infoErr := d.Info(); infoErr == nil {
+				modTime = info.ModTime().Unix()
+			}
+			files = append(files, candidateFile{path: path, modTime: modTime})
+			if len(files) >= maxScanFiles {
 				return filepath.SkipAll
 			}
 		}
@@ -182,19 +192,29 @@ func FindTemplateDatFiles(userDir string) ([]string, error) {
 		return nil, nil
 	}
 
-	// 按日期排序（降序）
 	dateRegex := regexp.MustCompile(`(\d{4}-\d{2})`)
 	sort.Slice(files, func(i, j int) bool {
-		matchI := dateRegex.FindString(files[i])
-		matchJ := dateRegex.FindString(files[j])
-		return matchI > matchJ
+		if files[i].modTime != files[j].modTime {
+			return files[i].modTime > files[j].modTime
+		}
+		matchI := dateRegex.FindString(files[i].path)
+		matchJ := dateRegex.FindString(files[j].path)
+		if matchI != matchJ {
+			return matchI > matchJ
+		}
+		return files[i].path > files[j].path
 	})
 
-	if len(files) > 16 {
-		files = files[:16]
+	if len(files) > maxSelectedFiles {
+		files = files[:maxSelectedFiles]
 	}
 
-	return files, nil
+	selected := make([]string, 0, len(files))
+	for _, file := range files {
+		selected = append(selected, file.path)
+	}
+
+	return selected, nil
 }
 
 // GetXorKey 从模板文件获取 XOR 密钥
@@ -472,7 +492,7 @@ func searchUtf16Key(data, ciphertext []byte) string {
 }
 
 // GetImageKeys 获取图片密钥（主入口）
-func GetImageKeys(manualDirectory string, onProgress func(string)) ImageKeyResult {
+func GetImageKeys(manualDirectory string, preferredPID uint32, onProgress func(string)) ImageKeyResult {
 	if onProgress != nil {
 		onProgress("正在定位微信缓存目录...")
 	}
@@ -499,6 +519,16 @@ func GetImageKeys(manualDirectory string, onProgress func(string)) ImageKeyResul
 	}
 
 	templateFiles, err := FindTemplateDatFiles(cacheDir)
+	if (err != nil || len(templateFiles) == 0) && !strings.HasSuffix(strings.ToLower(cacheDir), strings.ToLower(string(filepath.Separator)+"cache")) {
+		fallbackDir := filepath.Join(cacheDir, "cache")
+		if fallbackFiles, fallbackErr := FindTemplateDatFiles(fallbackDir); fallbackErr == nil && len(fallbackFiles) > 0 {
+			templateFiles = fallbackFiles
+			err = nil
+			if onProgress != nil {
+				onProgress(fmt.Sprintf("主目录未命中，切换到 cache 目录: %s", fallbackDir))
+			}
+		}
+	}
 	if err != nil || len(templateFiles) == 0 {
 		return FailureResult("未找到模板文件，可能该微信账号没有图片缓存", false)
 	}
@@ -527,16 +557,21 @@ func GetImageKeys(manualDirectory string, onProgress func(string)) ImageKeyResul
 		onProgress("成功读取加密数据，正在检查微信进程...")
 	}
 
-	// 查找微信进程（支持多种进程名）
-	processNames := []string{"Weixin.exe", "WeChat.exe"}
 	var pids []uint32
 	var foundProcessName string
+	if preferredPID != 0 {
+		pids = []uint32{preferredPID}
+		foundProcessName = "preferred"
+	}
 
-	for _, name := range processNames {
-		pids, err = FindProcessIdsByName(name)
-		if err == nil && len(pids) > 0 {
-			foundProcessName = name
-			break
+	if len(pids) == 0 {
+		processNames := []string{"Weixin.exe", "WeChat.exe"}
+		for _, name := range processNames {
+			pids, err = FindProcessIdsByName(name)
+			if err == nil && len(pids) > 0 {
+				foundProcessName = name
+				break
+			}
 		}
 	}
 
