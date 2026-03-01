@@ -65,22 +65,32 @@ func (s *Service) GetWeChatInstances() []*wechat.Account {
 	return wechat.GetAccounts()
 }
 
-// GetDataKey extracts the encryption key from a WeChat process
-func (s *Service) GetDataKey(info *wechat.Account) (string, string, error) {
+func (s *Service) GetDataKey(info *wechat.Account) (string, error) {
 	if info == nil {
-		return "", "", fmt.Errorf("no WeChat instance selected")
+		return "", fmt.Errorf("no WeChat instance selected")
 	}
 
 	// 设置90秒超时（比底层的60秒多留余量）
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
-	dataKey, imgKey, err := info.GetKey(ctx)
+	dataKey, err := info.GetDataKey(ctx)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
-	return dataKey, imgKey, nil
+	return dataKey, nil
+}
+
+func (s *Service) GetKeys(info *wechat.Account) (string, string, error) {
+	if info == nil {
+		return "", "", fmt.Errorf("no WeChat instance selected")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	return info.GetKey(ctx)
 }
 
 // GetImgKey 仅获取图片密钥（不会重启微信）
