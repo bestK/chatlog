@@ -29,9 +29,9 @@ type HookController struct {
 
 // NewHookController 创建新的 HookController 实例
 func NewHookController(dllPath string) (*HookController, error) {
-	dll, err := syscall.LoadDLL(dllPath)
+	dll, err := loadDLLWithFallback(dllPath)
 	if err != nil {
-		return nil, fmt.Errorf("加载 DLL 失败: Failed to load %s: %v", dllPath, err)
+		return nil, fmt.Errorf("加载 DLL 失败: %v", err)
 	}
 
 	hc := &HookController{dll: dll}
@@ -68,6 +68,30 @@ func NewHookController(dllPath string) (*HookController, error) {
 	}
 
 	return hc, nil
+}
+
+func loadDLLWithFallback(dllPath string) (*syscall.DLL, error) {
+	dll, err := syscall.LoadDLL(dllPath)
+	if err == nil {
+		return dll, nil
+	}
+
+	dllDir := filepath.Dir(dllPath)
+	if dllDir == "" || dllDir == "." {
+		return nil, err
+	}
+
+	if setErr := windows.SetDllDirectory(dllDir); setErr != nil {
+		return nil, err
+	}
+	defer windows.SetDllDirectory("")
+
+	dll, retryErr := syscall.LoadDLL(dllPath)
+	if retryErr != nil {
+		return nil, retryErr
+	}
+
+	return dll, nil
 }
 
 // Initialize 初始化 Hook
