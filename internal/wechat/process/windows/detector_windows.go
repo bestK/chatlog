@@ -19,13 +19,8 @@ func initializeProcessInfo(p *process.Process, info *model.Process) error {
 		return err
 	}
 
-	dbPath := V3DBFile
-	if info.Version == 4 {
-		dbPath = V4DBFile
-	}
-
 	for _, f := range files {
-		if strings.HasSuffix(f.Path, dbPath) {
+		if strings.HasSuffix(f.Path, DBFile) {
 			filePath := util.CleanExtendedLengthPath(f.Path)
 			parts := strings.Split(filePath, string(filepath.Separator))
 			if len(parts) < 4 {
@@ -34,13 +29,8 @@ func initializeProcessInfo(p *process.Process, info *model.Process) error {
 			}
 
 			info.Status = model.StatusOnline
-			if info.Version == 4 {
-				info.DataDir = strings.Join(parts[:len(parts)-3], string(filepath.Separator))
-				info.AccountName = parts[len(parts)-4]
-			} else {
-				info.DataDir = strings.Join(parts[:len(parts)-2], string(filepath.Separator))
-				info.AccountName = parts[len(parts)-3]
-			}
+			info.DataDir = strings.Join(parts[:len(parts)-3], string(filepath.Separator))
+			info.AccountName = parts[len(parts)-4]
 			return nil
 		}
 	}

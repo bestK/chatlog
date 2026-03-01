@@ -141,11 +141,9 @@ func (m *Manager) StartService() error {
 		return err
 	}
 
-	// 如果是 4.0 版本，更新下 xorkey
-	if m.ctx.Version == 4 {
-		dat2img.SetAesKey(m.ctx.ImgKey)
-		go dat2img.ScanAndSetXorKey(m.ctx.DataDir)
-	}
+	// 更新 xorkey
+	dat2img.SetAesKey(m.ctx.ImgKey)
+	go dat2img.ScanAndSetXorKey(m.ctx.DataDir)
 
 	// 更新状态
 	m.ctx.SetHTTPEnabled(true)
@@ -229,8 +227,8 @@ func (m *Manager) GetDataKey() (string, string, error) {
 	m.ctx.Refresh()
 	m.ctx.UpdateConfig()
 
-	// 如果是 4.0 版本，更新图片解密密钥
-	if m.ctx.Version == 4 && imgKey != "" {
+	// 更新图片解密密钥
+	if imgKey != "" {
 		dat2img.SetAesKey(imgKey)
 		go dat2img.ScanAndSetXorKey(m.ctx.DataDir)
 	}
@@ -269,8 +267,8 @@ func (m *Manager) GetImgKey() (string, error) {
 	m.ctx.Refresh()
 	m.ctx.UpdateConfig()
 
-	// 如果是 4.0 版本，更新图片解密密钥
-	if m.ctx.Version == 4 && imgKey != "" {
+	// 更新图片解密密钥
+	if imgKey != "" {
 		dat2img.SetAesKey(imgKey)
 		go dat2img.ScanAndSetXorKey(m.ctx.DataDir)
 	}
@@ -368,7 +366,7 @@ func (m *Manager) CommandKey(configPath string, pid int, force bool, showXorKey 
 		}
 
 		result := fmt.Sprintf("Data Key: [%s]\nImage Key: [%s]", key, imgKey)
-		if m.ctx.Version == 4 && showXorKey {
+		if showXorKey {
 			if b, err := dat2img.ScanAndSetXorKey(m.ctx.DataDir); err == nil {
 				result += fmt.Sprintf("\nXor Key: [0x%X]", b)
 			}
@@ -395,7 +393,7 @@ func (m *Manager) CommandKey(configPath string, pid int, force bool, showXorKey 
 				m.ctx.UpdateConfig()
 			}
 			result := fmt.Sprintf("Data Key: [%s]\nImage Key: [%s]", key, imgKey)
-			if m.ctx.Version == 4 && showXorKey {
+			if showXorKey {
 				if b, err := dat2img.ScanAndSetXorKey(m.ctx.DataDir); err == nil {
 					result += fmt.Sprintf("\nXor Key: [0x%X]", b)
 				}
@@ -459,9 +457,8 @@ func (m *Manager) CommandHTTPServer(configPath string, cmdConf map[string]any) e
 		return fmt.Errorf("dataKey is required")
 	}
 
-	// 如果是 4.0 版本，处理图片密钥
-	version := m.sc.GetVersion()
-	if version == 4 && len(dataDir) != 0 {
+	// 处理图片密钥
+	if len(dataDir) != 0 {
 		dat2img.SetAesKey(m.sc.GetImgKey())
 		go dat2img.ScanAndSetXorKey(dataDir)
 	}

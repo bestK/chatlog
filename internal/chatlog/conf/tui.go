@@ -14,7 +14,7 @@ type ProcessConfig struct {
 	Type        string   `mapstructure:"type" json:"type"`
 	Account     string   `mapstructure:"account" json:"account"`
 	Platform    string   `mapstructure:"platform" json:"platform"`
-	Version     int      `mapstructure:"version" json:"version"`
+
 	FullVersion string   `mapstructure:"full_version" json:"full_version"`
 	DataDir     string   `mapstructure:"data_dir" json:"data_dir"`
 	DataKey     string   `mapstructure:"data_key" json:"data_key"`

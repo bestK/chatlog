@@ -16,8 +16,8 @@ var (
 	ErrWeChatDLLNotFound             = New(nil, http.StatusBadRequest, "WeChatWin.dll module not found")
 )
 
-func PlatformUnsupported(platform string, version int) *Error {
-	return Newf(nil, http.StatusBadRequest, "unsupported platform: %s v%d", platform, version).WithStack()
+func PlatformUnsupported(platform string) *Error {
+	return Newf(nil, http.StatusBadRequest, "unsupported platform: %s", platform).WithStack()
 }
 
 func DecryptCreateCipherFailed(cause error) *Error {

@@ -30,7 +30,7 @@ type Context struct {
 	// 微信账号相关状态
 	Account     string
 	Platform    string
-	Version     int
+
 	FullVersion string
 	DataDir     string
 	DataKey     string
@@ -93,7 +93,7 @@ func (c *Context) SwitchHistory(account string) {
 	if ok {
 		c.Account = history.Account
 		c.Platform = history.Platform
-		c.Version = history.Version
+
 		c.FullVersion = history.FullVersion
 		c.DataKey = history.DataKey
 		c.ImgKey = history.ImgKey
@@ -105,7 +105,7 @@ func (c *Context) SwitchHistory(account string) {
 	} else {
 		c.Account = ""
 		c.Platform = ""
-		c.Version = 0
+
 		c.FullVersion = ""
 		c.DataKey = ""
 		c.ImgKey = ""
@@ -129,7 +129,7 @@ func (c *Context) Refresh() {
 	if c.Current != nil {
 		c.Account = c.Current.Name
 		c.Platform = c.Current.Platform
-		c.Version = c.Current.Version
+
 		c.FullVersion = c.Current.FullVersion
 		c.PID = int(c.Current.PID)
 		c.ExePath = c.Current.ExePath
@@ -168,9 +168,7 @@ func (c *Context) GetPlatform() string {
 	return c.Platform
 }
 
-func (c *Context) GetVersion() int {
-	return c.Version
-}
+
 
 func (c *Context) GetDataKey() string {
 	return c.DataKey
@@ -260,7 +258,7 @@ func (c *Context) UpdateConfig() {
 		Type:        "wechat",
 		Account:     c.Account,
 		Platform:    c.Platform,
-		Version:     c.Version,
+
 		FullVersion: c.FullVersion,
 		DataDir:     c.DataDir,
 		DataKey:     c.DataKey,

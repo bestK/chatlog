@@ -9,7 +9,6 @@ import (
 
 type Validator struct {
 	platform        string
-	version         int
 	dbPath          string
 	decryptor       Decryptor
 	dbFile          *common.DBFile
@@ -17,14 +16,14 @@ type Validator struct {
 }
 
 // NewValidator 创建一个仅用于验证的验证器
-func NewValidator(platform string, version int, dataDir string) (*Validator, error) {
-	return NewValidatorWithFile(platform, version, dataDir)
+func NewValidator(platform string, dataDir string) (*Validator, error) {
+	return NewValidatorWithFile(platform, dataDir)
 }
 
-func NewValidatorWithFile(platform string, version int, dataDir string) (*Validator, error) {
-	dbFile := GetSimpleDBFile(platform, version)
+func NewValidatorWithFile(platform string, dataDir string) (*Validator, error) {
+	dbFile := GetSimpleDBFile(platform)
 	dbPath := filepath.Join(dataDir, dbFile)
-	decryptor, err := NewDecryptor(platform, version)
+	decryptor, err := NewDecryptor(platform)
 	if err != nil {
 		return nil, err
 	}
@@ -35,15 +34,12 @@ func NewValidatorWithFile(platform string, version int, dataDir string) (*Valida
 
 	validator := &Validator{
 		platform:  platform,
-		version:   version,
 		dbPath:    dbPath,
 		decryptor: decryptor,
 		dbFile:    d,
 	}
 
-	if version == 4 {
-		validator.imgKeyValidator = dat2img.NewImgKeyValidator(dataDir)
-	}
+	validator.imgKeyValidator = dat2img.NewImgKeyValidator(dataDir)
 
 	return validator, nil
 }
@@ -59,15 +55,11 @@ func (v *Validator) ValidateImgKey(key []byte) bool {
 	return v.imgKeyValidator.Validate(key)
 }
 
-func GetSimpleDBFile(platform string, version int) string {
-	switch {
-	case platform == "windows" && version == 3:
-		return "Msg\\Misc.db"
-	case platform == "windows" && version == 4:
+func GetSimpleDBFile(platform string) string {
+	switch platform {
+	case "windows":
 		return "db_storage\\message\\message_0.db"
-	case platform == "darwin" && version == 3:
-		return "Message/msg_0.db"
-	case platform == "darwin" && version == 4:
+	case "darwin":
 		return "db_storage/message/message_0.db"
 	}
 	return ""

@@ -364,11 +364,7 @@ func (a *App) initMenu() {
 							modal.SetText("开启自动解密失败: " + err.Error())
 						} else {
 							// 开启成功
-							if a.ctx.Version == 3 {
-								modal.SetText("已开启自动解密\n3.x版本数据文件更新不及时，有低延迟需求请使用4.0版本")
-							} else {
-								modal.SetText("已开启自动解密")
-							}
+							modal.SetText("已开启自动解密")
 						}
 
 						// 更改菜单项名称

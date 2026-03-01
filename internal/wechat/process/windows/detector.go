@@ -11,10 +11,8 @@ import (
 )
 
 const (
-	V3ProcessName = "WeChat"
-	V4ProcessName = "Weixin"
-	V3DBFile      = `Msg\Misc.db`
-	V4DBFile      = `db_storage\session\session.db`
+	ProcessName = "Weixin"
+	DBFile      = `db_storage\session\session.db`
 )
 
 // Detector 实现 Windows 平台的进程检测器
@@ -40,22 +38,20 @@ func (d *Detector) FindProcesses() ([]*model.Process, error) {
 			continue
 		}
 		name = strings.TrimSuffix(name, ".exe")
-		if name != V3ProcessName && name != V4ProcessName {
+		if name != ProcessName {
 			continue
 		}
 
-		// v4 存在同名进程，需要继续判断 cmdline
+		// 存在同名进程，需要继续判断 cmdline
 		// 只跳过有 --type= 参数的子进程（如 wxocr, wxutility, wxplayer）
-		if name == V4ProcessName {
-			cmdline, err := p.Cmdline()
-			if err != nil {
-				log.Err(err).Msg("获取进程命令行失败")
-				continue
-			}
-			// 跳过子进程：只有带 --type= 的才是真正的子进程
-			if strings.Contains(cmdline, "--type=") {
-				continue
-			}
+		cmdline, err := p.Cmdline()
+		if err != nil {
+			log.Err(err).Msg("获取进程命令行失败")
+			continue
+		}
+		// 跳过子进程：只有带 --type= 的才是真正的子进程
+		if strings.Contains(cmdline, "--type=") {
+			continue
 		}
 
 		// 获取进程信息
@@ -93,7 +89,6 @@ func (d *Detector) getProcessInfo(p *process.Process) (*model.Process, error) {
 		log.Err(err).Msg("获取版本信息失败")
 		return nil, err
 	}
-	procInfo.Version = versionInfo.Version
 	procInfo.FullVersion = versionInfo.FullVersion
 
 	// 初始化附加信息（数据目录、账户名）
