@@ -624,7 +624,7 @@ func (a *App) settingDataDir() {
 
 	// 添加按钮 - 点击保存时才设置数据目录
 	formView.AddButton("保存", func() {
-		a.ctx.DataDir = tempDataDir // 设置数据目录
+		a.ctx.SetDataDir(tempDataDir) // 设置数据目录
 		a.mainPages.RemovePage("submenu2")
 		a.showInfo("数据目录已设置为 " + a.ctx.DataDir)
 	})

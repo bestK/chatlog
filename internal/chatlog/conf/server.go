@@ -1,12 +1,14 @@
 package conf
 
+import "github.com/sjzar/chatlog/pkg/util"
+
 const (
 	DefalutHTTPAddr = "0.0.0.0:5030"
 )
 
 type ServerConfig struct {
-	Type        string   `mapstructure:"type"`
-	Platform    string   `mapstructure:"platform"`
+	Type     string `mapstructure:"type"`
+	Platform string `mapstructure:"platform"`
 
 	FullVersion string   `mapstructure:"full_version"`
 	DataDir     string   `mapstructure:"data_dir"`
@@ -34,6 +36,7 @@ var ServerDefaults = map[string]any{
 }
 
 func (c *ServerConfig) GetDataDir() string {
+	c.DataDir = util.NormalizeDataDirPath(c.DataDir)
 	return c.DataDir
 }
 
@@ -44,8 +47,6 @@ func (c *ServerConfig) GetWorkDir() string {
 func (c *ServerConfig) GetPlatform() string {
 	return c.Platform
 }
-
-
 
 func (c *ServerConfig) GetDataKey() string {
 	return c.DataKey

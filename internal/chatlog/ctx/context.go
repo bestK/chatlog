@@ -28,8 +28,8 @@ type Context struct {
 	History map[string]conf.ProcessConfig
 
 	// 微信账号相关状态
-	Account     string
-	Platform    string
+	Account  string
+	Platform string
 
 	FullVersion string
 	DataDir     string
@@ -97,7 +97,7 @@ func (c *Context) SwitchHistory(account string) {
 		c.FullVersion = history.FullVersion
 		c.DataKey = history.DataKey
 		c.ImgKey = history.ImgKey
-		c.DataDir = history.DataDir
+		c.DataDir = util.NormalizeDataDirPath(history.DataDir)
 		c.WorkDir = history.WorkDir
 		c.HTTPEnabled = history.HTTPEnabled
 		c.HTTPAddr = history.HTTPAddr
@@ -141,7 +141,7 @@ func (c *Context) Refresh() {
 			c.ImgKey = c.Current.ImgKey
 		}
 		if c.Current.DataDir != "" && c.Current.DataDir != c.DataDir {
-			c.DataDir = c.Current.DataDir
+			c.DataDir = util.NormalizeDataDirPath(c.Current.DataDir)
 		}
 	}
 	if c.DataUsage == "" && c.DataDir != "" {
@@ -167,8 +167,6 @@ func (c *Context) GetWorkDir() string {
 func (c *Context) GetPlatform() string {
 	return c.Platform
 }
-
-
 
 func (c *Context) GetDataKey() string {
 	return c.DataKey
@@ -226,7 +224,7 @@ func (c *Context) SetDataDir(dir string) {
 	if c.DataDir == dir {
 		return
 	}
-	c.DataDir = dir
+	c.DataDir = util.NormalizeDataDirPath(dir)
 	c.UpdateConfig()
 	c.Refresh()
 }
@@ -255,9 +253,9 @@ func (c *Context) SetAutoDecrypt(enabled bool) {
 func (c *Context) UpdateConfig() {
 
 	pconf := conf.ProcessConfig{
-		Type:        "wechat",
-		Account:     c.Account,
-		Platform:    c.Platform,
+		Type:     "wechat",
+		Account:  c.Account,
+		Platform: c.Platform,
 
 		FullVersion: c.FullVersion,
 		DataDir:     c.DataDir,

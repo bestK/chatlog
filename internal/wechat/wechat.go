@@ -8,12 +8,13 @@ import (
 	"github.com/sjzar/chatlog/internal/wechat/decrypt"
 	"github.com/sjzar/chatlog/internal/wechat/key"
 	"github.com/sjzar/chatlog/internal/wechat/model"
+	"github.com/sjzar/chatlog/pkg/util"
 )
 
 // Account 表示一个微信账号
 type Account struct {
-	Name        string
-	Platform    string
+	Name     string
+	Platform string
 
 	FullVersion string
 	DataDir     string
@@ -27,11 +28,11 @@ type Account struct {
 // NewAccount 创建新的账号对象
 func NewAccount(proc *model.Process) *Account {
 	return &Account{
-		Name:        proc.AccountName,
-		Platform:    proc.Platform,
+		Name:     proc.AccountName,
+		Platform: proc.Platform,
 
 		FullVersion: proc.FullVersion,
-		DataDir:     proc.DataDir,
+		DataDir:     util.NormalizeDataDirPath(proc.DataDir),
 		PID:         proc.PID,
 		ExePath:     proc.ExePath,
 		Status:      proc.Status,
@@ -57,7 +58,7 @@ func (a *Account) RefreshStatus() error {
 
 		a.FullVersion = process.FullVersion
 		a.Status = process.Status
-		a.DataDir = process.DataDir
+		a.DataDir = util.NormalizeDataDirPath(process.DataDir)
 	}
 
 	return nil
