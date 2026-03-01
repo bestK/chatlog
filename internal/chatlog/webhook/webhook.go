@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/sjzar/chatlog/internal/chatlog/conf"
+	"github.com/sjzar/chatlog/internal/model"
 	"github.com/sjzar/chatlog/internal/wechatdb"
 )
 
@@ -188,13 +189,29 @@ func (m *MessageWebhook) Do(event fsnotify.Event) {
 		message.Content = message.PlainTextContent()
 	}
 
+	actualTalker := uniqueJoined(messages.Items, func(message *model.Message) string {
+		if message.TalkerName != "" {
+			return message.TalkerName
+		}
+		return message.Talker
+	})
+	actualSender := uniqueJoined(messages.Items, func(message *model.Message) string {
+		if message.SenderName != "" {
+			return message.SenderName
+		}
+		return message.Sender
+	})
+
 	ret := map[string]any{
-		"talker":   m.conf.Talker,
-		"sender":   m.conf.Sender,
-		"keyword":  m.conf.Keyword,
-		"lastTime": m.lastTime.Format(time.DateTime),
-		"length":   len(messages.Items),
-		"messages": messages.Items,
+		"talker":         actualTalker,
+		"sender":         actualSender,
+		"keyword":        m.conf.Keyword,
+		"filter_talker":  m.conf.Talker,
+		"filter_sender":  m.conf.Sender,
+		"filter_keyword": m.conf.Keyword,
+		"lastTime":       m.lastTime.Format(time.DateTime),
+		"length":         len(messages.Items),
+		"messages":       messages.Items,
 	}
 	body, _ := json.Marshal(ret)
 	req, _ := http.NewRequest("POST", m.conf.URL, bytes.NewBuffer(body))
@@ -211,4 +228,31 @@ func (m *MessageWebhook) Do(event fsnotify.Event) {
 	if resp.StatusCode != http.StatusOK {
 		log.Error().Msgf("post messages failed, status code: %d", resp.StatusCode)
 	}
+}
+
+func uniqueJoined(messages []*model.Message, selector func(*model.Message) string) string {
+	seen := make(map[string]struct{})
+	ordered := make([]string, 0)
+	for _, message := range messages {
+		value := selector(message)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		ordered = append(ordered, value)
+	}
+	if len(ordered) == 0 {
+		return ""
+	}
+	if len(ordered) == 1 {
+		return ordered[0]
+	}
+	result := ordered[0]
+	for i := 1; i < len(ordered); i++ {
+		result += "," + ordered[i]
+	}
+	return result
 }
