@@ -28,6 +28,13 @@ func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string,
 	}
 
 	if dataKey == "" && imgKey == "" {
+		// 优先返回 dataKey 的错误，其次返回 imgKey 的错误
+		if err != nil {
+			return "", "", err
+		}
+		if imgErr != nil {
+			return "", "", imgErr
+		}
 		return "", "", errors.ErrNoValidKey
 	}
 
@@ -60,7 +67,7 @@ func (e *V4Extractor) ExtractDataKey(ctx context.Context, proc *model.Process) (
 			resultChan <- struct {
 				dataKey string
 				err     error
-			}{"", errors.ErrNoValidKey}
+			}{"", fmt.Errorf("%s", dbKeyResult.Error)}
 		}
 	}()
 
