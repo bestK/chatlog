@@ -355,21 +355,26 @@ func (s *Service) handleMedia(c *gin.Context, _type string) {
 }
 
 func (s *Service) findPath(_type string, key string) (string, error) {
-	absolutePath := filepath.Join(s.conf.GetDataDir(), key)
+	relativePath, err := normalizeRelativePath(key)
+	if err != nil {
+		return "", err
+	}
+
+	absolutePath := filepath.Join(s.conf.GetDataDir(), relativePath)
 	if _, err := os.Stat(absolutePath); err == nil {
-		return key, nil
+		return relativePath, nil
 	}
 	switch _type {
 	case "image":
 		for _, suffix := range []string{"_h.dat", ".dat", "_t.dat"} {
 			if _, err := os.Stat(absolutePath + suffix); err == nil {
-				return key + suffix, nil
+				return relativePath + suffix, nil
 			}
 		}
 	case "video":
 		for _, suffix := range []string{".mp4", "_thumb.jpg"} {
 			if _, err := os.Stat(absolutePath + suffix); err == nil {
-				return key + suffix, nil
+				return relativePath + suffix, nil
 			}
 		}
 	}
@@ -377,7 +382,11 @@ func (s *Service) findPath(_type string, key string) (string, error) {
 }
 
 func (s *Service) handleMediaData(c *gin.Context) {
-	relativePath := filepath.Clean(c.Param("path"))
+	relativePath, err := normalizeRelativePath(c.Param("path"))
+	if err != nil {
+		errors.Err(c, err)
+		return
+	}
 
 	absolutePath := filepath.Join(s.conf.GetDataDir(), relativePath)
 
@@ -397,6 +406,21 @@ func (s *Service) handleMediaData(c *gin.Context) {
 		c.File(absolutePath)
 	}
 
+}
+
+func normalizeRelativePath(rawPath string) (string, error) {
+	relativePath := strings.TrimPrefix(rawPath, "/")
+	relativePath = filepath.Clean(relativePath)
+
+	if relativePath == "" || relativePath == "." {
+		return "", errors.InvalidArg("path")
+	}
+
+	if filepath.IsAbs(relativePath) || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+		return "", errors.InvalidArg("path")
+	}
+
+	return relativePath, nil
 }
 
 func (s *Service) HandleDatFile(c *gin.Context, path string) {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sjzar/chatlog/pkg/config"
+	"github.com/sjzar/chatlog/pkg/util"
 )
 
 const (
@@ -72,6 +73,7 @@ func LoadServiceConfig(configPath string, cmdConf map[string]any) (*ServerConfig
 
 	// Load Data Dir config
 	if len(conf.DataDir) != 0 && len(conf.DataKey) == 0 {
+		conf.DataDir = util.NormalizeDataDirPath(conf.DataDir)
 		if b, err := os.ReadFile(filepath.Join(conf.DataDir, "chatlog.json")); err == nil {
 			var pconf map[string]any
 			if err := json.Unmarshal(b, &pconf); err == nil {
@@ -96,8 +98,8 @@ func LoadServiceConfig(configPath string, cmdConf map[string]any) (*ServerConfig
 }
 
 var DataDirConfigs = map[string]bool{
-	"type":         true,
-	"platform":     true,
+	"type":     true,
+	"platform": true,
 
 	"full_version": true,
 	"data_key":     true,
