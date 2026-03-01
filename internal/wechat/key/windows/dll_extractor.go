@@ -3,6 +3,7 @@
 package windows
 
 import (
+	"debug/pe"
 	"errors"
 	"fmt"
 	"os"
@@ -78,6 +79,8 @@ func loadDLLWithFallback(dllPath string) (*syscall.DLL, error) {
 
 	pathState := dllPathState(dllPath)
 	workingDir, _ := os.Getwd()
+	dllArch := peMachineLabel(dllPath)
+	exeArch := currentExeMachineLabel()
 
 	dll, err := syscall.LoadDLL(dllPath)
 	if err == nil {
@@ -87,17 +90,17 @@ func loadDLLWithFallback(dllPath string) (*syscall.DLL, error) {
 
 	dllDir := filepath.Dir(dllPath)
 	if dllDir == "" || dllDir == "." {
-		return nil, fmt.Errorf("path=%s; state=%s; cwd=%s; load=%s", dllPath, pathState, workingDir, primaryErr)
+		return nil, fmt.Errorf("path=%s; state=%s; cwd=%s; dllArch=%s; exeArch=%s; load=%s; hint=%s", dllPath, pathState, workingDir, dllArch, exeArch, primaryErr, loadHint(err))
 	}
 
 	if setErr := windows.SetDllDirectory(dllDir); setErr != nil {
-		return nil, fmt.Errorf("path=%s; state=%s; cwd=%s; load=%s; setDllDirectory=%s", dllPath, pathState, workingDir, primaryErr, describeLoadErr(setErr))
+		return nil, fmt.Errorf("path=%s; state=%s; cwd=%s; dllArch=%s; exeArch=%s; load=%s; setDllDirectory=%s; hint=%s", dllPath, pathState, workingDir, dllArch, exeArch, primaryErr, describeLoadErr(setErr), loadHint(err))
 	}
 	defer windows.SetDllDirectory("")
 
 	dll, retryErr := syscall.LoadDLL(dllPath)
 	if retryErr != nil {
-		return nil, fmt.Errorf("path=%s; state=%s; cwd=%s; load=%s; retry=%s", dllPath, pathState, workingDir, primaryErr, describeLoadErr(retryErr))
+		return nil, fmt.Errorf("path=%s; state=%s; cwd=%s; dllArch=%s; exeArch=%s; load=%s; retry=%s; hint=%s", dllPath, pathState, workingDir, dllArch, exeArch, primaryErr, describeLoadErr(retryErr), loadHint(retryErr))
 	}
 
 	return dll, nil
@@ -114,12 +117,53 @@ func describeLoadErr(err error) string {
 	return err.Error()
 }
 
+func loadHint(err error) string {
+	var errno syscall.Errno
+	if !errors.As(err, &errno) {
+		return "unknown"
+	}
+	if errno == syscall.Errno(126) {
+		return "dependent DLL missing (try installing VC++ runtime or placing dependency DLLs beside wx_key.dll)"
+	}
+	if errno == syscall.Errno(193) {
+		return "architecture mismatch (x86/x64/arm64 mismatch between chatlog.exe and wx_key.dll)"
+	}
+	return fmt.Sprintf("winerr=%d", uint32(errno))
+}
+
 func dllPathState(path string) string {
 	info, err := os.Stat(path)
 	if err != nil {
 		return fmt.Sprintf("missing(%v)", err)
 	}
 	return fmt.Sprintf("exists(size=%d)", info.Size())
+}
+
+func currentExeMachineLabel() string {
+	exePath, err := os.Executable()
+	if err != nil {
+		return "unknown"
+	}
+	return peMachineLabel(exePath)
+}
+
+func peMachineLabel(filePath string) string {
+	file, err := pe.Open(filePath)
+	if err != nil {
+		return "unknown"
+	}
+	defer file.Close()
+
+	switch file.FileHeader.Machine {
+	case pe.IMAGE_FILE_MACHINE_I386:
+		return "x86"
+	case pe.IMAGE_FILE_MACHINE_AMD64:
+		return "x64"
+	case pe.IMAGE_FILE_MACHINE_ARM64:
+		return "arm64"
+	default:
+		return fmt.Sprintf("machine_%d", file.FileHeader.Machine)
+	}
 }
 
 // Initialize 初始化 Hook
