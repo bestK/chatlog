@@ -3,6 +3,7 @@
 package windows
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -71,27 +72,54 @@ func NewHookController(dllPath string) (*HookController, error) {
 }
 
 func loadDLLWithFallback(dllPath string) (*syscall.DLL, error) {
+	if absPath, absErr := filepath.Abs(dllPath); absErr == nil {
+		dllPath = absPath
+	}
+
+	pathState := dllPathState(dllPath)
+	workingDir, _ := os.Getwd()
+
 	dll, err := syscall.LoadDLL(dllPath)
 	if err == nil {
 		return dll, nil
 	}
+	primaryErr := describeLoadErr(err)
 
 	dllDir := filepath.Dir(dllPath)
 	if dllDir == "" || dllDir == "." {
-		return nil, err
+		return nil, fmt.Errorf("path=%s; state=%s; cwd=%s; load=%s", dllPath, pathState, workingDir, primaryErr)
 	}
 
 	if setErr := windows.SetDllDirectory(dllDir); setErr != nil {
-		return nil, err
+		return nil, fmt.Errorf("path=%s; state=%s; cwd=%s; load=%s; setDllDirectory=%s", dllPath, pathState, workingDir, primaryErr, describeLoadErr(setErr))
 	}
 	defer windows.SetDllDirectory("")
 
 	dll, retryErr := syscall.LoadDLL(dllPath)
 	if retryErr != nil {
-		return nil, retryErr
+		return nil, fmt.Errorf("path=%s; state=%s; cwd=%s; load=%s; retry=%s", dllPath, pathState, workingDir, primaryErr, describeLoadErr(retryErr))
 	}
 
 	return dll, nil
+}
+
+func describeLoadErr(err error) string {
+	if err == nil {
+		return ""
+	}
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		return fmt.Sprintf("%v(code=%d)", err, uint32(errno))
+	}
+	return err.Error()
+}
+
+func dllPathState(path string) string {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Sprintf("missing(%v)", err)
+	}
+	return fmt.Sprintf("exists(size=%d)", info.Size())
 }
 
 // Initialize 初始化 Hook
