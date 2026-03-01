@@ -2,6 +2,7 @@ package wechat
 
 import (
 	"context"
+	"fmt"
 	"runtime"
 
 	"github.com/sjzar/chatlog/internal/errors"
@@ -26,6 +27,14 @@ func GetAccount(name string) (*Account, error) {
 
 func GetProcess(name string) (*model.Process, error) {
 	return DefaultManager.GetProcess(name)
+}
+
+func GetProcessByPID(pid uint32) (*model.Process, error) {
+	return DefaultManager.GetProcessByPID(pid)
+}
+
+func GetProcesses() []*model.Process {
+	return DefaultManager.GetProcesses()
 }
 
 func GetAccounts() []*Account {
@@ -66,6 +75,8 @@ func (m *Manager) Load() error {
 		accounts = append(accounts, account)
 		if account.Name != "" {
 			processMap[account.Name] = p
+		} else {
+			processMap[fmt.Sprintf("pid:%d", p.PID)] = p
 		}
 	}
 
@@ -90,6 +101,23 @@ func (m *Manager) GetProcess(name string) (*model.Process, error) {
 		return nil, errors.WeChatAccountNotFound(name)
 	}
 	return p, nil
+}
+
+func (m *Manager) GetProcessByPID(pid uint32) (*model.Process, error) {
+	for _, p := range m.processMap {
+		if p.PID == pid {
+			return p, nil
+		}
+	}
+	return nil, errors.WeChatAccountNotFound("pid")
+}
+
+func (m *Manager) GetProcesses() []*model.Process {
+	result := make([]*model.Process, 0, len(m.processMap))
+	for _, p := range m.processMap {
+		result = append(result, p)
+	}
+	return result
 }
 
 // GetAccounts 获取所有账号

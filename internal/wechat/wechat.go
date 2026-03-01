@@ -25,6 +25,33 @@ type Account struct {
 	Status      string
 }
 
+func (a *Account) resolveProcess() (*model.Process, error) {
+	Load()
+
+	if a.Name != "" {
+		if process, err := GetProcess(a.Name); err == nil {
+			return process, nil
+		}
+	}
+
+	if a.PID != 0 {
+		if process, err := GetProcessByPID(a.PID); err == nil {
+			return process, nil
+		}
+	}
+
+	normalizedDataDir := util.NormalizeDataDirPath(a.DataDir)
+	if normalizedDataDir != "" {
+		for _, process := range GetProcesses() {
+			if util.NormalizeDataDirPath(process.DataDir) == normalizedDataDir {
+				return process, nil
+			}
+		}
+	}
+
+	return nil, errors.WeChatAccountNotFound(a.Name)
+}
+
 // NewAccount 创建新的账号对象
 func NewAccount(proc *model.Process) *Account {
 	return &Account{
@@ -41,25 +68,24 @@ func NewAccount(proc *model.Process) *Account {
 
 // RefreshStatus 刷新账号的进程状态
 func (a *Account) RefreshStatus() error {
-	// 查找所有微信进程
-	Load()
-
-	process, err := GetProcess(a.Name)
+	process, err := a.resolveProcess()
 	if err != nil {
 		a.Status = model.StatusOffline
 		return nil
 	}
 
-	if process.AccountName == a.Name {
-		// 更新进程信息
-		a.PID = process.PID
-		a.ExePath = process.ExePath
-		a.Platform = process.Platform
-
-		a.FullVersion = process.FullVersion
-		a.Status = process.Status
-		a.DataDir = util.NormalizeDataDirPath(process.DataDir)
+	if process.AccountName != "" {
+		a.Name = process.AccountName
 	}
+
+	// 更新进程信息
+	a.PID = process.PID
+	a.ExePath = process.ExePath
+	a.Platform = process.Platform
+
+	a.FullVersion = process.FullVersion
+	a.Status = process.Status
+	a.DataDir = util.NormalizeDataDirPath(process.DataDir)
 
 	return nil
 }
@@ -87,7 +113,7 @@ func (a *Account) GetDataKey(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	process, err := GetProcess(a.Name)
+	process, err := a.resolveProcess()
 	if err != nil {
 		return "", err
 	}
@@ -130,7 +156,7 @@ func (a *Account) GetImgKey(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	process, err := GetProcess(a.Name)
+	process, err := a.resolveProcess()
 	if err != nil {
 		return "", err
 	}
