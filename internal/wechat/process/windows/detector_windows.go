@@ -21,7 +21,7 @@ func initializeProcessInfo(p *process.Process, info *model.Process) error {
 
 	for _, f := range files {
 		if strings.HasSuffix(f.Path, DBFile) {
-			filePath := util.CleanExtendedLengthPath(f.Path)
+			filePath := util.NormalizeDataDirPath(f.Path)
 			parts := strings.Split(filePath, string(filepath.Separator))
 			if len(parts) < 4 {
 				log.Debug().Msg("无效的文件路径: " + filePath)

@@ -3,6 +3,8 @@ package windows
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/rs/zerolog/log"
 
@@ -11,9 +13,18 @@ import (
 )
 
 const (
-	// 定义 DLL 路径，假设在当前目录下
-	DllPath = "wx_key.dll"
+	// DLL 文件名
+	DllName = "wx_key.dll"
 )
+
+// getDllPath 返回 wx_key.dll 的绝对路径（基于 exe 所在目录）
+func getDllPath() string {
+	exePath, err := os.Executable()
+	if err != nil {
+		return DllName // fallback: 使用相对路径
+	}
+	return filepath.Join(filepath.Dir(exePath), DllName)
+}
 
 func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string, string, error) {
 	dataKey, err := e.ExtractDataKey(ctx, proc)
@@ -54,7 +65,7 @@ func (e *V4Extractor) ExtractDataKey(ctx context.Context, proc *model.Process) (
 
 	go func() {
 		// 获取数据库密钥 - 使用完整流程（自动重启微信）
-		dbKeyResult := GetDbKeyFull(DllPath, 60, func(msg string) {
+		dbKeyResult := GetDbKeyFull(getDllPath(), 60, func(msg string) {
 			log.Debug().Msg(msg)
 		})
 

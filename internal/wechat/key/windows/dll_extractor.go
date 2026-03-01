@@ -31,7 +31,7 @@ type HookController struct {
 func NewHookController(dllPath string) (*HookController, error) {
 	dll, err := syscall.LoadDLL(dllPath)
 	if err != nil {
-		return nil, fmt.Errorf("加载 DLL 失败: %v", err)
+		return nil, fmt.Errorf("加载 DLL 失败: Failed to load %s: %v", dllPath, err)
 	}
 
 	hc := &HookController{dll: dll}
