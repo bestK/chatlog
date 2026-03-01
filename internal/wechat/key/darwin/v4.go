@@ -53,6 +53,10 @@ func NewV4Extractor() *V4Extractor {
 }
 
 func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string, string, error) {
+	return e.extractKeys(ctx, proc, true, true)
+}
+
+func (e *V4Extractor) extractKeys(ctx context.Context, proc *model.Process, needDataKey bool, needImgKey bool) (string, string, error) {
 	if proc.Status == model.StatusOffline {
 		return "", "", errors.ErrWeChatOffline
 	}
@@ -90,7 +94,7 @@ func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string,
 	for index := 0; index < workerCount; index++ {
 		go func() {
 			defer workerWaitGroup.Done()
-			e.worker(searchCtx, memoryChannel, resultChannel)
+			e.worker(searchCtx, memoryChannel, resultChannel, needDataKey, needImgKey)
 		}()
 	}
 
@@ -122,8 +126,7 @@ func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string,
 			return "", "", ctx.Err()
 		case result, ok := <-resultChannel:
 			if !ok {
-				// Channel closed, all workers finished, return whatever keys we found
-				if finalDataKey != "" || finalImgKey != "" {
+				if (!needDataKey || finalDataKey != "") && (!needImgKey || finalImgKey != "") {
 					return finalDataKey, finalImgKey, nil
 				}
 				return "", "", errors.ErrNoValidKey
@@ -137,8 +140,7 @@ func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string,
 				finalImgKey = result[1]
 			}
 
-			// If we have both keys, we can return early
-			if finalDataKey != "" && finalImgKey != "" {
+			if (!needDataKey || finalDataKey != "") && (!needImgKey || finalImgKey != "") {
 				cancel() // Cancel remaining work
 				return finalDataKey, finalImgKey, nil
 			}
@@ -156,7 +158,7 @@ func (e *V4Extractor) findMemory(ctx context.Context, pid uint32, memoryChannel 
 }
 
 // worker processes memory regions to find V4 version key
-func (e *V4Extractor) worker(ctx context.Context, memoryChannel <-chan []byte, resultChannel chan<- [2]string) {
+func (e *V4Extractor) worker(ctx context.Context, memoryChannel <-chan []byte, resultChannel chan<- [2]string, needDataKey bool, needImgKey bool) {
 	// Track found keys
 	var dataKey, imgKey string
 
@@ -166,8 +168,7 @@ func (e *V4Extractor) worker(ctx context.Context, memoryChannel <-chan []byte, r
 			return
 		case memory, ok := <-memoryChannel:
 			if !ok {
-				// Memory scanning complete, return whatever keys we found
-				if dataKey != "" || imgKey != "" {
+				if (!needDataKey || dataKey != "") && (!needImgKey || imgKey != "") {
 					select {
 					case resultChannel <- [2]string{dataKey, imgKey}:
 					default:
@@ -177,11 +178,10 @@ func (e *V4Extractor) worker(ctx context.Context, memoryChannel <-chan []byte, r
 			}
 
 			// Search for data key
-			if dataKey == "" {
+			if needDataKey && dataKey == "" {
 				if key, ok := e.SearchKey(ctx, memory); ok {
 					dataKey = key
 					log.Debug().Msg("Data key found: " + key)
-					// Report immediately when found
 					select {
 					case resultChannel <- [2]string{dataKey, imgKey}:
 					case <-ctx.Done():
@@ -191,11 +191,10 @@ func (e *V4Extractor) worker(ctx context.Context, memoryChannel <-chan []byte, r
 			}
 
 			// Search for image key
-			if imgKey == "" {
+			if needImgKey && imgKey == "" {
 				if key, ok := e.SearchImgKey(ctx, memory); ok {
 					imgKey = key
 					log.Debug().Msg("Image key found: " + key)
-					// Report immediately when found
 					select {
 					case resultChannel <- [2]string{dataKey, imgKey}:
 					case <-ctx.Done():
@@ -204,8 +203,7 @@ func (e *V4Extractor) worker(ctx context.Context, memoryChannel <-chan []byte, r
 				}
 			}
 
-			// If we have both keys, exit worker
-			if dataKey != "" && imgKey != "" {
+			if (!needDataKey || dataKey != "") && (!needImgKey || imgKey != "") {
 				log.Debug().Msg("Both keys found, worker exiting")
 				return
 			}
@@ -361,13 +359,13 @@ func (e *V4Extractor) SetValidate(validator *decrypt.Validator) {
 
 // ExtractDataKey 仅提取数据库密钥
 func (e *V4Extractor) ExtractDataKey(ctx context.Context, proc *model.Process) (string, error) {
-	dataKey, _, err := e.Extract(ctx, proc)
+	dataKey, _, err := e.extractKeys(ctx, proc, true, false)
 	return dataKey, err
 }
 
 // ExtractImgKey 仅提取图片密钥
 func (e *V4Extractor) ExtractImgKey(ctx context.Context, proc *model.Process) (string, error) {
-	_, imgKey, err := e.Extract(ctx, proc)
+	_, imgKey, err := e.extractKeys(ctx, proc, false, true)
 	return imgKey, err
 }
 

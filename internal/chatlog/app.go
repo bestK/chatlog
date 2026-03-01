@@ -859,10 +859,10 @@ func (a *App) doGetKey(isDB, isImage bool) {
 
 		if isDB && isImage {
 			// 同时获取两个密钥
-			dataKey, imgKey, err = a.m.GetDataKey()
+			dataKey, imgKey, err = a.m.GetKeys()
 		} else if isDB {
 			// 只获取数据库密钥
-			dataKey, imgKey, err = a.m.GetDataKey()
+			dataKey, err = a.m.GetDataKey()
 		} else if isImage {
 			// 只获取图片密钥（不会重启微信）
 			imgKey, err = a.m.GetImgKey()

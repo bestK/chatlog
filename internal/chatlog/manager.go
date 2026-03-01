@@ -197,7 +197,7 @@ func (m *Manager) SetHTTPAddr(text string) error {
 	return nil
 }
 
-func (m *Manager) GetDataKey() (string, string, error) {
+func (m *Manager) GetDataKey() (string, error) {
 	// 尝试自动关联当前账号的进程
 	if m.ctx.Current == nil {
 		instances := m.wechat.GetWeChatInstances()
@@ -217,17 +217,46 @@ func (m *Manager) GetDataKey() (string, string, error) {
 	}
 
 	if m.ctx.Current == nil {
+		return "", fmt.Errorf("未选择任何账号，请先在[切换账号]菜单中选择一个运行中的微信进程")
+	}
+
+	dataKey, err := m.wechat.GetDataKey(m.ctx.Current)
+	if err != nil {
+		return "", err
+	}
+	m.ctx.Refresh()
+	m.ctx.UpdateConfig()
+
+	return dataKey, nil
+}
+
+func (m *Manager) GetKeys() (string, string, error) {
+	if m.ctx.Current == nil {
+		instances := m.wechat.GetWeChatInstances()
+		if m.ctx.Account != "" {
+			for _, instance := range instances {
+				if instance.Name == m.ctx.Account {
+					m.ctx.SwitchCurrent(instance)
+					break
+				}
+			}
+		}
+		if m.ctx.Current == nil && len(instances) == 1 {
+			m.ctx.SwitchCurrent(instances[0])
+		}
+	}
+
+	if m.ctx.Current == nil {
 		return "", "", fmt.Errorf("未选择任何账号，请先在[切换账号]菜单中选择一个运行中的微信进程")
 	}
 
-	dataKey, imgKey, err := m.wechat.GetDataKey(m.ctx.Current)
+	dataKey, imgKey, err := m.wechat.GetKeys(m.ctx.Current)
 	if err != nil {
 		return "", "", err
 	}
 	m.ctx.Refresh()
 	m.ctx.UpdateConfig()
 
-	// 更新图片解密密钥
 	if imgKey != "" {
 		dat2img.SetAesKey(imgKey)
 		go dat2img.ScanAndSetXorKey(m.ctx.DataDir)
@@ -281,7 +310,7 @@ func (m *Manager) DecryptDBFiles() error {
 		if m.ctx.Current == nil {
 			return fmt.Errorf("未选择任何账号")
 		}
-		if _, _, err := m.GetDataKey(); err != nil {
+		if _, err := m.GetDataKey(); err != nil {
 			return err
 		}
 	}
