@@ -35,3 +35,11 @@ chatlog.upx
 __debug_bin.exe*
 script/build-remote.sh
 .DS_Store
+
+# wails build artifacts
+build/
+
+# frontend
+frontend/node_modules/
+frontend/dist/*
+!frontend/dist/placeholder.txt
