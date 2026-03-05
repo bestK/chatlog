@@ -27,36 +27,31 @@ type Manager struct {
 	sc  *conf.ServerConfig
 	scm *config.Manager
 
+	onSync func()
+
 	// Services
 	db     *database.Service
 	http   *http.Service
 	wechat *wechat.Service
-
-	// Terminal UI
-	app *App
 }
 
 func New() *Manager {
 	return &Manager{}
 }
 
-func (m *Manager) Run(configPath string) error {
-
+func (m *Manager) Init(configPath string) error {
 	var err error
 	m.ctx, err = ctx.New(configPath)
 	if err != nil {
 		return err
 	}
 
-	// 根据配置设置日志级别
 	if m.ctx.GetDebug() {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 
 	m.wechat = wechat.NewService(m.ctx)
-
 	m.db = database.NewService(m.ctx)
-
 	m.http = http.NewService(m.ctx, m.db)
 
 	m.ctx.WeChatInstances = m.wechat.GetWeChatInstances()
@@ -64,7 +59,6 @@ func (m *Manager) Run(configPath string) error {
 		m.ctx.SwitchCurrent(m.ctx.WeChatInstances[0])
 	}
 
-	// 启动时自动恢复自动解密
 	if m.ctx.AutoDecrypt {
 		go func() {
 			if err := m.StartAutoDecrypt(); err != nil {
@@ -76,19 +70,64 @@ func (m *Manager) Run(configPath string) error {
 	}
 
 	if m.ctx.HTTPEnabled {
-		// 启动HTTP服务
 		if err := m.StartService(); err != nil {
-			m.StopService()
+			_ = m.StopService()
 		}
 	}
 
-	// 启动时异步检查数据更新
 	go m.CheckAndSyncData()
-
-	// 启动终端UI
-	m.app = NewApp(m.ctx, m)
-	m.app.Run() // 阻塞
 	return nil
+}
+
+func (m *Manager) Close() {
+	if m == nil || m.ctx == nil {
+		return
+	}
+	if m.ctx.HTTPEnabled {
+		_ = m.StopService()
+	}
+	if m.ctx.AutoDecrypt {
+		_ = m.StopAutoDecrypt()
+	}
+}
+
+func (m *Manager) OnSync(fn func()) {
+	m.onSync = fn
+}
+
+func (m *Manager) Context() *ctx.Context {
+	return m.ctx
+}
+
+func (m *Manager) ReloadWebhook() error {
+	if m == nil || m.db == nil {
+		return nil
+	}
+	return m.db.ReloadWebhook()
+}
+
+func (m *Manager) SetWebhook(hook *conf.Webhook) error {
+	if m == nil || m.ctx == nil {
+		return fmt.Errorf("未初始化")
+	}
+	if err := m.ctx.SetWebhook(hook); err != nil {
+		return err
+	}
+	return m.ReloadWebhook()
+}
+
+func (m *Manager) ReloadWeChatInstances() {
+	if m == nil || m.ctx == nil || m.wechat == nil {
+		return
+	}
+	instances := m.wechat.GetWeChatInstances()
+	for _, inst := range instances {
+		if inst == nil {
+			continue
+		}
+		_ = inst.RefreshStatus()
+	}
+	m.ctx.WeChatInstances = instances
 }
 
 func (m *Manager) Switch(info *iwechat.Account, history string) error {
@@ -623,10 +662,8 @@ func (m *Manager) CheckAndSyncData() {
 			m.ctx.Refresh()
 			m.ctx.UpdateConfig()
 		}
-		if m.app != nil {
-			m.app.QueueUpdateDraw(func() {
-				m.RefreshSession()
-			})
+		if m.onSync != nil {
+			m.onSync()
 		}
 	} else {
 		log.Info().Msg("异步数据检查完成，未发现更新")
