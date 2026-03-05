@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -37,6 +38,18 @@ type App struct {
 	logDebounce *time.Timer
 	stateEvents bool
 	logEvents   bool
+	logMu       sync.Mutex
+}
+
+type notifyingWriter struct {
+	app *App
+}
+
+func (w *notifyingWriter) Write(p []byte) (int, error) {
+	if w.app != nil {
+		w.app.debounceLogChanged()
+	}
+	return len(p), nil
 }
 
 type State struct {
@@ -136,6 +149,7 @@ func (a *App) initLogger() {
 	if a.logFile != nil {
 		writers = append(writers, a.logFile)
 	}
+	writers = append(writers, &notifyingWriter{app: a})
 	log.Logger = log.Output(io.MultiWriter(writers...))
 }
 
@@ -191,6 +205,8 @@ func (a *App) debounceLogChanged() {
 	if !a.logEvents {
 		return
 	}
+	a.logMu.Lock()
+	defer a.logMu.Unlock()
 	if a.logDebounce != nil {
 		a.logDebounce.Stop()
 	}
@@ -224,10 +240,12 @@ func (a *App) shutdown(ctx context.Context) {
 		_ = a.logWatcher.Close()
 		a.logWatcher = nil
 	}
+	a.logMu.Lock()
 	if a.logDebounce != nil {
 		a.logDebounce.Stop()
 		a.logDebounce = nil
 	}
+	a.logMu.Unlock()
 	if a.logFile != nil {
 		_ = a.logFile.Close()
 		a.logFile = nil
