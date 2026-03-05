@@ -21,7 +21,7 @@ _聊天记录工具，帮助大家轻松使用自己的聊天数据_
 - 支持获取数据与图片密钥 (Windows < 4.0.3.36 / macOS < 4.0.3.80)
 - 支持图片、语音等多媒体数据解密，支持 wxgf 格式解析
 - 支持自动解密数据库，并提供新消息 Webhook 回调
-- 提供 Terminal UI 界面，同时支持命令行工具和 Docker 镜像部署
+- 提供 Wails 桌面 GUI，同时支持命令行工具和 Docker 镜像部署
 - 提供 HTTP API 服务，可轻松查询聊天记录、联系人、群聊、最近会话等信息
 - 支持 MCP Streamable HTTP 协议，可与 AI 助手无缝集成
 - 支持多账号管理，可在不同账号间切换
@@ -31,9 +31,9 @@ _聊天记录工具，帮助大家轻松使用自己的聊天数据_
 ### 基本步骤
 
 1. **安装 Chatlog**：[下载预编译版本](#下载预编译版本) 或 [使用 Go 安装](#从源码安装)
-2. **运行程序**：执行 `chatlog` 启动 Terminal UI 界面
-3. **解密数据**：选择 `解密数据` 菜单项
-4. **开启 HTTP 服务**：选择 `开启 HTTP 服务` 菜单项
+2. **运行程序**：执行 `chatlog` 启动桌面 GUI
+3. **解密数据**：在「解密」页执行解密
+4. **开启 HTTP 服务**：在「服务」页启动 HTTP
 5. **访问数据**：通过 [HTTP API](#http-api) 或 [MCP 集成](#mcp-集成) 访问聊天记录
 
 > 💡 **提示**: 如果电脑端微信聊天记录不全，可以[从手机端迁移数据](#从手机迁移聊天记录)  
@@ -61,19 +61,13 @@ go install github.com/sjzar/chatlog@latest
 
 ## 使用指南
 
-### Terminal UI 模式
+### 桌面 GUI 模式（Wails）
 
-最简单的使用方式是通过 Terminal UI 界面操作：
+直接运行：
 
 ```bash
 chatlog
 ```
-
-操作方法：
-- 使用 `↑` `↓` 键选择菜单项
-- 按 `Enter` 确认选择
-- 按 `Esc` 返回上级菜单
-- 按 `Ctrl+C` 退出程序
 
 ### 命令行模式
 
@@ -147,7 +141,7 @@ $ docker run -d \
 
 ### Windows 版本说明
 
-如遇到界面显示异常（如花屏、乱码等），请使用 [Windows Terminal](https://github.com/microsoft/terminal) 运行程序
+如使用命令行模式遇到显示异常（如花屏、乱码等），请使用 [Windows Terminal](https://github.com/microsoft/terminal)
 
 ### macOS 版本说明
 
@@ -220,7 +214,7 @@ GET /api/v1/chatlog?time=2023-01-01&talker=wxid_xxx
 
 #### 0. 回调配置
 
-使用 TUI 模式的话，在 `$HOME/.chatlog/chatlog.json` 配置文件中，新增 `webhook` 配置。  
+使用桌面版的话，在 `$HOME/.chatlog/chatlog.json` 配置文件中，新增 `webhook` 配置。  
 （Windows 用户的配置文件在 `%USERPROFILE%/.chatlog/chatlog.json`)
 
 ```json
