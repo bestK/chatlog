@@ -1,8 +1,6 @@
 package chatlog
 
 import (
-	"github.com/sjzar/chatlog/internal/chatlog"
-
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -30,13 +28,8 @@ var rootCmd = &cobra.Command{
 	CompletionOptions: cobra.CompletionOptions{
 		HiddenDefaultCmd: true,
 	},
-	PreRun: initTuiLog,
-	Run:    Root,
-}
-
-func Root(cmd *cobra.Command, args []string) {
-	m := chatlog.New()
-	if err := m.Run(""); err != nil {
-		log.Err(err).Msg("failed to run chatlog instance")
-	}
+	PreRun: initLog,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return cmd.Help()
+	},
 }
