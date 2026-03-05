@@ -17,8 +17,7 @@ const (
 	EnvConfigDir     = "CHATLOG_DIR"
 )
 
-// LoadTUIConfig 加载 TUI 配置
-func LoadTUIConfig(configPath string) (*TUIConfig, *config.Manager, error) {
+func LoadAppConfig(configPath string) (*AppConfig, *config.Manager, error) {
 
 	if configPath == "" {
 		configPath = os.Getenv(EnvConfigDir)
@@ -30,8 +29,8 @@ func LoadTUIConfig(configPath string) (*TUIConfig, *config.Manager, error) {
 		return nil, nil, err
 	}
 
-	conf := &TUIConfig{}
-	config.SetDefaults(tcm.Viper, conf, TUIDefaults)
+	conf := &AppConfig{}
+	config.SetDefaults(tcm.Viper, conf, AppDefaults)
 
 	if err := tcm.Load(conf); err != nil {
 		log.Error().Err(err).Msg("load tui config failed")
@@ -40,7 +39,7 @@ func LoadTUIConfig(configPath string) (*TUIConfig, *config.Manager, error) {
 	conf.ConfigDir = tcm.Path
 
 	b, _ := json.Marshal(conf)
-	log.Info().Msgf("tui config: %s", string(b))
+	log.Info().Msgf("app config: %s", string(b))
 
 	return conf, tcm, nil
 }

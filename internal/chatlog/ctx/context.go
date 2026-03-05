@@ -21,7 +21,7 @@ const (
 // Context is a context for a chatlog.
 // It is used to store information about the chatlog.
 type Context struct {
-	conf *conf.TUIConfig
+	conf *conf.AppConfig
 	cm   *config.Manager
 	mu   sync.RWMutex
 
@@ -59,9 +59,45 @@ type Context struct {
 	WeChatInstances []*wechat.Account
 }
 
+type InstanceSnapshot struct {
+	Name        string
+	PID         int
+	Platform    string
+	FullVersion string
+	DataDir     string
+	ExePath     string
+	Status      string
+
+	Raw *wechat.Account
+}
+
+type Snapshot struct {
+	Account  string
+	Platform string
+
+	FullVersion string
+	DataDir     string
+	DataKey     string
+	ImgKey      string
+
+	WorkDir string
+
+	HTTPEnabled bool
+	HTTPAddr    string
+
+	AutoDecrypt     bool
+	LastSessionUnix int64
+
+	PID     int
+	ExePath string
+	Status  string
+
+	WeChatInstances []InstanceSnapshot
+}
+
 func New(configPath string) (*Context, error) {
 
-	conf, tcm, err := conf.LoadTUIConfig(configPath)
+	conf, tcm, err := conf.LoadAppConfig(configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -156,6 +192,51 @@ func (c *Context) Refresh() {
 	}
 }
 
+func (c *Context) Snapshot() Snapshot {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	instances := make([]InstanceSnapshot, 0, len(c.WeChatInstances))
+	for _, inst := range c.WeChatInstances {
+		if inst == nil {
+			continue
+		}
+		instances = append(instances, InstanceSnapshot{
+			Name:        inst.Name,
+			PID:         int(inst.PID),
+			Platform:    inst.Platform,
+			FullVersion: inst.FullVersion,
+			DataDir:     inst.DataDir,
+			ExePath:     inst.ExePath,
+			Status:      inst.Status,
+			Raw:         inst,
+		})
+	}
+
+	last := int64(0)
+	if c.LastSession.Unix() > 0 {
+		last = c.LastSession.Unix()
+	}
+
+	return Snapshot{
+		Account:         c.Account,
+		Platform:        c.Platform,
+		FullVersion:     c.FullVersion,
+		DataDir:         c.DataDir,
+		DataKey:         c.DataKey,
+		ImgKey:          c.ImgKey,
+		WorkDir:         c.WorkDir,
+		HTTPEnabled:     c.HTTPEnabled,
+		HTTPAddr:        c.HTTPAddr,
+		AutoDecrypt:     c.AutoDecrypt,
+		LastSessionUnix: last,
+		PID:             c.PID,
+		ExePath:         c.ExePath,
+		Status:          c.Status,
+		WeChatInstances: instances,
+	}
+}
+
 func (c *Context) GetDataDir() string {
 	return c.DataDir
 }
@@ -181,6 +262,17 @@ func (c *Context) GetHTTPAddr() string {
 
 func (c *Context) GetWebhook() *conf.Webhook {
 	return c.conf.Webhook
+}
+
+func (c *Context) SetWebhook(hook *conf.Webhook) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.conf.Webhook = hook
+	if err := c.cm.SetConfig("webhook", hook); err != nil {
+		log.Error().Err(err).Msg("set webhook failed")
+		return err
+	}
+	return nil
 }
 
 func (c *Context) GetDebug() bool {
@@ -236,6 +328,16 @@ func (c *Context) SetImgKey(key string) {
 		return
 	}
 	c.ImgKey = key
+	c.UpdateConfig()
+}
+
+func (c *Context) SetDataKey(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.DataKey == key {
+		return
+	}
+	c.DataKey = key
 	c.UpdateConfig()
 }
 
