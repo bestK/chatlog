@@ -137,6 +137,18 @@ func (s *Service) initWebhook() error {
 	return nil
 }
 
+func (s *Service) ReloadWebhook() error {
+	if s.webhookCancel != nil {
+		s.webhookCancel()
+		s.webhookCancel = nil
+	}
+	s.webhook = webhook.New(s.conf)
+	if s.db == nil {
+		return nil
+	}
+	return s.initWebhook()
+}
+
 // Close closes the database connection
 func (s *Service) Close() {
 	// Add cleanup code if needed
