@@ -1,6 +1,8 @@
 package chatlog
 
 import (
+	"strings"
+
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -17,6 +19,31 @@ func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		log.Err(err).Msg("command execution failed")
 	}
+}
+
+func IsCLIInvocation(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+
+	knownCommands := map[string]struct{}{
+		"server":     {},
+		"key":        {},
+		"decrypt":    {},
+		"dumpmemory": {},
+		"version":    {},
+		"help":       {},
+		"completion": {},
+	}
+
+	first := strings.TrimSpace(args[0])
+	if first == "" {
+		return false
+	}
+	if _, ok := knownCommands[first]; ok {
+		return true
+	}
+	return strings.HasPrefix(first, "-")
 }
 
 var rootCmd = &cobra.Command{

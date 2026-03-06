@@ -9,7 +9,7 @@ import (
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	if len(os.Args) > 1 {
+	if chatlog.IsCLIInvocation(os.Args[1:]) {
 		chatlog.Execute()
 		return
 	}
