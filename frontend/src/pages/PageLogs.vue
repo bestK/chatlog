@@ -22,8 +22,8 @@ async function refresh() {
 	try {
 		logPath.value = await backend.GetLogPath();
 		content.value = await backend.ReadLogTail(maxLines);
-	} catch (e) {
-		chat.toast('读取失败', String(e));
+	} catch (error) {
+		chat.toast('读取失败', String(error));
 	} finally {
 		loading.value = false;
 	}
@@ -34,8 +34,20 @@ const filtered = computed(() => {
 	if (!kw) return content.value;
 	return content.value
 		.split('\n')
-		.filter((l) => l.includes(kw))
+		.filter((line) => line.includes(kw))
 		.join('\n');
+});
+
+const filteredHtml = computed(() => {
+	return filtered.value
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2})/gm, '<span class="log-date">$1</span>')
+		.replace(/\b(INF|INFO|SUCCESS)\b/g, '<span class="log-info">$1</span>')
+		.replace(/\b(WRN|WARN|WARNING)\b/g, '<span class="log-warn">$1</span>')
+		.replace(/\b(ERR|ERROR|FATAL|CRITICAL)\b/g, '<span class="log-error">$1</span>')
+		.replace(/\b(DBG|DEBUG)\b/g, '<span class="log-debug">$1</span>');
 });
 
 async function copyText(text: string) {
@@ -123,8 +135,64 @@ watch(
 			</div>
 
 			<div class="grow logViewport">
-				<pre ref="logBox" class="mono panel scrollbar logPanel">{{ filtered }}</pre>
+				<pre ref="logBox" class="mono panel scrollbar logPanel" v-html="filteredHtml"></pre>
 			</div>
 		</div>
 	</div>
 </template>
+
+<style scoped>
+.logPanel {
+	background: #06080c;
+	padding: 16px;
+	line-height: 1.6;
+	font-size: 13px;
+	color: rgba(255, 255, 255, 0.8);
+	border-color: rgba(255, 255, 255, 0.08);
+	box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+:deep(.log-info) {
+	color: var(--ok);
+	font-weight: 600;
+}
+
+:deep(.log-warn) {
+	color: var(--warn);
+	font-weight: 600;
+}
+
+:deep(.log-error) {
+	color: var(--bad);
+	font-weight: 600;
+}
+
+:deep(.log-debug) {
+	color: var(--brand);
+	opacity: 0.8;
+}
+
+:deep(.log-date) {
+	color: var(--subtle);
+	margin-right: 8px;
+}
+
+.logViewport {
+	margin-top: 4px;
+}
+
+.cardTitle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.cardTitle::before {
+	content: '';
+	display: block;
+	width: 4px;
+	height: 14px;
+	background: var(--brand);
+	border-radius: 2px;
+}
+</style>
