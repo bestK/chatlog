@@ -36,9 +36,7 @@ function setPage(p: Page) {
 		</div>
 
 		<div class="main">
-			<div v-if="previewBanner" class="topbar" style="margin-bottom: 14px">
-				<div class="subtitle">{{ previewBanner }}</div>
-			</div>
+				<div v-if="previewBanner" class="status-badge" style="margin-bottom: 24px; display: inline-flex;">{{ previewBanner }}</div>
 
 			<Topbar
 				:page="page"
