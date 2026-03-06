@@ -39,6 +39,8 @@ export namespace main {
 	    pid: number;
 	    exePath: string;
 	    status: string;
+	    nickname: string;
+	    smallHeadImgUrl: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new State(source);
@@ -60,6 +62,8 @@ export namespace main {
 	        this.pid = source["pid"];
 	        this.exePath = source["exePath"];
 	        this.status = source["status"];
+	        this.nickname = source["nickname"];
+	        this.smallHeadImgUrl = source["smallHeadImgUrl"];
 	    }
 	}
 	export class WebhookItem {

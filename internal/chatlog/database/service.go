@@ -184,3 +184,16 @@ func (s *Service) UnlockDB(path string) error {
 	}
 	return nil
 }
+func (s *Service) GetSelfSmallHeadImgUrl() string {
+	if s.db != nil {
+		return s.db.GetSelfSmallHeadImgUrl()
+	}
+	return ""
+}
+
+func (s *Service) GetSelfName() string {
+	if s.db != nil {
+		return s.db.GetSelfName()
+	}
+	return ""
+}

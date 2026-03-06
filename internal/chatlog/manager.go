@@ -179,6 +179,9 @@ func (m *Manager) StartService() error {
 	if err := m.db.Start(); err != nil {
 		return err
 	}
+	// 数据库启动后，获取当前用户头像URL和昵称
+	m.ctx.SmallHeadImgUrl = m.db.GetSelfSmallHeadImgUrl()
+	m.ctx.Nickname = m.db.GetSelfName()
 
 	if err := m.http.Start(); err != nil {
 		m.db.Stop()
