@@ -22,7 +22,8 @@ function isState(v: unknown): v is State {
 		typeof r.lastSession === 'string' &&
 		typeof r.pid === 'number' &&
 		typeof r.exePath === 'string' &&
-		typeof r.status === 'string'
+		typeof r.status === 'string' &&
+		typeof r.smallHeadImgUrl === 'string'
 	);
 }
 

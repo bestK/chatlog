@@ -13,6 +13,8 @@ export type State = {
 	pid: number;
 	exePath: string;
 	status: string;
+	nickname: string;
+	smallHeadImgUrl: string;
 };
 
 export type Instance = {

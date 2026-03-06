@@ -50,10 +50,12 @@ type Context struct {
 	LastSession time.Time
 
 	// 当前选中的微信实例
-	Current *wechat.Account
-	PID     int
-	ExePath string
-	Status  string
+	Current         *wechat.Account
+	PID             int
+	ExePath         string
+	Status          string
+	Nickname        string // 当前用户昵称/备注
+	SmallHeadImgUrl string // 当前用户小头像URL
 
 	// 所有可用的微信实例
 	WeChatInstances []*wechat.Account
@@ -88,9 +90,11 @@ type Snapshot struct {
 	AutoDecrypt     bool
 	LastSessionUnix int64
 
-	PID     int
-	ExePath string
-	Status  string
+	PID             int
+	ExePath         string
+	Status          string
+	Nickname        string // 当前用户昵称/备注
+	SmallHeadImgUrl string // 当前用户小头像URL
 
 	WeChatInstances []InstanceSnapshot
 }
@@ -233,6 +237,8 @@ func (c *Context) Snapshot() Snapshot {
 		PID:             c.PID,
 		ExePath:         c.ExePath,
 		Status:          c.Status,
+		Nickname:        c.Nickname,
+		SmallHeadImgUrl: c.SmallHeadImgUrl,
 		WeChatInstances: instances,
 	}
 }

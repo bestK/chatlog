@@ -53,20 +53,22 @@ func (w *notifyingWriter) Write(p []byte) (int, error) {
 }
 
 type State struct {
-	Account     string `json:"account"`
-	Platform    string `json:"platform"`
-	FullVersion string `json:"fullVersion"`
-	DataDir     string `json:"dataDir"`
-	DataKey     string `json:"dataKey"`
-	ImgKey      string `json:"imgKey"`
-	WorkDir     string `json:"workDir"`
-	HTTPEnabled bool   `json:"httpEnabled"`
-	HTTPAddr    string `json:"httpAddr"`
-	AutoDecrypt bool   `json:"autoDecrypt"`
-	LastSession string `json:"lastSession"`
-	PID         int    `json:"pid"`
-	ExePath     string `json:"exePath"`
-	Status      string `json:"status"`
+	Account         string `json:"account"`
+	Platform        string `json:"platform"`
+	FullVersion     string `json:"fullVersion"`
+	DataDir         string `json:"dataDir"`
+	DataKey         string `json:"dataKey"`
+	ImgKey          string `json:"imgKey"`
+	WorkDir         string `json:"workDir"`
+	HTTPEnabled     bool   `json:"httpEnabled"`
+	HTTPAddr        string `json:"httpAddr"`
+	AutoDecrypt     bool   `json:"autoDecrypt"`
+	LastSession     string `json:"lastSession"`
+	PID             int    `json:"pid"`
+	ExePath         string `json:"exePath"`
+	Status          string `json:"status"`
+	Nickname        string `json:"nickname"`
+	SmallHeadImgUrl string `json:"smallHeadImgUrl"`
 }
 
 type Instance struct {
@@ -357,20 +359,22 @@ func (a *App) GetState() (State, error) {
 		last = time.Unix(snap.LastSessionUnix, 0).Format("2006-01-02 15:04:05")
 	}
 	return State{
-		Account:     snap.Account,
-		Platform:    snap.Platform,
-		FullVersion: snap.FullVersion,
-		DataDir:     snap.DataDir,
-		DataKey:     snap.DataKey,
-		ImgKey:      snap.ImgKey,
-		WorkDir:     snap.WorkDir,
-		HTTPEnabled: snap.HTTPEnabled,
-		HTTPAddr:    snap.HTTPAddr,
-		AutoDecrypt: snap.AutoDecrypt,
-		LastSession: last,
-		PID:         snap.PID,
-		ExePath:     snap.ExePath,
-		Status:      snap.Status,
+		Account:         snap.Account,
+		Platform:        snap.Platform,
+		FullVersion:     snap.FullVersion,
+		DataDir:         snap.DataDir,
+		DataKey:         snap.DataKey,
+		ImgKey:          snap.ImgKey,
+		WorkDir:         snap.WorkDir,
+		HTTPEnabled:     snap.HTTPEnabled,
+		HTTPAddr:        snap.HTTPAddr,
+		AutoDecrypt:     snap.AutoDecrypt,
+		LastSession:     last,
+		PID:             snap.PID,
+		ExePath:         snap.ExePath,
+		Status:          snap.Status,
+		Nickname:        snap.Nickname,
+		SmallHeadImgUrl: snap.SmallHeadImgUrl,
 	}, nil
 }
 
