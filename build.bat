@@ -68,8 +68,8 @@ if "!WAILS_CMD!"=="" (
 )
 
 echo.
-echo Running: !WAILS_CMD! build -clean
-"!WAILS_CMD!" build -clean
+echo Running: !WAILS_CMD! build -clean -ldflags "-H windowsgui"
+"!WAILS_CMD!" build -clean -ldflags "-H windowsgui"
 if errorlevel 1 goto :build_fail
 
 echo.
