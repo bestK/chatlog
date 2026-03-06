@@ -14,7 +14,6 @@ var DefaultManager *Manager
 
 func init() {
 	DefaultManager = NewManager()
-	DefaultManager.Load()
 }
 
 func Load() error {
@@ -46,6 +45,7 @@ type Manager struct {
 	detector   process.Detector
 	accounts   []*Account
 	processMap map[string]*model.Process
+	loaded     bool
 }
 
 // NewManager 创建新的微信管理器
@@ -55,6 +55,13 @@ func NewManager() *Manager {
 		accounts:   make([]*Account, 0),
 		processMap: make(map[string]*model.Process),
 	}
+}
+
+func (m *Manager) ensureLoaded() error {
+	if m.loaded {
+		return nil
+	}
+	return m.Load()
 }
 
 // Load 加载微信进程信息
@@ -82,12 +89,16 @@ func (m *Manager) Load() error {
 
 	m.accounts = accounts
 	m.processMap = processMap
+	m.loaded = true
 
 	return nil
 }
 
 // GetAccount 获取指定名称的账号
 func (m *Manager) GetAccount(name string) (*Account, error) {
+	if err := m.ensureLoaded(); err != nil {
+		return nil, err
+	}
 	p, err := m.GetProcess(name)
 	if err != nil {
 		return nil, err
@@ -96,6 +107,9 @@ func (m *Manager) GetAccount(name string) (*Account, error) {
 }
 
 func (m *Manager) GetProcess(name string) (*model.Process, error) {
+	if err := m.ensureLoaded(); err != nil {
+		return nil, err
+	}
 	p, ok := m.processMap[name]
 	if !ok {
 		return nil, errors.WeChatAccountNotFound(name)
@@ -104,6 +118,9 @@ func (m *Manager) GetProcess(name string) (*model.Process, error) {
 }
 
 func (m *Manager) GetProcessByPID(pid uint32) (*model.Process, error) {
+	if err := m.ensureLoaded(); err != nil {
+		return nil, err
+	}
 	for _, p := range m.processMap {
 		if p.PID == pid {
 			return p, nil
@@ -113,6 +130,9 @@ func (m *Manager) GetProcessByPID(pid uint32) (*model.Process, error) {
 }
 
 func (m *Manager) GetProcesses() []*model.Process {
+	if err := m.ensureLoaded(); err != nil {
+		return nil
+	}
 	result := make([]*model.Process, 0, len(m.processMap))
 	for _, p := range m.processMap {
 		result = append(result, p)
@@ -122,6 +142,9 @@ func (m *Manager) GetProcesses() []*model.Process {
 
 // GetAccounts 获取所有账号
 func (m *Manager) GetAccounts() []*Account {
+	if err := m.ensureLoaded(); err != nil {
+		return nil
+	}
 	return m.accounts
 }
 

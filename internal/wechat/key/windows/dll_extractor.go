@@ -610,6 +610,10 @@ func LaunchWeChat() error {
 
 	cmd := exec.Command(wechatPath)
 	cmd.Dir = filepath.Dir(wechatPath)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: windows.CREATE_NO_WINDOW,
+	}
 	err := cmd.Start()
 	if err != nil {
 		return fmt.Errorf("启动微信失败: %v", err)
