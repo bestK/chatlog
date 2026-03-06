@@ -14,8 +14,9 @@ import (
 // Repository 实现了 repository.Repository 接口
 type Repository struct {
 	ds       datasource.DataSource
-	SelfID   string
-	SelfName string
+	SelfID              string
+	SelfName            string
+	SelfSmallHeadImgUrl string // 当前用户头像URL
 
 	// Cache for contact
 	contactCache      map[string]*model.Contact
