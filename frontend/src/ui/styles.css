@@ -21,14 +21,12 @@
 html,
 body {
 	height: 100%;
-	overflow: hidden;
 	width: 100%;
 	overscroll-behavior: none;
 }
 
 #root {
 	height: 100%;
-	overflow: hidden;
 	width: 100%;
 }
 
@@ -86,87 +84,15 @@ a {
 }
 
 .sidebar {
-	padding: 18px 14px;
-	border-right: 1px solid var(--border);
-	background: rgba(6, 8, 12, 0.78);
-	backdrop-filter: blur(16px);
-}
-
-.brand {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	padding: 10px 12px;
-	border-radius: var(--radius-sm);
-	background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.04));
-	border: 1px solid var(--border);
-}
-
-.brandMark {
-	width: 34px;
-	height: 34px;
-	border-radius: 10px;
-	background:
-		repeating-linear-gradient(
-			135deg,
-			rgba(53, 215, 255, 0.95) 0px,
-			rgba(53, 215, 255, 0.95) 6px,
-			rgba(0, 0, 0, 0.92) 6px,
-			rgba(0, 0, 0, 0.92) 12px
-		);
-	box-shadow: 0 10px 30px rgba(53, 215, 255, 0.12);
-}
-
-.brandTitle {
-	font-weight: 700;
-	font-size: 14px;
-}
-
-.brandSub {
-	font-size: 12px;
-	color: var(--muted);
-	margin-top: 2px;
-}
-
-.nav {
-	margin-top: 14px;
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	height: 100%;
+	overflow: hidden;
 }
 
-.navItem {
-	appearance: none;
-	border: 1px solid transparent;
-	background: transparent;
-	color: var(--text);
-	padding: 10px 12px;
-	border-radius: 12px;
-	text-align: left;
-	font-size: 13px;
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-}
-
-.navItem:hover {
-	background: rgba(255, 255, 255, 0.04);
-}
-
-.navItemActive {
-	background: rgba(53, 215, 255, 0.1);
-	border-color: rgba(53, 215, 255, 0.22);
-}
-
-.navHint {
-	font-size: 11px;
-	color: var(--subtle);
-}
 
 .main {
 	padding: 22px;
-	overflow: hidden;
 	display: flex;
 	flex-direction: column;
 	gap: 14px;
