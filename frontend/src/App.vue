@@ -32,7 +32,7 @@ function setPage(p: Page) {
 <template>
 	<div class="shell">
 		<div class="sidebar">
-			<SidebarNav :nav="nav" :page="page" @update:page="setPage" />
+			<SidebarNav :nav="nav" :page="page" :state="state" @update:page="setPage" />
 		</div>
 
 		<div class="main">
