@@ -18,7 +18,7 @@ func init() {
 	serverCmd.Flags().StringVarP(&serverDataKey, "data-key", "k", "", "data key")
 	serverCmd.Flags().StringVarP(&serverImgKey, "img-key", "i", "", "img key")
 	serverCmd.Flags().StringVarP(&serverWorkDir, "work-dir", "w", "", "work dir")
-	serverCmd.Flags().BoolVarP(&serverAutoDecrypt, "auto-decrypt", "", false, "auto decrypt")
+	serverCmd.Flags().BoolVarP(&serverAutoDecrypt, "auto-decrypt", "", true, "auto decrypt")
 }
 
 var (
@@ -71,9 +71,7 @@ func getServerConfig() map[string]any {
 	if serverVer != 0 {
 		cmdConf["version"] = serverVer
 	}
-	if serverAutoDecrypt {
-		cmdConf["auto_decrypt"] = true
-	}
+	cmdConf["auto_decrypt"] = serverAutoDecrypt
 	if Debug {
 		cmdConf["debug"] = true
 	}

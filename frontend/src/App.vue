@@ -10,8 +10,6 @@ import ToastHost from './components/ToastHost.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import PageOverview from './pages/PageOverview.vue';
 import PageAccounts from './pages/PageAccounts.vue';
-import PageKeys from './pages/PageKeys.vue';
-import PageDecrypt from './pages/PageDecrypt.vue';
 import PageService from './pages/PageService.vue';
 import PageWebhook from './pages/PageWebhook.vue';
 import PageSettings from './pages/PageSettings.vue';
@@ -46,18 +44,12 @@ function setPage(p: Page) {
 				:page="page"
 				:state="state"
 				:statusPill="statusPill"
-				:showGetKeys="page === '概览' || page === '密钥'"
-				:showDecrypt="page === '概览' || page === '解密'"
 				@refresh="run(() => backend.Refresh(), '已刷新')"
-				@getkeys="run(() => backend.GetKeys(), '已获取密钥')"
-				@decrypt="run(() => backend.Decrypt(), '解密完成')"
 			/>
 
 			<div class="page">
 				<PageOverview v-if="page === '概览'" />
 				<PageAccounts v-else-if="page === '账号'" />
-				<PageKeys v-else-if="page === '密钥'" />
-				<PageDecrypt v-else-if="page === '解密'" />
 				<PageService v-else-if="page === '服务'" />
 				<PageWebhook v-else-if="page === 'Webhook'" />
 				<PageSettings v-else-if="page === '设置'" />

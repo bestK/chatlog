@@ -63,6 +63,7 @@ export namespace main {
 	    }
 	}
 	export class WebhookItem {
+	    description: string;
 	    type: string;
 	    url: string;
 	    talker: string;
@@ -76,6 +77,7 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.description = source["description"];
 	        this.type = source["type"];
 	        this.url = source["url"];
 	        this.talker = source["talker"];

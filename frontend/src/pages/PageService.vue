@@ -20,13 +20,21 @@ function saveAddr() {
 		.then((ok) => (ok ? run(() => backend.SetHTTPAddr(httpAddr.value), '已保存') : undefined));
 }
 
-function toggleHTTP() {
-	return run(() => (state.value?.httpEnabled ? backend.StopHTTP() : backend.StartHTTP()), state.value?.httpEnabled ? '已停止' : '已启动');
+async function toggleHTTP() {
+	if (state.value?.httpEnabled) {
+		const ok = await chat.confirm({
+			title: '停止 HTTP 服务',
+			message: '确认停止 HTTP 服务？停止后 API 与 MCP 接口将不可访问。',
+			confirmText: '停止',
+			cancelText: '取消',
+			danger: true,
+		});
+		if (!ok) return;
+		return run(() => backend.StopHTTP(), '已停止');
+	}
+	return run(() => backend.StartHTTP(), '已启动');
 }
 
-function toggleAutoDecrypt() {
-	return run(() => backend.SetAutoDecrypt(!state.value?.autoDecrypt), state.value?.autoDecrypt ? '已停止自动解密' : '已开启自动解密');
-}
 </script>
 
 <template>
@@ -42,7 +50,7 @@ function toggleAutoDecrypt() {
 				<button type="button" class="btn" @click="saveAddr">保存</button>
 				<button
 					type="button"
-					:class="['btn', state?.httpEnabled ? '' : 'btnBrand']"
+					:class="['btn', state?.httpEnabled ? 'btnDanger' : 'btnBrand']"
 					@click="toggleHTTP"
 				>
 					{{ state?.httpEnabled ? '停止' : '启动' }}
@@ -51,15 +59,6 @@ function toggleAutoDecrypt() {
 			<div v-if="state?.httpAddr" class="row">
 				<div class="pill mono">API：http://{{ state.httpAddr }}/api/v1/session</div>
 				<div class="pill mono">MCP：http://{{ state.httpAddr }}/mcp</div>
-			</div>
-			<div class="row">
-				<button
-					type="button"
-					:class="['btn', state?.autoDecrypt ? '' : 'btnBrand']"
-					@click="toggleAutoDecrypt"
-				>
-					{{ state?.autoDecrypt ? '停止自动解密' : '开启自动解密' }}
-				</button>
 			</div>
 		</div>
 	</div>

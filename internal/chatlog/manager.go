@@ -169,6 +169,11 @@ func (m *Manager) Switch(info *iwechat.Account, history string) error {
 }
 
 func (m *Manager) StartService() error {
+	if !m.ctx.AutoDecrypt {
+		if err := m.StartAutoDecrypt(); err != nil {
+			return fmt.Errorf("启动 HTTP 失败，自动解密开启失败: %w", err)
+		}
+	}
 
 	// 按依赖顺序启动服务
 	if err := m.db.Start(); err != nil {

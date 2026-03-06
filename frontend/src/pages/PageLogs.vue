@@ -94,9 +94,8 @@ watch(
 </script>
 
 <template>
-	<div class="grid">
-		<div class="card cardWide">
-			<div class="cardFill logLayout">
+	<div class="grid logGrid">
+		<div class="card cardWide cardFill logLayout">
 			<div class="cardTitle">日志</div>
 			<div class="cardSub">展示最近的日志内容，便于排障与反馈。</div>
 
@@ -123,9 +122,8 @@ watch(
 				<div class="pill" v-if="keyword.trim()">过滤：{{ keyword.trim() }}</div>
 			</div>
 
-			<div class="grow" style="min-height: 0">
-				<pre ref="logBox" class="mono panel scrollbar" style="height: 100%">{{ filtered }}</pre>
-			</div>
+			<div class="grow logViewport">
+				<pre ref="logBox" class="mono panel scrollbar logPanel">{{ filtered }}</pre>
 			</div>
 		</div>
 	</div>

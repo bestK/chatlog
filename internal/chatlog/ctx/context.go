@@ -149,7 +149,7 @@ func (c *Context) SwitchHistory(account string) {
 		c.WorkDir = ""
 		c.HTTPEnabled = false
 		c.HTTPAddr = ""
-		c.AutoDecrypt = false
+		c.AutoDecrypt = true
 	}
 }
 
