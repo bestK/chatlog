@@ -26,6 +26,7 @@ export type Instance = {
 };
 
 export type WebhookItem = {
+	description: string;
 	type: string;
 	url: string;
 	talker: string;

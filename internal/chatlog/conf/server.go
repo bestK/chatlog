@@ -22,6 +22,7 @@ type ServerConfig struct {
 }
 
 var ServerDefaults = map[string]any{
+	"auto_decrypt": true,
 	"webhook": &Webhook{
 		Host: "localhost:5030",
 		Items: []*WebhookItem{

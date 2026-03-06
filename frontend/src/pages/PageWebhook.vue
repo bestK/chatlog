@@ -23,6 +23,7 @@ async function load() {
 
 function addItem() {
 	cfg.value.items.push({
+		description: '',
 		type: 'message',
 		url: '',
 		talker: '',
@@ -46,10 +47,26 @@ async function removeItem(index: number) {
 
 function normalizeItem(it: WebhookItem) {
 	it.type = 'message';
+	it.description = (it.description || '').trim();
 	it.url = (it.url || '').trim();
 	it.talker = (it.talker || '').trim();
 	it.sender = (it.sender || '').trim();
 	it.keyword = (it.keyword || '').trim();
+}
+
+function validateItems(items: WebhookItem[]) {
+	for (let i = 0; i < items.length; i++) {
+		const item = items[i];
+		if (!item.url) {
+			toast('校验失败', `第 ${i + 1} 条规则缺少 URL`);
+			return false;
+		}
+		if (!item.talker) {
+			toast('校验失败', `第 ${i + 1} 条规则缺少 Talker`);
+			return false;
+		}
+	}
+	return true;
 }
 
 async function save() {
@@ -66,6 +83,7 @@ async function save() {
 		items: cfg.value.items.map((x) => ({ ...x })),
 	};
 	for (const it of next.items) normalizeItem(it);
+	if (!validateItems(next.items)) return;
 	await run(() => backend.SetWebhookConfig(next), '已保存 Webhook 配置');
 }
 
@@ -115,14 +133,20 @@ onMounted(() => {
 					<div class="listMain" style="width: 100%">
 						<div class="row" style="margin-top: 0">
 							<div class="field">
+								<div class="label">描述</div>
+								<input v-model="it.description" class="input" placeholder="例如：测试群消息推送到本地服务" />
+							</div>
+						</div>
+						<div class="row" style="margin-top: 0">
+							<div class="field">
 								<div class="label">URL</div>
-								<input v-model="it.url" class="input mono" placeholder="http://127.0.0.1:3000/api/v1/webhook" />
+								<input v-model="it.url" class="input mono" placeholder="http://127.0.0.1:3000/api/v1/webhook" required />
 							</div>
 						</div>
 						<div class="row" style="margin-top: 10px">
 							<div class="field">
 								<div class="label">Talker</div>
-								<input v-model="it.talker" class="input mono" placeholder="群聊/私聊名称" />
+								<input v-model="it.talker" class="input mono" placeholder="群聊/私聊名称" required />
 							</div>
 							<div class="field">
 								<div class="label">Sender</div>

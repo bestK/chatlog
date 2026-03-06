@@ -80,12 +80,13 @@ type Instance struct {
 }
 
 type WebhookItem struct {
-	Type     string `json:"type"`
-	URL      string `json:"url"`
-	Talker   string `json:"talker"`
-	Sender   string `json:"sender"`
-	Keyword  string `json:"keyword"`
-	Disabled bool   `json:"disabled"`
+	Description string `json:"description"`
+	Type        string `json:"type"`
+	URL         string `json:"url"`
+	Talker      string `json:"talker"`
+	Sender      string `json:"sender"`
+	Keyword     string `json:"keyword"`
+	Disabled    bool   `json:"disabled"`
 }
 
 type WebhookConfig struct {
@@ -293,12 +294,13 @@ func (a *App) GetWebhookConfig() (WebhookConfig, error) {
 			continue
 		}
 		items = append(items, WebhookItem{
-			Type:     it.Type,
-			URL:      it.URL,
-			Talker:   it.Talker,
-			Sender:   it.Sender,
-			Keyword:  it.Keyword,
-			Disabled: it.Disabled,
+			Description: it.Description,
+			Type:        it.Type,
+			URL:         it.URL,
+			Talker:      it.Talker,
+			Sender:      it.Sender,
+			Keyword:     it.Keyword,
+			Disabled:    it.Disabled,
 		})
 	}
 	return WebhookConfig{Host: hook.Host, DelayMs: hook.DelayMs, Items: items}, nil
@@ -320,12 +322,13 @@ func (a *App) SetWebhookConfig(cfg WebhookConfig) error {
 			t = "message"
 		}
 		items = append(items, &conf.WebhookItem{
-			Type:     t,
-			URL:      url,
-			Talker:   strings.TrimSpace(it.Talker),
-			Sender:   strings.TrimSpace(it.Sender),
-			Keyword:  strings.TrimSpace(it.Keyword),
-			Disabled: it.Disabled,
+			Description: strings.TrimSpace(it.Description),
+			Type:        t,
+			URL:         url,
+			Talker:      strings.TrimSpace(it.Talker),
+			Sender:      strings.TrimSpace(it.Sender),
+			Keyword:     strings.TrimSpace(it.Keyword),
+			Disabled:    it.Disabled,
 		})
 	}
 

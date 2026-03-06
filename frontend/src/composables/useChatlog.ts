@@ -1,7 +1,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { backend, type Instance, type State } from '../wailsbridge';
 
-export type Page = '概览' | '账号' | '密钥' | '解密' | '服务' | 'Webhook' | '设置' | '日志';
+export type Page = '概览' | '账号' | '服务' | 'Webhook' | '设置' | '日志';
 export type Toast = { id: string; title: string; message: string };
 export type StatusPill = { cls: string; text: string };
 
@@ -46,8 +46,6 @@ export function useChatlog() {
 	const nav: Array<{ name: Page; hint: string }> = [
 		{ name: '概览', hint: '快捷操作' },
 		{ name: '账号', hint: '进程/历史' },
-		{ name: '密钥', hint: '数据/图片' },
-		{ name: '解密', hint: '数据库' },
 		{ name: '服务', hint: 'HTTP/MCP' },
 		{ name: 'Webhook', hint: '回调' },
 		{ name: '设置', hint: '路径/参数' },
