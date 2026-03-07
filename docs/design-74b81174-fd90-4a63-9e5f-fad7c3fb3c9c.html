@@ -1,0 +1,793 @@
+<html lang="en" vid="0"><head vid="1">
+    <meta charset="UTF-8" vid="2">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" vid="3">
+    <title vid="4">Type Foundry Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" vid="5">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" vid="6">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Playfair+Display:ital,wght@0,400;0,600;1,400&amp;display=swap" rel="stylesheet" vid="7">
+    <style vid="8">
+        :root {
+            
+            --bg-app: #0F1012;       
+            --bg-sidebar: #141517;   
+            --bg-card: #1C1D1F;      
+            --bg-input: #252629;     
+            
+            --border-subtle: #2C2D30;
+            --border-highlight: #3A3B3E;
+
+            --text-primary: #FFFFFF;
+            --text-secondary: #9A9B9E;
+            --text-tertiary: #6E6F73;
+
+            --accent: #FF4D4D;       
+            
+            
+            --font-serif: 'Playfair Display', serif;
+            --font-sans: 'Inter', sans-serif;
+
+            
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-full: 999px;
+            
+            --spacing-unit: 8px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-app);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            height: 100vh;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+            display: flex;
+        }
+
+        
+        .sidebar {
+            width: 260px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            flex-shrink: 0;
+        }
+
+        .logo {
+            font-family: var(--font-serif);
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 40px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .logo span {
+            width: 8px;
+            height: 8px;
+            background-color: var(--accent);
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .nav-group {
+            margin-bottom: 32px;
+        }
+
+        .nav-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-tertiary);
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .nav-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-item:hover {
+            background-color: var(--bg-input);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background-color: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .nav-icon {
+            width: 18px;
+            height: 18px;
+            opacity: 0.7;
+        }
+
+        .user-profile {
+            margin-top: auto;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: var(--bg-input);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .user-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-name {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .user-role {
+            font-size: 11px;
+            color: var(--text-tertiary);
+        }
+
+        
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 40px 60px;
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+        }
+
+        
+        .specimen-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .header-left {
+            max-width: 600px;
+        }
+
+        .breadcrumbs {
+            display: flex;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-tertiary);
+            margin-bottom: 16px;
+        }
+
+        .title-row {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            font-family: var(--font-serif);
+            font-size: 48px;
+            font-weight: 400;
+            letter-spacing: -0.02em;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            background: rgba(255, 77, 77, 0.1);
+            color: var(--accent);
+            border: 1px solid rgba(255, 77, 77, 0.2);
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .description {
+            font-size: 15px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            max-width: 520px;
+        }
+
+        .read-more {
+            color: var(--accent);
+            text-decoration: none;
+            margin-left: 6px;
+            font-size: 14px;
+        }
+
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            background-color: var(--bg-sidebar);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            max-width: 480px;
+            margin-top: 8px;
+        }
+
+        .stat-item {
+            padding: 16px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            border-right: 1px solid var(--border-subtle);
+        }
+
+        .stat-item:last-child {
+            border-right: none;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-family: var(--font-serif);
+            font-size: 18px;
+            color: var(--text-primary);
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            height: 40px;
+            padding: 0 20px;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background-color: var(--text-primary);
+            color: var(--bg-app);
+        }
+        
+        .btn-secondary {
+            background-color: transparent;
+            border-color: var(--border-subtle);
+            color: var(--text-primary);
+        }
+        
+        .btn-secondary:hover {
+            border-color: var(--text-tertiary);
+        }
+
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 12px;
+            position: relative;
+        }
+
+        .section-number {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            margin-right: 12px;
+            font-family: var(--font-sans);
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .section-dot {
+            width: 4px;
+            height: 4px;
+            background-color: var(--accent);
+            border-radius: 50%;
+            position: absolute;
+            bottom: -2.5px;
+            left: 0;
+        }
+
+        
+        .tester-container {
+            background-color: var(--bg-card);
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .tester-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            align-items: center;
+        }
+
+        .tester-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-family: var(--font-serif);
+            font-size: 64px;
+            line-height: 1.1;
+            resize: none;
+            outline: none;
+        }
+
+        
+        .variable-axis {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .play-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .play-icon {
+            width: 0; 
+            height: 0; 
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            border-left: 8px solid var(--bg-app);
+            margin-left: 2px;
+        }
+
+        .axis-visualizer {
+            display: flex;
+            align-items: flex-end;
+            gap: 3px;
+            height: 24px;
+            flex: 1;
+        }
+
+        .bar {
+            width: 2px;
+            background-color: var(--text-tertiary);
+            border-radius: 2px;
+            transition: height 0.2s;
+        }
+        
+        .bar.active {
+            background-color: var(--text-primary);
+        }
+
+        .axis-label {
+            font-family: var(--font-serif);
+            font-size: 14px;
+            margin-left: 12px;
+            width: 40px;
+        }
+
+        
+        .content-split {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 40px;
+        }
+
+        
+        .styles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .style-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            transition: border-color 0.2s;
+        }
+
+        .style-card:hover {
+            border-color: var(--border-highlight);
+        }
+
+        .style-preview {
+            font-family: var(--font-serif);
+            font-size: 32px;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .style-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: auto;
+        }
+
+        .style-name {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .glyph-count {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            background: var(--bg-input);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        
+        .designer-row {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .designer-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            text-align: center;
+        }
+
+        .designer-img {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background-color: var(--bg-input);
+            border: 2px solid var(--border-subtle);
+            object-fit: cover;
+            filter: grayscale(100%);
+            transition: filter 0.2s;
+        }
+        
+        .designer-card:hover .designer-img {
+            filter: grayscale(0%);
+            border-color: var(--text-tertiary);
+        }
+
+        .designer-name {
+            font-size: 12px;
+            color: var(--text-secondary);
+            max-width: 80px;
+        }
+
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-app);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-subtle);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-tertiary);
+        }
+
+    </style>
+</head>
+<body vid="9">
+
+    
+    <aside class="sidebar" vid="10">
+        <div class="logo" vid="11">
+            <span vid="12"></span>
+            Foundry.
+        </div>
+
+        <div class="nav-group" vid="13">
+            <div class="nav-label" vid="14">Library</div>
+            <ul class="nav-list" vid="15">
+                <li vid="16"><a href="#" class="nav-item active" vid="17">
+                    <span class="nav-icon" vid="18">▪</span> All Fonts
+                </a></li>
+                <li vid="19"><a href="#" class="nav-item" vid="20">
+                    <span class="nav-icon" vid="21">▫</span> Collections
+                </a></li>
+                <li vid="22"><a href="#" class="nav-item" vid="23">
+                    <span class="nav-icon" vid="24">▫</span> Foundries
+                </a></li>
+            </ul>
+        </div>
+
+        <div class="nav-group" vid="25">
+            <div class="nav-label" vid="26">Management</div>
+            <ul class="nav-list" vid="27">
+                <li vid="28"><a href="#" class="nav-item" vid="29">
+                    <span class="nav-icon" vid="30">▫</span> Licenses
+                </a></li>
+                <li vid="31"><a href="#" class="nav-item" vid="32">
+                    <span class="nav-icon" vid="33">▫</span> Analytics
+                </a></li>
+                <li vid="34"><a href="#" class="nav-item" vid="35">
+                    <span class="nav-icon" vid="36">▫</span> Settings
+                </a></li>
+            </ul>
+        </div>
+
+        <div class="user-profile" vid="37">
+            <div class="avatar" vid="38"></div>
+            <div class="user-info" vid="39">
+                <div class="user-name" vid="40">Alex M.</div>
+                <div class="user-role" vid="41">Type Director</div>
+            </div>
+        </div>
+    </aside>
+
+    
+    <main class="main-content" vid="42">
+        
+        
+        <div class="specimen-header" vid="43">
+            <div class="header-left" vid="44">
+                <div class="breadcrumbs" vid="45">Foundry / Serif / Impressionism Pro</div>
+                
+                <div class="title-row" vid="46">
+                    <h1 vid="47">Impressionism Pro</h1>
+                    <span class="status-badge" vid="48">Variable</span>
+                </div>
+                
+                <p class="description" vid="49">
+                    A modern interpretation of 19th-century French typography. High contrast, elegant curves, and designed for contemporary editorial use.
+                    <a href="#" class="read-more" vid="50">Edit details</a>
+                </p>
+
+                
+                <div class="stats-grid" vid="51">
+                    <div class="stat-item" vid="52">
+                        <span class="stat-label" vid="53">Released</span>
+                        <span class="stat-value" vid="54">2023</span>
+                    </div>
+                    <div class="stat-item" vid="55">
+                        <span class="stat-label" vid="56">Origin</span>
+                        <span class="stat-value" vid="57">France</span>
+                    </div>
+                    <div class="stat-item" vid="58">
+                        <span class="stat-label" vid="59">Glyphs</span>
+                        <span class="stat-value" vid="60">842</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="actions" vid="61">
+                <button class="btn btn-secondary" vid="62">Export Specimen</button>
+                <button class="btn btn-primary" vid="63">Update Files</button>
+            </div>
+        </div>
+
+        
+        <div class="tester-section" vid="64">
+            <div class="section-header" vid="65">
+                <span class="section-number" vid="66">01</span>
+                <span class="section-title" vid="67">Type Tester</span>
+                <div class="section-dot" vid="68"></div>
+            </div>
+
+            <div class="tester-container" vid="69">
+                <div class="tester-controls" vid="70">
+                    
+                </div>
+                
+                <textarea class="tester-input" spellcheck="false" vid="71">Claude Monet</textarea>
+
+                
+                <div class="variable-axis" vid="72">
+                    <div class="play-btn" vid="73"><div class="play-icon" vid="74"></div></div>
+                    <div class="axis-visualizer" id="visualizer" vid="75">
+                        
+                        <div class="bar" style="height: 40%" vid="76"></div>
+                        <div class="bar" style="height: 60%" vid="77"></div>
+                        <div class="bar active" style="height: 80%" vid="78"></div>
+                        <div class="bar active" style="height: 100%" vid="79"></div>
+                        <div class="bar active" style="height: 70%" vid="80"></div>
+                        <div class="bar active" style="height: 90%" vid="81"></div>
+                        <div class="bar" style="height: 50%" vid="82"></div>
+                        <div class="bar" style="height: 30%" vid="83"></div>
+                        <div class="bar" style="height: 40%" vid="84"></div>
+                        <div class="bar" style="height: 60%" vid="85"></div>
+                        <div class="bar" style="height: 80%" vid="86"></div>
+                        <div class="bar" style="height: 50%" vid="87"></div>
+                        <div class="bar" style="height: 40%" vid="88"></div>
+                        <div class="bar" style="height: 30%" vid="89"></div>
+                        <div class="bar" style="height: 20%" vid="90"></div>
+                        <div class="bar" style="height: 40%" vid="91"></div>
+                        <div class="bar" style="height: 60%" vid="92"></div>
+                        <div class="bar" style="height: 80%" vid="93"></div>
+                        <div class="bar" style="height: 100%" vid="94"></div>
+                        <div class="bar" style="height: 70%" vid="95"></div>
+                        <div class="bar" style="height: 90%" vid="96"></div>
+                        <div class="bar" style="height: 50%" vid="97"></div>
+                        <div class="bar" style="height: 30%" vid="98"></div>
+                        <div class="bar" style="height: 40%" vid="99"></div>
+                        <div class="bar" style="height: 60%" vid="100"></div>
+                        <div class="bar" style="height: 80%" vid="101"></div>
+                        <div class="bar" style="height: 50%" vid="102"></div>
+                        <div class="bar" style="height: 40%" vid="103"></div>
+                        <div class="bar" style="height: 30%" vid="104"></div>
+                        <div class="bar" style="height: 20%" vid="105"></div>
+                        <div class="bar" style="height: 40%" vid="106"></div>
+                        <div class="bar" style="height: 60%" vid="107"></div>
+                        <div class="bar" style="height: 80%" vid="108"></div>
+                        <div class="bar" style="height: 100%" vid="109"></div>
+                        <div class="bar" style="height: 70%" vid="110"></div>
+                        <div class="bar" style="height: 90%" vid="111"></div>
+                        <div class="bar" style="height: 50%" vid="112"></div>
+                        <div class="bar" style="height: 30%" vid="113"></div>
+                        <div class="bar" style="height: 40%" vid="114"></div>
+                        <div class="bar" style="height: 60%" vid="115"></div>
+                        <div class="bar" style="height: 80%" vid="116"></div>
+                        <div class="bar" style="height: 50%" vid="117"></div>
+                        <div class="bar" style="height: 40%" vid="118"></div>
+                        <div class="bar" style="height: 30%" vid="119"></div>
+                        <div class="bar" style="height: 20%" vid="120"></div>
+                    </div>
+                    <span class="axis-label" vid="121">400</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-split" vid="122">
+            
+            <div class="styles-section" vid="123">
+                <div class="section-header" vid="124">
+                    <span class="section-number" vid="125">02</span>
+                    <span class="section-title" vid="126">Included Styles</span>
+                    <div class="section-dot" vid="127"></div>
+                </div>
+
+                <div class="styles-grid" vid="128">
+                    <div class="style-card" vid="129">
+                        <div class="style-preview" style="font-weight: 300;" vid="130">Aa</div>
+                        <div class="style-meta" vid="131">
+                            <span class="style-name" vid="132">Light</span>
+                            <span class="glyph-count" vid="133">.otf</span>
+                        </div>
+                    </div>
+                    <div class="style-card" vid="134">
+                        <div class="style-preview" style="font-weight: 400; font-style: italic;" vid="135">Aa</div>
+                        <div class="style-meta" vid="136">
+                            <span class="style-name" vid="137">Italic</span>
+                            <span class="glyph-count" vid="138">.otf</span>
+                        </div>
+                    </div>
+                    <div class="style-card" vid="139">
+                        <div class="style-preview" style="font-weight: 400;" vid="140">Aa</div>
+                        <div class="style-meta" vid="141">
+                            <span class="style-name" vid="142">Regular</span>
+                            <span class="glyph-count" vid="143">.otf</span>
+                        </div>
+                    </div>
+                    <div class="style-card" vid="144">
+                        <div class="style-preview" style="font-weight: 600;" vid="145">Aa</div>
+                        <div class="style-meta" vid="146">
+                            <span class="style-name" vid="147">Semibold</span>
+                            <span class="glyph-count" vid="148">.otf</span>
+                        </div>
+                    </div>
+                    <div class="style-card" vid="149">
+                        <div class="style-preview" style="font-weight: 700;" vid="150">Aa</div>
+                        <div class="style-meta" vid="151">
+                            <span class="style-name" vid="152">Bold</span>
+                            <span class="glyph-count" vid="153">.otf</span>
+                        </div>
+                    </div>
+                    <div class="style-card" vid="154">
+                        <div class="style-preview" style="font-weight: 800;" vid="155">Aa</div>
+                        <div class="style-meta" vid="156">
+                            <span class="style-name" vid="157">Heavy</span>
+                            <span class="glyph-count" vid="158">.otf</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            
+            <div class="meta-section" vid="159">
+                <div class="section-header" vid="160">
+                    <span class="section-number" vid="161">03</span>
+                    <span class="section-title" vid="162">Design Team</span>
+                    <div class="section-dot" vid="163"></div>
+                </div>
+
+                <div class="designer-row" vid="164">
+                    <div class="designer-card" vid="165">
+                        
+                        <img src="https://ui-avatars.com/api/?name=P+R&amp;background=333&amp;color=fff" alt="" class="designer-img" vid="166">
+                        <span class="designer-name" vid="167">Pierre R.</span>
+                    </div>
+                    <div class="designer-card" vid="168">
+                        <img src="https://ui-avatars.com/api/?name=C+M&amp;background=333&amp;color=fff" alt="" class="designer-img" vid="169">
+                        <span class="designer-name" vid="170">Claude M.</span>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 40px;" vid="171">
+                    <div class="section-header" vid="172">
+                        <span class="section-number" vid="173">04</span>
+                        <span class="section-title" vid="174">License</span>
+                        <div class="section-dot" vid="175"></div>
+                    </div>
+                    <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;" vid="176">
+                        Desktop + Web<br vid="177">
+                        Unlimited views<br vid="178">
+                        <span style="color: var(--text-tertiary);" vid="179">Renewal: Oct 2024</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script vid="180">
+        
+        const bars = document.querySelectorAll('.bar');
+        bars.forEach(bar => {
+            if (!bar.style.height) {
+                const height = Math.floor(Math.random() * 70) + 15;
+                bar.style.height = `${height}%`;
+            }
+        });
+    </script>
+
+</body></html>
