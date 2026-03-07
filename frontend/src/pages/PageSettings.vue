@@ -169,87 +169,100 @@ async function decryptNow() {
 </script>
 
 <template>
-	<div class="grid settingsGrid">
+	<div class="settings-container">
+		<div class="section-header">
+			<span class="section-number">01</span>
+			<span class="section-title">Global Settings</span>
+			<div class="section-dot"></div>
+		</div>
+
 		<div class="card cardWide settingsHero">
-			<div class="cardTitle">设置</div>
-			<div class="cardSub">按“目录 → 密钥 → 解密”顺序配置，减少重复操作与误触。</div>
-			<div class="row">
-				<div class="pill">1. 配置目录</div>
-				<div class="pill">2. 配置密钥</div>
-				<div class="pill">3. 执行解密</div>
-				<div class="navHint">建议每次修改后先保存，再进入下一步</div>
+			<div class="cardSub">Follow the order: Directories → Keys → Decrypt to avoid errors.</div>
+			<div class="row steps-row">
+				<div class="step-pill">1. Directories</div>
+				<div class="step-pill">2. Secret Keys</div>
+				<div class="step-pill">3. Execution</div>
+				<div class="navHint">Save each step before proceeding</div>
 			</div>
 		</div>
 
-		<div class="card settingsCard">
-			<div class="cardTitle">目录配置</div>
-			<div class="cardSub">用于确定读取数据与输出解密文件的位置。</div>
-			<div class="list settingsList">
-				<div class="listItem settingsItem">
-					<div class="listMain settingsMain">
-						<div class="label">数据目录</div>
-						<input v-model="dataDir" class="input mono" />
+		<div class="settings-grid">
+			<div class="card settingsCard">
+				<div class="cardTitle">Directory Config</div>
+				<div class="cardSub">Paths for reading data and writing decrypted files.</div>
+				<div class="list settingsList">
+					<div class="settings-field">
+						<div class="label">Data Directory</div>
+						<div class="input-with-btn">
+							<input v-model="dataDir" class="input mono" />
+							<button type="button" class="btn" @click="saveDataDir">Save</button>
+						</div>
 					</div>
-					<button type="button" class="btn" @click="saveDataDir">保存数据目录</button>
+					<div class="settings-field">
+						<div class="label">Work Directory</div>
+						<div class="input-with-btn">
+							<input v-model="workDir" class="input mono" />
+							<button type="button" class="btn" @click="saveWorkDir">Save</button>
+						</div>
+					</div>
 				</div>
-				<div class="listItem settingsItem">
-					<div class="listMain settingsMain">
-						<div class="label">工作目录</div>
-						<input v-model="workDir" class="input mono" />
+			</div>
+
+			<div class="card settingsCard">
+				<div class="cardTitle">Security Keys</div>
+				<div class="cardSub">Manual entry or auto-fetch from WeChat.</div>
+				<div class="list settingsList">
+					<div class="settings-field">
+						<div class="label">Database Key</div>
+						<div class="input-with-btn">
+							<input v-model="dataKey" class="input mono" placeholder="Hex string" />
+							<div class="field-actions">
+								<button type="button" class="btn" @click="saveDataKey">Save</button>
+								<button
+									type="button"
+									class="btn btnBrand"
+									:disabled="loadingDataKey || loadingImgKey || loadingDecrypt"
+									@click="autoDataKey"
+								>
+									{{ loadingDataKey ? 'Fetching...' : 'Auto' }}
+								</button>
+							</div>
+						</div>
 					</div>
-					<button type="button" class="btn" @click="saveWorkDir">保存工作目录</button>
+					<div class="settings-field">
+						<div class="label">Image Key</div>
+						<div class="input-with-btn">
+							<input v-model="imgKey" class="input mono" placeholder="Hex string" />
+							<div class="field-actions">
+								<button type="button" class="btn" @click="saveImgKey">Save</button>
+								<button
+									type="button"
+									class="btn btnBrand"
+									:disabled="loadingDataKey || loadingImgKey || loadingDecrypt"
+									@click="autoImgKey"
+								>
+									{{ loadingImgKey ? 'Fetching...' : 'Auto' }}
+								</button>
+							</div>
+						</div>
+					</div>
 				</div>
 			</div>
 		</div>
 
-		<div class="card settingsCard">
-			<div class="cardTitle">密钥配置</div>
-			<div class="cardSub">支持手动填写，也可一键读取当前账号密钥。</div>
-			<div class="list settingsList">
-				<div class="listItem settingsItem">
-					<div class="listMain settingsMain">
-						<div class="label">数据库密钥</div>
-						<input v-model="dataKey" class="input mono" placeholder="十六进制" />
-					</div>
-					<div class="actions settingsActions">
-						<button type="button" class="btn" @click="saveDataKey">保存数据库密钥</button>
-						<button
-							type="button"
-							class="btn btnBrand"
-							:disabled="loadingDataKey || loadingImgKey || loadingDecrypt"
-							@click="autoDataKey"
-						>
-							{{ loadingDataKey ? '获取中…' : '自动获取' }}
-						</button>
-					</div>
-				</div>
-				<div class="listItem settingsItem">
-					<div class="listMain settingsMain">
-						<div class="label">图片密钥</div>
-						<input v-model="imgKey" class="input mono" placeholder="十六进制" />
-					</div>
-					<div class="actions settingsActions">
-						<button type="button" class="btn" @click="saveImgKey">保存图片密钥</button>
-						<button
-							type="button"
-							class="btn btnBrand"
-							:disabled="loadingDataKey || loadingImgKey || loadingDecrypt"
-							@click="autoImgKey"
-						>
-							{{ loadingImgKey ? '获取中…' : '自动获取' }}
-						</button>
-					</div>
-				</div>
-			</div>
+		<div class="section-header">
+			<span class="section-number">02</span>
+			<span class="section-title">Maintenance</span>
+			<div class="section-dot"></div>
 		</div>
 
-		<div class="card cardWide settingsDecrypt">
-			<div class="cardTitle">解密执行</div>
-			<div class="cardSub">确认目录和密钥都已保存后，再开始解密数据库到工作目录。</div>
+		<div class="card cardWide decrypt-card">
+			<div class="cardTitle">Database Decryption</div>
+			<div class="cardSub">Ensure directories and keys are saved before starting. This may take time.</div>
 			<div class="toolbar">
 				<div class="toolbarGroup">
-					<div class="pill pillWarn">高耗时操作</div>
-					<div class="navHint">解密会扫描并写入工作目录，请确保磁盘空间充足</div>
+					<div class="pill-mini warn">High Resource Usage</div>
+					<div class="navHint">Check disk space before proceeding</div>
 				</div>
 				<div class="toolbarGroup">
 					<button
@@ -258,7 +271,7 @@ async function decryptNow() {
 						:disabled="loadingDataKey || loadingImgKey || loadingDecrypt"
 						@click="decryptNow"
 					>
-						{{ loadingDecrypt ? '解密中…' : '开始解密' }}
+						{{ loadingDecrypt ? 'Decrypting...' : 'Run Decryption Now' }}
 					</button>
 				</div>
 			</div>
@@ -269,95 +282,199 @@ async function decryptNow() {
 		<div class="modal statusModal">
 			<div class="statusHead">
 				<div class="modalTitle">{{ statusDialog.title }}</div>
-				<span :class="['pill', statusDialog.mode === 'success' ? 'pillOk' : statusDialog.mode === 'error' ? 'pillBad' : '']">
-					{{ statusDialog.mode === 'loading' ? '处理中' : statusDialog.mode === 'success' ? '成功' : '失败' }}
+				<span
+					:class="['status-badge-mini', statusDialog.mode === 'success' ? 'ok' : statusDialog.mode === 'error' ? 'bad' : 'loading']"
+				>
+					{{ statusDialog.mode === 'loading' ? 'Processing' : statusDialog.mode === 'success' ? 'Success' : 'Failure' }}
 				</span>
 			</div>
 			<div class="modalMsg">{{ statusDialog.message }}</div>
 			<div v-if="statusDialog.detail" class="statusDetail mono">{{ statusDialog.detail }}</div>
 			<div class="modalActions">
-				<button v-if="statusDialog.mode === 'loading'" type="button" class="btn btnOff" disabled>处理中…</button>
-				<button v-else type="button" class="btn btnBrand" @click="closeStatusDialog">我知道了</button>
+				<button v-if="statusDialog.mode === 'loading'" type="button" class="btn btnOff" disabled>Processing...</button>
+				<button v-else type="button" class="btn btnBrand" @click="closeStatusDialog">Close</button>
 			</div>
 		</div>
 	</div>
 </template>
 
 <style scoped>
-.settingsGrid {
-	align-items: start;
+.settings-container {
+	display: flex;
+	flex-direction: column;
+}
+
+.section-header {
+	display: flex;
+	align-items: center;
+	margin-bottom: 24px;
+	border-bottom: 1px solid var(--border);
+	padding-bottom: 12px;
+	position: relative;
+}
+
+.section-number {
+	font-size: 11px;
+	color: var(--muted);
+	margin-right: 12px;
+	font-weight: 700;
+}
+
+.section-title {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--text);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.section-dot {
+	width: 4px;
+	height: 4px;
+	background-color: var(--brand);
+	border-radius: 50%;
+	position: absolute;
+	bottom: -2.5px;
+	left: 0;
 }
 
 .settingsHero {
-	background: linear-gradient(180deg, rgba(53, 215, 255, 0.12), rgba(255, 255, 255, 0.04));
-	border-color: rgba(53, 215, 255, 0.32);
+	background: linear-gradient(180deg, rgba(53, 215, 255, 0.05) 0%, transparent 100%);
+	border-color: rgba(53, 215, 255, 0.2);
 }
 
-.settingsCard {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
+.steps-row {
+	margin-top: 16px;
+	gap: 12px;
+}
+
+.step-pill {
+	padding: 4px 12px;
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--muted);
+}
+
+.settings-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 24px;
+	margin-bottom: 40px;
 }
 
 .settingsList {
-	margin-top: 8px;
+	margin-top: 24px;
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
 }
 
-.settingsItem {
-	align-items: flex-end;
+.settings-field .label {
+	margin-bottom: 8px;
+	display: block;
 }
 
-.settingsMain {
+.input-with-btn {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.field-actions {
+	display: flex;
+	gap: 8px;
+}
+
+.field-actions .btn {
 	flex: 1;
-	min-width: 0;
-	width: 100%;
 }
 
-.settingsActions {
-	justify-content: flex-end;
+.decrypt-card {
+	background: linear-gradient(180deg, rgba(255, 213, 106, 0.05) 0%, transparent 100%);
+	border-color: rgba(255, 213, 106, 0.2);
 }
 
-.settingsActions .btn:disabled,
-.settingsDecrypt .btn:disabled {
-	opacity: 0.6;
-	cursor: not-allowed;
+.toolbar {
+	margin-top: 24px;
+	padding: 0;
+	background: transparent;
+	border: none;
 }
 
-.settingsDecrypt {
-	background: linear-gradient(180deg, rgba(255, 213, 106, 0.12), rgba(255, 255, 255, 0.04));
-	border-color: rgba(255, 213, 106, 0.3);
+.pill-mini {
+	padding: 2px 8px;
+	font-size: 10px;
+	font-weight: 700;
+	border-radius: 4px;
+	text-transform: uppercase;
+}
+
+.pill-mini.warn {
+	background: rgba(255, 213, 106, 0.1);
+	color: var(--warn);
+	border: 1px solid rgba(255, 213, 106, 0.2);
 }
 
 .statusModal {
-	width: min(560px, 96vw);
+	width: min(500px, 94vw);
+	padding: 32px;
 }
 
 .statusHead {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	gap: 10px;
+	margin-bottom: 16px;
+}
+
+.status-badge-mini {
+	padding: 2px 8px;
+	font-size: 10px;
+	font-weight: 800;
+	border-radius: 4px;
+	text-transform: uppercase;
+}
+
+.status-badge-mini.ok {
+	background: rgba(46, 229, 157, 0.1);
+	color: var(--ok);
+	border: 1px solid rgba(46, 229, 157, 0.2);
+}
+
+.status-badge-mini.bad {
+	background: rgba(255, 91, 127, 0.1);
+	color: var(--bad);
+	border: 1px solid rgba(255, 91, 127, 0.2);
+}
+
+.status-badge-mini.loading {
+	background: rgba(53, 215, 255, 0.1);
+	color: var(--brand);
+	border: 1px solid rgba(53, 215, 255, 0.2);
 }
 
 .statusDetail {
-	margin-top: 10px;
-	padding: 10px 12px;
-	border-radius: 10px;
+	margin-top: 20px;
+	padding: 16px;
+	border-radius: var(--radius-sm);
+	background: rgba(0, 0, 0, 0.2);
 	border: 1px solid var(--border);
-	background: rgba(0, 0, 0, 0.22);
-	font-size: 12px;
-	line-height: 1.45;
+	font-size: 11px;
+	color: var(--muted);
+	max-height: 200px;
+	overflow-y: auto;
 }
 
-@media (max-width: 980px) {
-	.settingsItem {
-		flex-direction: column;
-		align-items: stretch;
-	}
+.modalActions {
+	margin-top: 32px;
+}
 
-	.settingsActions {
-		width: 100%;
-		justify-content: flex-start;
+@media (max-width: 900px) {
+	.settings-grid {
+		grid-template-columns: 1fr;
 	}
 }
 </style>

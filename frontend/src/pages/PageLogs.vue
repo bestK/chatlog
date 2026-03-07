@@ -106,50 +106,151 @@ watch(
 </script>
 
 <template>
-	<div class="grid logGrid">
-		<div class="card cardWide cardFill logLayout">
-			<div class="cardTitle">日志</div>
-			<div class="cardSub">展示最近的日志内容，便于排障与反馈。</div>
+	<div class="logs-container">
+		<div class="section-header">
+			<span class="section-number">01</span>
+			<span class="section-title">System Logs</span>
+			<div class="section-dot"></div>
+		</div>
 
-			<div class="row">
+		<div class="card cardWide flex-column grow">
+			<div class="log-controls">
 				<div class="field">
-					<div class="label">日志文件</div>
-					<input class="input mono" :value="logPath" readonly />
+					<div class="label">Log File Path</div>
+					<div class="input-group">
+						<input class="input mono" :value="logPath" readonly />
+						<button type="button" class="btn" @click="copyText(logPath)">Copy Path</button>
+						<button type="button" class="btn" @click="refresh">Refresh</button>
+					</div>
 				</div>
-				<button type="button" class="btn" @click="copyText(logPath)">复制路径</button>
-				<button type="button" class="btn" @click="refresh">刷新</button>
-			</div>
 
-			<div class="row">
 				<div class="field">
-					<div class="label">过滤关键词</div>
-					<input class="input" v-model="keyword" placeholder="例如：ERROR / decrypt / webhook" />
+					<div class="label">Filter Content</div>
+					<div class="input-group">
+						<input class="input" v-model="keyword" placeholder="e.g. ERROR / decrypt / webhook" />
+						<button type="button" class="btn" @click="copyText(filtered)">Copy Log</button>
+					</div>
 				</div>
-				<button type="button" class="btn" @click="copyText(filtered)">复制内容</button>
 			</div>
 
-			<div class="row">
-				<div class="pill" v-if="loading">读取中…</div>
-				<div class="pill" v-else>行数：{{ maxLines }}</div>
-				<div class="pill" v-if="keyword.trim()">过滤：{{ keyword.trim() }}</div>
+			<div class="log-status-row">
+				<div v-if="loading" class="log-pill loading">Reading logs...</div>
+				<div v-else class="log-pill">Lines: {{ maxLines }}</div>
+				<div v-if="keyword.trim()" class="log-pill filter">Filtering: {{ keyword.trim() }}</div>
 			</div>
 
-			<div class="grow logViewport">
-				<pre ref="logBox" class="mono panel scrollbar logPanel" v-html="filteredHtml"></pre>
+			<div class="log-viewport-wrapper grow">
+				<pre ref="logBox" class="mono log-panel scrollbar" v-html="filteredHtml"></pre>
 			</div>
 		</div>
 	</div>
 </template>
 
 <style scoped>
-.logPanel {
-	background: #06080c;
-	padding: 16px;
-	line-height: 1.6;
+.logs-container {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.section-header {
+	display: flex;
+	align-items: center;
+	margin-bottom: 24px;
+	border-bottom: 1px solid var(--border);
+	padding-bottom: 12px;
+	position: relative;
+}
+
+.section-number {
+	font-size: 11px;
+	color: var(--muted);
+	margin-right: 12px;
+	font-weight: 700;
+}
+
+.section-title {
 	font-size: 13px;
-	color: rgba(255, 255, 255, 0.8);
-	border-color: rgba(255, 255, 255, 0.08);
-	box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.2);
+	font-weight: 600;
+	color: var(--text);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.section-dot {
+	width: 4px;
+	height: 4px;
+	background-color: var(--brand);
+	border-radius: 50%;
+	position: absolute;
+	bottom: -2.5px;
+	left: 0;
+}
+
+.flex-column {
+	display: flex;
+	flex-direction: column;
+}
+
+.log-controls {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	margin-bottom: 24px;
+}
+
+.input-group {
+	display: flex;
+	gap: 12px;
+}
+
+.input-group .input {
+	flex: 1;
+}
+
+.log-status-row {
+	display: flex;
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.log-pill {
+	padding: 2px 10px;
+	font-size: 11px;
+	font-weight: 700;
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	color: var(--muted);
+	text-transform: uppercase;
+}
+
+.log-pill.loading {
+	color: var(--brand);
+	border-color: rgba(53, 215, 255, 0.3);
+}
+
+.log-pill.filter {
+	color: var(--warn);
+	border-color: rgba(255, 213, 106, 0.3);
+}
+
+.log-viewport-wrapper {
+	position: relative;
+	min-height: 0;
+}
+
+.log-panel {
+	background: #000;
+	padding: 20px;
+	line-height: 1.6;
+	font-size: 12px;
+	color: rgba(255, 255, 255, 0.85);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-sm);
+	height: 100%;
+	overflow-y: auto;
+	box-shadow: inset 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 :deep(.log-info) {
@@ -169,30 +270,11 @@ watch(
 
 :deep(.log-debug) {
 	color: var(--brand);
-	opacity: 0.8;
+	opacity: 0.9;
 }
 
 :deep(.log-date) {
 	color: var(--subtle);
-	margin-right: 8px;
-}
-
-.logViewport {
-	margin-top: 4px;
-}
-
-.cardTitle {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.cardTitle::before {
-	content: '';
-	display: block;
-	width: 4px;
-	height: 14px;
-	background: var(--brand);
-	border-radius: 2px;
+	margin-right: 12px;
 }
 </style>

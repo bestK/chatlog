@@ -163,59 +163,61 @@ async function tryApi(ep: Endpoint) {
 </script>
 
 <template>
-	<div class="grid">
-		<div class="card cardWide">
-			<div class="cardTitle">HTTP & MCP 服务</div>
-			<div class="cardSub">启用后可通过 API 或 MCP 协议访问本地聊天数据。</div>
+	<div class="service-container-main">
+		<div class="section-header">
+			<span class="section-number">01</span>
+			<span class="section-title">HTTP & MCP Service</span>
+			<div class="section-dot"></div>
+		</div>
 
-			<div class="service-container">
-				<!-- 状态展示区 -->
-				<div class="service-dashboard">
-					<div class="dashboard-left">
-						<div class="label">服务状态</div>
-						<div :class="['status-indicator', state?.httpEnabled ? 'is-active' : 'is-inactive']">
-							<div v-if="state?.httpEnabled" class="pulse-ring"></div>
-							<span class="indicator-dot"></span>
-							<span class="indicator-text">{{ state?.httpEnabled ? 'RUNNING' : 'STOPPED' }}</span>
-						</div>
+		<div class="card cardWide">
+			<div class="service-dashboard">
+				<div class="dashboard-left">
+					<div class="label">Service Status</div>
+					<div :class="['status-indicator', state?.httpEnabled ? 'is-active' : 'is-inactive']">
+						<div v-if="state?.httpEnabled" class="pulse-ring"></div>
+						<span class="indicator-dot"></span>
+						<span class="indicator-text">{{ state?.httpEnabled ? 'RUNNING' : 'STOPPED' }}</span>
 					</div>
-					<div class="dashboard-right">
-						<button
-							type="button"
-							:class="['action-btn', state?.httpEnabled ? 'btn-stop' : 'btn-start']"
-							@click="toggleHTTP"
-						>
-							<span class="btn-icon">{{ state?.httpEnabled ? '■' : '▶' }}</span>
-							{{ state?.httpEnabled ? '停止服务' : '启动服务' }}
-						</button>
+				</div>
+				<div class="dashboard-right">
+					<button
+						type="button"
+						:class="['btn', state?.httpEnabled ? 'btnDanger' : 'btnBrand']"
+						@click="toggleHTTP"
+					>
+						<span class="btn-icon">{{ state?.httpEnabled ? '■' : '▶' }}</span>
+						{{ state?.httpEnabled ? 'Stop' : 'Start' }}
+					</button>
+				</div>
+			</div>
+
+			<div class="service-details">
+				<div class="detail-item">
+					<div class="label">Listen Address</div>
+					<div class="config-input-wrap">
+						<input v-model="httpAddr" class="input mono" placeholder="127.0.0.1:5030" />
+						<button type="button" class="btn" @click="saveAddr">Save</button>
 					</div>
 				</div>
 
-				<!-- 配置与详情区 -->
-				<div class="service-details">
-					<div class="detail-item">
-						<div class="label">配置监听地址</div>
-						<div class="config-input-wrap">
-							<input v-model="httpAddr" class="input mono" placeholder="127.0.0.1:5030" />
-							<button type="button" class="btn btnBrand" @click="saveAddr">保存配置</button>
-						</div>
-					</div>
-
-					<div v-if="state?.httpAddr" class="detail-item">
-						<div class="label">访问入口</div>
-						<div class="pill-row">
-							<div class="pill pillXs mono">API: http://{{ state.httpAddr }}/api/v1/session</div>
-							<div class="pill pillXs mono">MCP: http://{{ state.httpAddr }}/mcp</div>
-						</div>
+				<div v-if="state?.httpAddr" class="detail-item">
+					<div class="label">Access Endpoints</div>
+					<div class="pill-row">
+						<div class="pill pillXs mono">API: http://{{ state.httpAddr }}/api/v1/session</div>
+						<div class="pill pillXs mono">MCP: http://{{ state.httpAddr }}/mcp</div>
 					</div>
 				</div>
 			</div>
 		</div>
 
-		<div class="card cardWide">
-			<div class="cardTitle">API Playground</div>
-			<div class="cardSub">查看各端点 URL，输入参数后可一键复制 curl 命令。</div>
+		<div class="section-header">
+			<span class="section-number">02</span>
+			<span class="section-title">API Playground</span>
+			<div class="section-dot"></div>
+		</div>
 
+		<div class="card cardWide">
 			<div class="pg-list">
 				<div v-for="ep in endpoints" :key="ep.path" class="pg-item">
 					<div class="pg-header">
@@ -226,7 +228,7 @@ async function tryApi(ep: Endpoint) {
 						</div>
 						<div class="pg-actions">
 							<button type="button" class="btn pg-try" :disabled="!state?.httpEnabled" @click="tryApi(ep)">
-								尝试一下
+								Try it
 							</button>
 							<button
 								type="button"
@@ -234,7 +236,7 @@ async function tryApi(ep: Endpoint) {
 								class="pg-copy"
 								@click="copyCmd(ep)"
 							>
-								{{ copiedId === ep.path ? '已复制 ✓' : '复制 curl' }}
+								{{ copiedId === ep.path ? 'Copied ✓' : 'Copy curl' }}
 							</button>
 						</div>
 					</div>
@@ -250,8 +252,8 @@ async function tryApi(ep: Endpoint) {
 
 					<div v-if="responses[ep.path]" class="pg-res">
 						<div class="pg-resHeader">
-							<span class="pg-resTitle">响应结果</span>
-							<button class="btn btn-xs" @click="responses[ep.path] = null">清除</button>
+							<span class="pg-resTitle">Response</span>
+							<button class="btn btn-xs" @click="responses[ep.path] = null">Clear</button>
 						</div>
 						<pre class="mono scrollbar">{{ responses[ep.path] }}</pre>
 					</div>
@@ -262,11 +264,43 @@ async function tryApi(ep: Endpoint) {
 </template>
 
 <style scoped>
-.service-container {
-	margin-top: 18px;
+.service-container-main {
 	display: flex;
 	flex-direction: column;
-	gap: 16px;
+}
+
+.section-header {
+	display: flex;
+	align-items: center;
+	margin-bottom: 24px;
+	border-bottom: 1px solid var(--border);
+	padding-bottom: 12px;
+	position: relative;
+}
+
+.section-number {
+	font-size: 11px;
+	color: var(--muted);
+	margin-right: 12px;
+	font-weight: 700;
+}
+
+.section-title {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--text);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.section-dot {
+	width: 4px;
+	height: 4px;
+	background-color: var(--brand);
+	border-radius: 50%;
+	position: absolute;
+	bottom: -2.5px;
+	left: 0;
 }
 
 .service-dashboard {
@@ -274,123 +308,86 @@ async function tryApi(ep: Endpoint) {
 	align-items: center;
 	justify-content: space-between;
 	padding: 24px;
-	background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
-	border: 1px solid rgba(255, 255, 255, 0.08);
-	border-radius: 20px;
-	backdrop-filter: blur(12px);
-	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	margin-bottom: 24px;
 }
 
 .status-indicator {
 	display: flex;
 	align-items: center;
-	gap: 10px;
+	gap: 12px;
 	padding: 8px 16px;
 	border-radius: 999px;
-	margin-top: 8px;
+	margin-top: 12px;
 	position: relative;
-	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-	letter-spacing: 1px;
-	font-size: 14px;
-	font-weight: 800;
-	transition: all 0.3s ease;
+	font-family: ui-monospace, SFMono-Regular, monospace;
+	font-size: 13px;
+	font-weight: 700;
 }
 
 .status-indicator.is-active {
-	background: rgba(46, 229, 157, 0.12);
-	border: 1px solid rgba(46, 229, 157, 0.3);
+	background: rgba(46, 229, 157, 0.1);
 	color: var(--ok);
-	box-shadow: 0 0 20px rgba(46, 229, 157, 0.1);
+	border: 1px solid rgba(46, 229, 157, 0.2);
 }
 
 .status-indicator.is-inactive {
 	background: rgba(255, 255, 255, 0.05);
-	border: 1px solid rgba(255, 255, 255, 0.1);
 	color: var(--muted);
+	border: 1px solid var(--border);
 }
 
 .indicator-dot {
-	width: 10px;
-	height: 10px;
+	width: 8px;
+	height: 8px;
 	border-radius: 50%;
 	background: currentColor;
-	box-shadow: 0 0 10px currentColor;
 }
 
 .pulse-ring {
 	position: absolute;
 	left: 16px;
-	width: 10px;
-	height: 10px;
+	width: 8px;
+	height: 8px;
 	border-radius: 50%;
 	border: 2px solid var(--ok);
 	animation: pulse 2s infinite;
 }
 
 @keyframes pulse {
-	0% { transform: scale(1); opacity: 0.8; }
-	70% { transform: scale(3); opacity: 0; }
-	100% { transform: scale(1); opacity: 0; }
-}
-
-.action-btn {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	padding: 12px 24px;
-	border-radius: 14px;
-	font-weight: 700;
-	font-size: 15px;
-	cursor: pointer;
-	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-	border: 1px solid transparent;
-}
-
-.btn-icon {
-	font-size: 18px;
-	line-height: 1;
-}
-
-.btn-start {
-	background: var(--brand);
-	color: #000;
-	box-shadow: 0 4px 15px rgba(53, 215, 255, 0.3);
-}
-
-.btn-start:hover {
-	transform: translateY(-2px);
-	box-shadow: 0 6px 20px rgba(53, 215, 255, 0.4);
-	filter: brightness(1.1);
-}
-
-.btn-stop {
-	background: rgba(255, 91, 127, 0.15);
-	border: 1px solid rgba(255, 91, 127, 0.3);
-	color: #ff5b7f;
-}
-
-.btn-stop:hover {
-	background: rgba(255, 91, 127, 0.25);
-	transform: translateY(-2px);
+	0% {
+		transform: scale(1);
+		opacity: 0.8;
+	}
+	70% {
+		transform: scale(3);
+		opacity: 0;
+	}
+	100% {
+		transform: scale(1);
+		opacity: 0;
+	}
 }
 
 .service-details {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-	gap: 16px;
+	gap: 20px;
 }
 
 .detail-item {
-	padding: 16px;
+	padding: 20px;
 	background: rgba(0, 0, 0, 0.2);
-	border: 1px solid rgba(255, 255, 255, 0.05);
-	border-radius: 16px;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
 }
 
 .config-input-wrap {
 	display: flex;
-	gap: 10px;
-	margin-top: 8px;
+	gap: 12px;
+	margin-top: 12px;
 }
 
 .config-input-wrap .input {
@@ -401,52 +398,50 @@ async function tryApi(ep: Endpoint) {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
-	margin-top: 8px;
+	margin-top: 12px;
 }
 
 .pg-list {
-	margin-top: 12px;
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
+	gap: 16px;
 }
 
 .pg-item {
 	border: 1px solid var(--border);
-	border-radius: var(--radius-sm);
-	background: rgba(0, 0, 0, 0.18);
-	padding: 12px;
+	border-radius: var(--radius);
+	background: var(--panel);
+	padding: 20px;
 }
 
 .pg-header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 10px;
-	flex-wrap: wrap;
+	gap: 16px;
+	margin-bottom: 16px;
 }
 
 .pg-left {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 12px;
 	flex-wrap: wrap;
 }
 
 .pg-method {
-	font-size: 11px;
-	font-weight: 700;
+	font-size: 10px;
+	font-weight: 800;
 	padding: 3px 8px;
-	border-radius: 6px;
-	background: rgba(53, 215, 255, 0.12);
-	border: 1px solid rgba(53, 215, 255, 0.25);
+	border-radius: 4px;
+	background: rgba(53, 215, 255, 0.1);
 	color: var(--brand);
-	letter-spacing: 0.5px;
+	border: 1px solid rgba(53, 215, 255, 0.2);
 }
 
 .pg-name {
-	font-size: 13px;
-	font-weight: 650;
+	font-size: 14px;
+	font-weight: 600;
 }
 
 .pg-desc {
@@ -454,82 +449,41 @@ async function tryApi(ep: Endpoint) {
 	color: var(--muted);
 }
 
-.pg-copy {
-	font-size: 12px;
-	height: 32px;
-	padding: 0 10px;
-}
-
 .pg-url {
-	margin-top: 8px;
-	font-size: 12px;
-	padding: 8px 10px;
-	border-radius: 8px;
-	background: rgba(0, 0, 0, 0.28);
+	margin-top: 12px;
+	font-size: 11px;
+	padding: 10px 14px;
+	border-radius: var(--radius-sm);
+	background: rgba(0, 0, 0, 0.2);
 	border: 1px solid var(--border);
-	color: var(--brand);
+	color: var(--text);
 	word-break: break-all;
-	user-select: all;
 }
 
 .pg-params {
-	margin-top: 10px;
+	margin-top: 20px;
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-	gap: 8px;
-}
-
-.pg-param .label {
-	display: flex;
-	align-items: baseline;
-	gap: 6px;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+	gap: 12px;
 }
 
 .pg-paramHint {
-	font-size: 11px;
-	color: var(--subtle);
-}
-
-.pg-param .input {
-	height: 34px;
-	font-size: 12px;
-}
-
-.pg-actions {
-	display: flex;
-	gap: 8px;
-}
-
-.pg-try {
-	font-size: 12px;
-	height: 32px;
-	padding: 0 12px;
-	background: rgba(46, 229, 157, 0.1);
-	border-color: rgba(46, 229, 157, 0.2);
-	color: var(--ok);
-}
-
-.pg-try:hover:not(:disabled) {
-	background: rgba(46, 229, 157, 0.2);
-	border-color: var(--ok);
-}
-
-.pg-try:disabled {
-	opacity: 0.5;
-	filter: grayscale(1);
+	font-size: 10px;
+	margin-left: 6px;
+	color: var(--muted);
 }
 
 .pg-res {
-	margin-top: 12px;
-	border-radius: 8px;
-	background: #05070a;
+	margin-top: 20px;
+	border-radius: var(--radius-sm);
+	background: #000;
 	border: 1px solid var(--border);
 	overflow: hidden;
 }
 
 .pg-resHeader {
-	padding: 6px 10px;
-	background: rgba(255, 255, 255, 0.03);
+	padding: 8px 16px;
+	background: var(--panel-2);
 	border-bottom: 1px solid var(--border);
 	display: flex;
 	justify-content: space-between;
@@ -537,34 +491,40 @@ async function tryApi(ep: Endpoint) {
 }
 
 .pg-resTitle {
-	font-size: 11px;
-	font-weight: 700;
+	font-size: 10px;
+	font-weight: 800;
 	color: var(--muted);
+	text-transform: uppercase;
 }
 
 .pg-res pre {
 	margin: 0;
-	padding: 12px;
+	padding: 16px;
 	font-size: 12px;
-	max-height: 240px;
+	max-height: 300px;
 	overflow: auto;
 	color: var(--ok);
 	white-space: pre-wrap;
 }
 
 .btn-xs {
-	height: 20px;
+	height: 24px;
 	font-size: 10px;
-	padding: 0 6px;
-	border-radius: 4px;
+	padding: 0 8px;
 }
 
-@media (max-width: 760px) {
-	.service-details {
-		grid-template-columns: 1fr;
-	}
-	.config-input-wrap {
+@media (max-width: 800px) {
+	.pg-header {
 		flex-direction: column;
+		align-items: flex-start;
+	}
+	.pg-actions {
+		width: 100%;
+		display: flex;
+		gap: 8px;
+	}
+	.pg-actions .btn {
+		flex: 1;
 	}
 }
 </style>
