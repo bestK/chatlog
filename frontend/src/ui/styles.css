@@ -1,21 +1,7 @@
 :root {
 	--bg: #0B0C10;
 	--bg-sidebar: #07080A;
-	--panel: rgba(255, 255, 255, 0.04);
-	--panel-2: rgba(255, 255, 255, 0.07);
-	--text: #FFFFFF;
-	--muted: #A0A0A0;
-	--subtle: #606060;
-	--border: rgba(255, 255, 255, 0.08);
-	--brand: #35D7FF;
-	--ok: #2EE59D;
-	--warn: #FFD56A;
-	--bad: #FF5B7F;
-	--shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-	--radius: 12px;
-	--radius-sm: 8px;
 	--radius-lg: 20px;
-	--control-h: 36px;
 	--panel: rgba(255, 255, 255, 0.06);
 	--panel-2: rgba(255, 255, 255, 0.09);
 	--text: rgba(255, 255, 255, 0.92);
@@ -112,14 +98,6 @@ a {
 	display: flex;
 	flex-direction: column;
 	gap: 40px;
-	height: 100%;
-	min-height: 0;
-	min-width: 0;
-}
-	padding: 22px;
-	display: flex;
-	flex-direction: column;
-	gap: 14px;
 	height: 100%;
 	min-height: 0;
 	min-width: 0;
@@ -453,9 +431,6 @@ a {
 .input:focus {
 	border-color: rgba(53, 215, 255, 0.55);
 	box-shadow: 0 0 0 3px rgba(53, 215, 255, 0.12);
-}
-
-.scrollbar {
 }
 
 .mono {
