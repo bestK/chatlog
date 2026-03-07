@@ -15,123 +15,278 @@ function setPage(p: Page) {
 </script>
 
 <template>
-	<div class="sidebar">
-		<div class="logo">
-			<span></span>
-			Chatlog.
-		</div>
+	<div class="sidebarContainer">
+		<header class="brand">
+			<div class="brandMark">
+				<div class="markInner" />
+			</div>
+			<div class="brandText">
+				<h1 class="brandTitle">Chatlog</h1>
+				<span class="brandSub">Wails Desktop</span>
+			</div>
+		</header>
 
-		<div class="nav-group">
-			<div class="nav-label">Main</div>
-			<ul class="nav-list">
-				<li v-for="n in props.nav" :key="n.name">
-					<a href="#" :class="['nav-item', props.page === n.name ? 'active' : '']" @click.prevent="setPage(n.name)">
-						<span class="nav-icon">{{ props.page === n.name ? '▪' : '▫' }}</span> {{ n.name }}
-					</a>
-				</li>
-			</ul>
-		</div>
+		<nav class="nav">
+			<div class="navGroup">
+				<button
+					v-for="n in props.nav"
+					:key="n.name"
+					type="button"
+					:class="['navItem', props.page === n.name ? 'navItemActive' : '']"
+					@click="setPage(n.name)"
+				>
+					<div class="navContent">
+						<span class="navText">{{ n.name }}</span>
+						<span class="navHint">{{ n.hint }}</span>
+					</div>
+					<div v-if="props.page === n.name" class="activeIndicator" />
+				</button>
+			</div>
+		</nav>
 
-		<footer v-if="props.state?.account" class="user-profile">
-			<img v-if="props.state.smallHeadImgUrl" :src="props.state.smallHeadImgUrl" class="avatar" alt="Avatar" referrerpolicy="no-referrer" />
-			<div v-else class="avatar"></div>
-			<div class="user-info">
-				<div class="user-name">{{ props.state.nickname || props.state.account }}</div>
-				<div class="user-role">{{ props.state.status === 'online' ? 'Connected' : 'Disconnected' }}</div>
+		<footer v-if="props.state?.account" class="sidebarFooter">
+			<div class="userCard">
+				<div class="avatarWrapper">
+					<img
+						v-if="props.state.smallHeadImgUrl"
+						:src="props.state.smallHeadImgUrl"
+						class="userAvatar"
+						alt="Avatar"
+						referrerpolicy="no-referrer"
+					/>
+					<div v-else class="userAvatarPlaceholder">
+						{{ props.state.nickname?.slice(0, 1)?.toUpperCase() || props.state.account?.slice(0, 1)?.toUpperCase() || '?' }}
+					</div>
+					<div :class="['statusBadge', props.state.status === 'online' ? 'online' : 'offline']" />
+				</div>
+				<div class="userInfo">
+					<div class="userName">{{ props.state.nickname || props.state.account }}</div>
+					<div class="userStatusLabel">{{ props.state.status === 'online' ? 'Connected' : 'Disconnected' }}</div>
+				</div>
 			</div>
 		</footer>
 	</div>
 </template>
 
 <style scoped>
-.logo {
-    font-family: var(--font-serif);
-    font-size: 20px;
-    font-weight: 600;
-    margin-bottom: 40px;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 12px;
+.sidebarContainer {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 40px 24px;
+	box-sizing: border-box;
+	background: var(--bg-sidebar);
+	border-right: 1px solid var(--border);
+	position: relative;
 }
-.logo span {
-    width: 8px;
-    height: 8px;
-    background-color: var(--accent);
-    border-radius: 50%;
-    display: inline-block;
+
+/* Brand Section */
+.brand {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	margin-bottom: 60px;
 }
-.nav-group {
-    margin-bottom: 32px;
+
+.brandMark {
+	width: 36px;
+	height: 36px;
+	border-radius: 10px;
+	background: var(--panel);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid var(--border);
 }
-.nav-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--text-tertiary);
-    margin-bottom: 12px;
-    font-weight: 600;
+
+.markInner {
+	width: 14px;
+	height: 14px;
+	border-radius: 3px;
+	background: var(--brand);
+	box-shadow: 0 0 12px rgba(53, 215, 255, 0.4);
 }
-.nav-list {
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+
+.brandText {
+	display: flex;
+	flex-direction: column;
 }
-.nav-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
-    border-radius: var(--radius-sm);
-    color: var(--text-secondary);
-    text-decoration: none;
-    font-size: 14px;
-    transition: all 0.2s ease;
+
+.brandTitle {
+	font-size: 20px;
+	font-weight: 700;
+	color: var(--text);
+	letter-spacing: -0.02em;
+	line-height: 1;
+	margin: 0;
 }
-.nav-item:hover {
-    background-color: var(--bg-input);
-    color: var(--text-primary);
+
+.brandSub {
+	font-size: 10px;
+	font-weight: 700;
+	color: var(--muted);
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+	margin-top: 4px;
 }
-.nav-item.active {
-    background-color: var(--bg-card);
-    color: var(--text-primary);
-    border: 1px solid var(--border-subtle);
+
+/* Navigation */
+.nav {
+	flex: 1;
 }
-.nav-icon {
-    width: 18px;
-    height: 18px;
-    opacity: 0.7;
+
+.navGroup {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
 }
-.user-profile {
-    margin-top: auto;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border-subtle);
+
+.navItem {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 12px 16px;
+	border-radius: 12px;
+	background: transparent;
+	border: 1px solid transparent;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	width: 100%;
+	text-align: left;
+	position: relative;
 }
-.avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background-color: var(--bg-input);
-    border: 1px solid var(--border-subtle);
-    object-fit: cover;
+
+.navItem:hover {
+	background: var(--panel);
 }
-.user-info {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
+
+.navItemActive {
+	background: var(--panel-2) !important;
+	border-color: var(--border);
 }
-.user-name {
-    font-size: 13px;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+
+.navContent {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	z-index: 1;
 }
-.user-role {
-    font-size: 11px;
-    color: var(--text-tertiary);
+
+.navText {
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--muted);
+	transition: color 0.2s ease;
 }
+
+.navItem:hover .navText,
+.navItemActive .navText {
+	color: var(--text);
+}
+
+.navHint {
+	font-size: 10px;
+	color: var(--subtle);
+}
+
+.activeIndicator {
+	position: absolute;
+	left: 0;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 3px;
+	height: 16px;
+	background: var(--brand);
+	border-radius: 0 2px 2px 0;
+	box-shadow: 0 0 12px var(--brand);
+}
+
+/* User Footer */
+.sidebarFooter {
+	margin-top: auto;
+	padding-top: 24px;
+}
+
+.userCard {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px;
+	border-radius: 16px;
+	background: rgba(255, 255, 255, 0.02);
+	border: 1px solid var(--border);
+	transition: all 0.2s ease;
+}
+
+.userCard:hover {
+	background: var(--panel);
+}
+
+.avatarWrapper {
+	position: relative;
+	flex-shrink: 0;
+}
+
+.userAvatar {
+	width: 36px;
+	height: 36px;
+	border-radius: 10px;
+	object-fit: cover;
+	background: var(--bg-sidebar);
+	border: 1px solid var(--border);
+}
+
+.userAvatarPlaceholder {
+	width: 36px;
+	height: 36px;
+	border-radius: 10px;
+	background: var(--panel);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 14px;
+	font-weight: 700;
+	color: var(--muted);
+	border: 1px solid var(--border);
+}
+
+.statusBadge {
+	position: absolute;
+	bottom: -2px;
+	right: -2px;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	border: 2px solid var(--bg-sidebar);
+}
+
+.statusBadge.online {
+	background: var(--ok);
+	box-shadow: 0 0 8px var(--ok);
+}
+
+.statusBadge.offline {
+	background: var(--subtle);
+}
+
+.userInfo {
+	min-width: 0;
+	flex: 1;
+}
+
+.userName {
+	font-size: 13px;
+	font-weight: 700;
+	color: var(--text);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.userStatusLabel {
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--muted);
+	margin-top: 1px;
+}
+</style>
