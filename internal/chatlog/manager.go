@@ -58,6 +58,7 @@ func (m *Manager) Init(configPath string) error {
 	if len(m.ctx.WeChatInstances) >= 1 {
 		m.ctx.SwitchCurrent(m.ctx.WeChatInstances[0])
 	}
+	_ = m.RefreshSession()
 
 	if m.ctx.AutoDecrypt {
 		go func() {
@@ -146,6 +147,7 @@ func (m *Manager) Switch(info *iwechat.Account, history string) error {
 	} else {
 		m.ctx.SwitchHistory(history)
 	}
+	_ = m.RefreshSession()
 
 	// 切换账号后自动恢复自动解密
 	if m.ctx.AutoDecrypt {
@@ -179,9 +181,7 @@ func (m *Manager) StartService() error {
 	if err := m.db.Start(); err != nil {
 		return err
 	}
-	// 数据库启动后，获取当前用户头像URL和昵称
-	m.ctx.SmallHeadImgUrl = m.db.GetSelfSmallHeadImgUrl()
-	m.ctx.Nickname = m.db.GetSelfName()
+	m.syncCurrentProfile()
 
 	if err := m.http.Start(); err != nil {
 		m.db.Stop()
@@ -404,6 +404,7 @@ func (m *Manager) RefreshSession() error {
 			return err
 		}
 	}
+	m.syncCurrentProfile()
 	resp, err := m.db.GetSessions("", 1, 0)
 	if err != nil {
 		return err
@@ -413,6 +414,14 @@ func (m *Manager) RefreshSession() error {
 	}
 	m.ctx.LastSession = resp.Items[0].NTime.Time()
 	return nil
+}
+
+func (m *Manager) syncCurrentProfile() {
+	if m == nil || m.ctx == nil || m.db == nil || m.db.GetDB() == nil {
+		return
+	}
+	m.ctx.SmallHeadImgUrl = m.db.GetSelfSmallHeadImgUrl()
+	m.ctx.Nickname = m.db.GetSelfName()
 }
 
 func (m *Manager) CommandKey(configPath string, pid int, force bool, showXorKey bool) (string, error) {
