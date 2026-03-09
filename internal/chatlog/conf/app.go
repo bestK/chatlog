@@ -1,11 +1,12 @@
 package conf
 
 type AppConfig struct {
-	ConfigDir   string          `mapstructure:"-" json:"config_dir"`
-	LastAccount string          `mapstructure:"last_account" json:"last_account"`
-	Debug       bool            `mapstructure:"debug" json:"debug"`
-	History     []ProcessConfig `mapstructure:"history" json:"history"`
-	Webhook     *Webhook        `mapstructure:"webhook" json:"webhook"`
+	ConfigDir      string          `mapstructure:"-" json:"config_dir"`
+	CurrentAccount string          `mapstructure:"current_account" json:"current_account"`
+	LastAccount    string          `mapstructure:"last_account" json:"last_account"`
+	Debug          bool            `mapstructure:"debug" json:"debug"`
+	History        []ProcessConfig `mapstructure:"history" json:"history"`
+	Webhook        *Webhook        `mapstructure:"webhook" json:"webhook"`
 }
 
 var AppDefaults = map[string]any{}
@@ -39,4 +40,11 @@ func (c *AppConfig) ParseHistory() map[string]ProcessConfig {
 		m[v.Account] = v
 	}
 	return m
+}
+
+func (c *AppConfig) SelectedAccount() string {
+	if c.CurrentAccount != "" {
+		return c.CurrentAccount
+	}
+	return c.LastAccount
 }
