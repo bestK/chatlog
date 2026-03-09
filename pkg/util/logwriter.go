@@ -2,7 +2,9 @@ package util
 
 import (
 	"io"
+	"os"
 
+	"github.com/mattn/go-isatty"
 	"github.com/rs/zerolog"
 )
 
@@ -14,4 +16,12 @@ func NewPlainLogWriter(out io.Writer, noColor bool) zerolog.ConsoleWriter {
 		NoColor:    noColor,
 		TimeFormat: LogTimeFormat,
 	}
+}
+
+func HasUsableConsole(file *os.File) bool {
+	if file == nil {
+		return false
+	}
+	fd := file.Fd()
+	return isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)
 }
