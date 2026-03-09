@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/Eyevinn/mp4ff/avc"
@@ -12,6 +11,7 @@ import (
 	"github.com/Eyevinn/mp4ff/hevc"
 	"github.com/Eyevinn/mp4ff/mp4"
 	"github.com/google/uuid"
+	"github.com/sjzar/chatlog/pkg/util"
 )
 
 const (
@@ -170,7 +170,7 @@ func findDataPartition(data []byte) (*Partitions, error) {
 }
 
 func Convert2JPG(data []byte) ([]byte, error) {
-	cmd := exec.Command(FFMpegPath,
+	cmd := util.Command(FFMpegPath,
 		"-i", "-",
 		"-vframes", "1",
 		"-c:v", "mjpeg",
@@ -226,7 +226,7 @@ func ConvertAnime2GIF(animeFrames [][]byte, maskFrames [][]byte) ([]byte, error)
 	}
 	defer os.Remove(maskFilePath)
 
-	cmd := exec.Command(FFMpegPath,
+	cmd := util.Command(FFMpegPath,
 		"-i", animeFilePath,
 		"-i", maskFilePath,
 		"-filter_complex", "[0:v][1:v]alphamerge,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
@@ -250,7 +250,7 @@ func ConvertAnime2GIF(animeFrames [][]byte, maskFrames [][]byte) ([]byte, error)
 }
 
 func isFFmpegAvailable() bool {
-	cmd := exec.Command(FFMpegPath, "-version")
+	cmd := util.Command(FFMpegPath, "-version")
 	return cmd.Run() == nil
 }
 
