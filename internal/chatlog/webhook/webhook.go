@@ -187,6 +187,12 @@ func (m *MessageWebhook) Do(event fsnotify.Event) {
 	for _, message := range messages.Items {
 		message.SetContent("host", m.host)
 		message.Content = message.PlainTextContent()
+		log.Info().Msgf(
+			"receive message: talker=%s sender=%s content=%s",
+			displayName(message.TalkerName, message.Talker),
+			displayName(message.SenderName, message.Sender),
+			message.Content,
+		)
 	}
 
 	actualTalker := uniqueJoined(messages.Items, func(message *model.Message) string {
@@ -255,4 +261,11 @@ func uniqueJoined(messages []*model.Message, selector func(*model.Message) strin
 		result += "," + ordered[i]
 	}
 	return result
+}
+
+func displayName(preferred string, fallback string) string {
+	if preferred != "" {
+		return preferred
+	}
+	return fallback
 }
