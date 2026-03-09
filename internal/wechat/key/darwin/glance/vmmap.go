@@ -3,12 +3,12 @@ package glance
 import (
 	"bufio"
 	"fmt"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/sjzar/chatlog/internal/errors"
+	"github.com/sjzar/chatlog/pkg/util"
 )
 
 const (
@@ -34,7 +34,7 @@ type MemRegion struct {
 
 func GetVmmap(pid uint32) ([]MemRegion, error) {
 	// Execute vmmap command
-	cmd := exec.Command(CommandVmmap, "-wide", fmt.Sprintf("%d", pid))
+	cmd := util.Command(CommandVmmap, "-wide", fmt.Sprintf("%d", pid))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, errors.RunCmdFailed(err)
@@ -111,7 +111,7 @@ func LoadVmmap(output string) ([]MemRegion, error) {
 
 // DarwinVersion returns the Darwin kernel version string (e.g., "25.0.0")
 func DarwinVersion() string {
-	cmd := exec.Command(CommandUname, "-r")
+	cmd := util.Command(CommandUname, "-r")
 	output, err := cmd.Output()
 	if err != nil {
 		return ""

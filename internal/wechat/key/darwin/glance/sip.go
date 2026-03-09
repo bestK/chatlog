@@ -1,15 +1,16 @@
 package glance
 
 import (
-	"os/exec"
 	"strings"
+
+	"github.com/sjzar/chatlog/pkg/util"
 )
 
 // IsSIPDisabled checks if System Integrity Protection (SIP) is disabled on macOS.
 // Returns true if SIP is disabled, false if it's enabled or if the status cannot be determined.
 func IsSIPDisabled() bool {
 	// Run the csrutil status command to check SIP status
-	cmd := exec.Command("csrutil", "status")
+	cmd := util.Command("csrutil", "status")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		// If there's an error running the command, assume SIP is enabled

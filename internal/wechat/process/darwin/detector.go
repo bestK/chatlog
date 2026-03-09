@@ -1,7 +1,6 @@
 package darwin
 
 import (
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/wechat/model"
 	"github.com/sjzar/chatlog/pkg/appver"
+	"github.com/sjzar/chatlog/pkg/util"
 )
 
 const (
@@ -123,7 +123,7 @@ func (d *Detector) initializeProcessInfo(p *process.Process, info *model.Process
 // getOpenFiles 使用 lsof 命令获取进程打开的文件列表
 func (d *Detector) getOpenFiles(pid int) ([]string, error) {
 	// 执行 lsof -p <pid> 命令，使用 -F n 选项只输出文件名
-	cmd := exec.Command("lsof", "-p", strconv.Itoa(pid), "-F", "n")
+	cmd := util.Command("lsof", "-p", strconv.Itoa(pid), "-F", "n")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, errors.RunCmdFailed(err)
