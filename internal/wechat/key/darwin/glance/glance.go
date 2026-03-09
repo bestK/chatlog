@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sjzar/chatlog/internal/errors"
+	"github.com/sjzar/chatlog/pkg/util"
 )
 
 // FIXME 按照 region 读取效率较低，512MB 内存读取耗时约 18s(darwin 24)
@@ -56,7 +56,7 @@ func (g *Glance) Read() ([]byte, error) {
 	region := g.MemRegions[0]
 
 	// 1. Create pipe file
-	if err := exec.Command("mkfifo", g.pipePath).Run(); err != nil {
+	if err := util.Command("mkfifo", g.pipePath).Run(); err != nil {
 		return nil, errors.CreatePipeFileFailed(err)
 	}
 	defer os.Remove(g.pipePath)
@@ -87,7 +87,7 @@ func (g *Glance) Read() ([]byte, error) {
 	lldbCmd := fmt.Sprintf("lldb -p %d -o \"memory read --binary --force --outfile %s --count %d 0x%x\" -o \"quit\"",
 		g.PID, g.pipePath, size, region.Start)
 
-	cmd := exec.Command("bash", "-c", lldbCmd)
+	cmd := util.Command("bash", "-c", lldbCmd)
 
 	// Set up stdout pipe for monitoring (optional)
 	stdout, err := cmd.StdoutPipe()
@@ -234,7 +234,7 @@ func (g *Glance) streamReadRegions(ctx context.Context, regions []MemRegion, mem
 	}
 
 	// Start lldb process
-	cmd := exec.Command("lldb")
+	cmd := util.CommandContext(ctx, "lldb")
 
 	// Set up pipes for stdin/stdout
 	stdin, err := cmd.StdinPipe()
@@ -297,7 +297,7 @@ func (g *Glance) streamReadRegions(ctx context.Context, regions []MemRegion, mem
 		regionPipePath := filepath.Join(os.TempDir(), fmt.Sprintf("chatlog_pipe_%d_%x", time.Now().UnixNano(), region.Start))
 
 		// Create the pipe for this region
-		if err := exec.Command("mkfifo", regionPipePath).Run(); err != nil {
+		if err := util.Command("mkfifo", regionPipePath).Run(); err != nil {
 			log.Warn().Err(err).Msgf("Failed to create pipe for region 0x%x", region.Start)
 			continue
 		}
