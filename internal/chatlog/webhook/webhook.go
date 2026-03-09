@@ -249,17 +249,14 @@ func (m *MessageWebhook) Do(event fsnotify.Event) {
 		message.Content = message.PlainTextContent()
 		log.Info().Msgf(
 			"📨 receive message: talker=%s sender=%s content=%s",
-			displayName(message.TalkerName, message.Talker),
+			displayTalker(message),
 			displayName(message.SenderName, message.Sender),
 			message.Content,
 		)
 	}
 
 	actualTalker := uniqueJoined(filtered, func(message *model.Message) string {
-		if message.TalkerName != "" {
-			return message.TalkerName
-		}
-		return message.Talker
+		return displayTalker(message)
 	})
 	actualSender := uniqueJoined(filtered, func(message *model.Message) string {
 		if message.SenderName != "" {
@@ -328,6 +325,19 @@ func displayName(preferred string, fallback string) string {
 		return preferred
 	}
 	return fallback
+}
+
+func displayTalker(message *model.Message) string {
+	if message == nil {
+		return ""
+	}
+	if message.TalkerName != "" {
+		return message.TalkerName
+	}
+	if !message.IsChatRoom {
+		return displayName(message.SenderName, message.Sender)
+	}
+	return message.Talker
 }
 
 func webhookItemSignature(item *conf.WebhookItem) string {
