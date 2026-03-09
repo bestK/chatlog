@@ -143,9 +143,9 @@ func (a *App) initLogger() {
 }
 
 func (a *App) resetLogger() {
-	writers := []io.Writer{zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "2006-01-02 15:04:05"}}
+	writers := []io.Writer{util.NewPlainLogWriter(os.Stderr, false)}
 	if a.logFile != nil {
-		writers = append(writers, a.logFile)
+		writers = append(writers, util.NewPlainLogWriter(a.logFile, true))
 	}
 	writers = append(writers, &notifyingWriter{app: a})
 	log.Logger = log.Output(io.MultiWriter(writers...))
