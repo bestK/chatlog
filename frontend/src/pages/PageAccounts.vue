@@ -1,15 +1,34 @@
 <script setup lang="ts">
 import { inject } from 'vue';
-import { backend } from '../wailsbridge';
+import { backend, type Instance } from '../wailsbridge';
 import { chatlogKey } from '../composables/chatlogContext';
 
 const chat = inject(chatlogKey);
 if (!chat) throw new Error('chatlog not provided');
 
-const { instances, run } = chat;
+const { instances, run, state } = chat;
+
+function getAccountName(instance: Instance) {
+	if (state.value?.pid === instance.pid && state.value.nickname) {
+		return state.value.nickname;
+	}
+	return instance.name || '未知账号';
+}
+
+function getAccountAvatar(instance: Instance) {
+	if (state.value?.pid === instance.pid) {
+		return state.value.smallHeadImgUrl || '';
+	}
+	return '';
+}
+
+function getAvatarFallback(instance: Instance) {
+	const name = getAccountName(instance).trim();
+	return name ? name.slice(0, 1).toUpperCase() : '?';
+}
 
 function switchTo(pid: number) {
-    return run(() => backend.SwitchToPID(pid), '已切换账号');
+	return run(() => backend.SwitchToPID(pid), '已切换账号');
 }
 </script>
 
@@ -40,7 +59,20 @@ function switchTo(pid: number) {
                     <div class="accountTop">
                         <div class="listMain accountMain">
                             <div class="accountHeader">
-                                <div class="listTitle accountTitle">{{ x.name || 'Unknown' }}</div>
+                                <div class="accountIdentity">
+                                    <div class="accountAvatarWrap">
+                                        <img
+                                            v-if="getAccountAvatar(x)"
+                                            :src="getAccountAvatar(x)"
+                                            :alt="`${getAccountName(x)} 头像`"
+                                            class="accountAvatar"
+                                        />
+                                        <div v-else class="accountAvatar accountAvatarFallback">
+                                            {{ getAvatarFallback(x) }}
+                                        </div>
+                                    </div>
+                                    <div class="listTitle accountTitle">{{ getAccountName(x) }}</div>
+                                </div>
                                 <span :class="['status-badge-mini', x.status === 'online' ? 'ok' : 'bad']">
                                     {{
                                         x.status === 'online'
@@ -151,12 +183,45 @@ function switchTo(pid: number) {
 .accountHeader {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 12px;
+}
+
+.accountIdentity {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-width: 0;
+}
+
+.accountAvatarWrap {
+	flex-shrink: 0;
+}
+
+.accountAvatar {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	object-fit: cover;
+	display: block;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	background: rgba(255, 255, 255, 0.04);
+}
+
+.accountAvatarFallback {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 13px;
+	font-weight: 700;
+	color: var(--text);
+	background: linear-gradient(135deg, rgba(139, 92, 246, 0.22), rgba(59, 130, 246, 0.22));
 }
 
 .accountTitle {
     font-size: 15px;
     font-weight: 600;
+    min-width: 0;
 }
 
 .status-badge-mini {
