@@ -43,7 +43,7 @@ const filteredHtml = computed(() => {
 		.replace(/&/g, '&amp;')
 		.replace(/</g, '&lt;')
 		.replace(/>/g, '&gt;')
-		.replace(/^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2})/gm, '<span class="log-date">$1</span>')
+		.replace(/^(\d{4}[\/-]\d{2}[\/-]\d{2}\s\d{2}:\d{2}:\d{2})/gm, '<span class="log-date">$1</span>')
 		.replace(/\b(INF|INFO|SUCCESS)\b/g, '<span class="log-info">$1</span>')
 		.replace(/\b(WRN|WARN|WARNING)\b/g, '<span class="log-warn">$1</span>')
 		.replace(/\b(ERR|ERROR|FATAL|CRITICAL)\b/g, '<span class="log-error">$1</span>')

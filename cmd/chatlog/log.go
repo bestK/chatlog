@@ -28,9 +28,9 @@ func initLog(cmd *cobra.Command, args []string) {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 
-	writers := []io.Writer{zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "2006-01-02 15:04:05"}}
+	writers := []io.Writer{util.NewPlainLogWriter(os.Stderr, false)}
 	if fw := getLogWriter(); fw != nil {
-		writers = append(writers, fw)
+		writers = append(writers, util.NewPlainLogWriter(fw, true))
 	}
 
 	log.Logger = log.Output(io.MultiWriter(writers...))
