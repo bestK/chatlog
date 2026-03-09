@@ -7,13 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 	"unsafe"
 
+	"github.com/sjzar/chatlog/pkg/util"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
@@ -608,12 +608,8 @@ func LaunchWeChat() error {
 		return fmt.Errorf("未找到微信安装路径")
 	}
 
-	cmd := exec.Command(wechatPath)
+	cmd := util.Command(wechatPath)
 	cmd.Dir = filepath.Dir(wechatPath)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		HideWindow:    true,
-		CreationFlags: windows.CREATE_NO_WINDOW,
-	}
 	err := cmd.Start()
 	if err != nil {
 		return fmt.Errorf("启动微信失败: %v", err)
