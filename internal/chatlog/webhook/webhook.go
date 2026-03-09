@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -28,6 +30,8 @@ type Service struct {
 	hooks  map[string][]*conf.WebhookItem
 }
 
+var processedMessages = newProcessedMessageStore()
+
 func New(config Config) *Service {
 	s := &Service{
 		config: config.GetWebhook(),
@@ -38,6 +42,7 @@ func New(config Config) *Service {
 	}
 
 	hooks := make(map[string][]*conf.WebhookItem)
+	seen := make(map[string]struct{})
 	for _, item := range s.config.Items {
 		if item.Disabled {
 			continue
@@ -45,6 +50,12 @@ func New(config Config) *Service {
 		if item.Type == "" {
 			item.Type = "message"
 		}
+		signature := webhookItemSignature(item)
+		if _, ok := seen[signature]; ok {
+			log.Warn().Msgf("skip duplicated webhook item: %s", signature)
+			continue
+		}
+		seen[signature] = struct{}{}
 		switch item.Type {
 		case "message":
 			if hooks["message"] == nil {
@@ -88,7 +99,11 @@ type Group struct {
 	hooks   []Webhook
 	delayMs int64
 	ch      chan fsnotify.Event
+	mu      sync.Mutex
+	lastHit map[string]time.Time
 }
+
+const eventDebounceWindow = 500 * time.Millisecond
 
 func NewGroup(ctx context.Context, group string, hooks []Webhook, delayMs int64) *Group {
 	g := &Group{
@@ -97,6 +112,7 @@ func NewGroup(ctx context.Context, group string, hooks []Webhook, delayMs int64)
 		delayMs: delayMs,
 		ctx:     ctx,
 		ch:      make(chan fsnotify.Event, 1),
+		lastHit: make(map[string]time.Time),
 	}
 	go g.loop()
 	return g
@@ -107,12 +123,32 @@ func (g *Group) Callback(event fsnotify.Event) error {
 	if !(event.Op.Has(fsnotify.Create) || event.Op.Has(fsnotify.Write) || event.Op.Has(fsnotify.Rename)) {
 		return nil
 	}
+	if g.shouldSkipEvent(event) {
+		return nil
+	}
 
 	select {
 	case g.ch <- event:
 	default:
 	}
 	return nil
+}
+
+func (g *Group) shouldSkipEvent(event fsnotify.Event) bool {
+	if event.Name == "" {
+		return false
+	}
+	now := time.Now()
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for path, ts := range g.lastHit {
+		if now.Sub(ts) > eventDebounceWindow {
+			delete(g.lastHit, path)
+		}
+	}
+	last, ok := g.lastHit[event.Name]
+	g.lastHit[event.Name] = now
+	return ok && now.Sub(last) <= eventDebounceWindow
 }
 
 func (g *Group) Group() string {
@@ -158,6 +194,8 @@ type MessageWebhook struct {
 	client   *http.Client
 	db       *wechatdb.DB
 	lastTime time.Time
+	lastSeq  int64
+	mu       sync.Mutex
 }
 
 func NewMessageWebhook(conf *conf.WebhookItem, db *wechatdb.DB, host string) *MessageWebhook {
@@ -172,6 +210,9 @@ func NewMessageWebhook(conf *conf.WebhookItem, db *wechatdb.DB, host string) *Me
 }
 
 func (m *MessageWebhook) Do(event fsnotify.Event) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	messages, err := m.db.GetMessages(m.lastTime, time.Now().Add(time.Minute*10), m.conf.Talker, m.conf.Sender, m.conf.Keyword, 0, 0)
 	if err != nil {
 		log.Error().Err(err).Msgf("webhook get messages failed")
@@ -182,9 +223,28 @@ func (m *MessageWebhook) Do(event fsnotify.Event) {
 		return
 	}
 
-	m.lastTime = messages.Items[len(messages.Items)-1].Time.Add(time.Second).Time()
-
+	filtered := make([]*model.Message, 0, len(messages.Items))
 	for _, message := range messages.Items {
+		if message == nil {
+			continue
+		}
+		if m.lastSeq != 0 && message.Seq <= m.lastSeq {
+			continue
+		}
+		if processedMessages.Seen(m.conf, message.Seq) {
+			continue
+		}
+		filtered = append(filtered, message)
+	}
+
+	if len(filtered) == 0 {
+		return
+	}
+
+	m.lastTime = filtered[len(filtered)-1].Time.Add(time.Second).Time()
+	m.lastSeq = filtered[len(filtered)-1].Seq
+
+	for _, message := range filtered {
 		message.SetContent("host", m.host)
 		message.Content = message.PlainTextContent()
 		log.Info().Msgf(
@@ -195,13 +255,13 @@ func (m *MessageWebhook) Do(event fsnotify.Event) {
 		)
 	}
 
-	actualTalker := uniqueJoined(messages.Items, func(message *model.Message) string {
+	actualTalker := uniqueJoined(filtered, func(message *model.Message) string {
 		if message.TalkerName != "" {
 			return message.TalkerName
 		}
 		return message.Talker
 	})
-	actualSender := uniqueJoined(messages.Items, func(message *model.Message) string {
+	actualSender := uniqueJoined(filtered, func(message *model.Message) string {
 		if message.SenderName != "" {
 			return message.SenderName
 		}
@@ -216,8 +276,8 @@ func (m *MessageWebhook) Do(event fsnotify.Event) {
 		"filter_sender":  m.conf.Sender,
 		"filter_keyword": m.conf.Keyword,
 		"lastTime":       m.lastTime.Format(time.DateTime),
-		"length":         len(messages.Items),
-		"messages":       messages.Items,
+		"length":         len(filtered),
+		"messages":       filtered,
 	}
 	body, _ := json.Marshal(ret)
 	req, _ := http.NewRequest("POST", m.conf.URL, bytes.NewBuffer(body))
@@ -268,4 +328,48 @@ func displayName(preferred string, fallback string) string {
 		return preferred
 	}
 	return fallback
+}
+
+func webhookItemSignature(item *conf.WebhookItem) string {
+	if item == nil {
+		return ""
+	}
+	return fmt.Sprintf(
+		"%s|%s|%s|%s|%s",
+		item.Type,
+		item.URL,
+		item.Talker,
+		item.Sender,
+		item.Keyword,
+	)
+}
+
+type processedMessageStore struct {
+	mu    sync.Mutex
+	items map[string]time.Time
+}
+
+func newProcessedMessageStore() *processedMessageStore {
+	return &processedMessageStore{items: make(map[string]time.Time)}
+}
+
+func (s *processedMessageStore) Seen(item *conf.WebhookItem, seq int64) bool {
+	if item == nil || seq == 0 {
+		return false
+	}
+	now := time.Now()
+	key := fmt.Sprintf("%s#%d", webhookItemSignature(item), seq)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for existingKey, expiry := range s.items {
+		if now.After(expiry) {
+			delete(s.items, existingKey)
+		}
+	}
+	if expiry, ok := s.items[key]; ok && now.Before(expiry) {
+		return true
+	}
+	s.items[key] = now.Add(5 * time.Minute)
+	return false
 }

@@ -40,6 +40,7 @@ type DataSource interface {
 
 	// 设置回调函数
 	SetCallback(group string, callback func(event fsnotify.Event) error) error
+	RemoveCallback(group string, callback func(event fsnotify.Event) error) bool
 
 	// 关闭指定路径的数据库连接
 	CloseDB(path string) error

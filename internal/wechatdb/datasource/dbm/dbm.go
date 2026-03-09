@@ -65,6 +65,16 @@ func (d *DBManager) AddCallback(group string, callback func(event fsnotify.Event
 	return nil
 }
 
+func (d *DBManager) RemoveCallback(group string, callback func(event fsnotify.Event) error) bool {
+	d.mutex.RLock()
+	fg, ok := d.fgs[group]
+	d.mutex.RUnlock()
+	if !ok {
+		return false
+	}
+	return fg.RemoveCallback(callback)
+}
+
 func (d *DBManager) GetDB(name string) (*sql.DB, error) {
 	dbPaths, err := d.GetDBPath(name)
 	if err != nil {
