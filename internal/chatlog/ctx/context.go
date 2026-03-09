@@ -1,9 +1,6 @@
 package ctx
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -415,13 +412,5 @@ func (c *Context) UpdateConfig() {
 	if err := c.cm.SetConfig("history", c.conf.History); err != nil {
 		log.Error().Err(err).Msg("set history failed")
 		return
-	}
-
-	if len(pconf.DataDir) != 0 {
-		if b, err := json.Marshal(pconf); err == nil {
-			if err := os.WriteFile(filepath.Join(pconf.DataDir, "chatlog.json"), b, 0644); err != nil {
-				log.Error().Err(err).Msg("save chatlog.json failed")
-			}
-		}
 	}
 }
