@@ -3,7 +3,6 @@ package chatlog
 import (
 	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/sjzar/chatlog/pkg/util"
 
@@ -15,11 +14,7 @@ import (
 var Debug bool
 
 func getLogWriter() io.Writer {
-	logpath := util.DefaultWorkDir("")
-	if err := util.PrepareDir(logpath); err != nil {
-		return nil
-	}
-	logFD, err := os.OpenFile(filepath.Join(logpath, "chatlog.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, os.ModePerm)
+	logFD, _, err := util.OpenLogFile()
 	if err != nil {
 		return nil
 	}

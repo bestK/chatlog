@@ -137,16 +137,12 @@ func (a *App) startup(ctx context.Context) {
 }
 
 func (a *App) initLogger() {
-	path, err := a.ensureLogFile()
-	if err != nil {
-		return
-	}
-	a.logPath = path
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	writers := []io.Writer{zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "2006-01-02 15:04:05"}}
 	if a.logFile == nil {
-		if f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, os.ModePerm); err == nil {
+		if f, path, err := util.OpenLogFile(); err == nil {
 			a.logFile = f
+			a.logPath = path
 		}
 	}
 	if a.logFile != nil {
@@ -219,16 +215,11 @@ func (a *App) debounceLogChanged() {
 }
 
 func (a *App) ensureLogFile() (string, error) {
-	dir := util.DefaultWorkDir("")
-	if err := util.PrepareDir(dir); err != nil {
+	f, path, err := util.OpenLogFile()
+	if err != nil {
 		return "", err
 	}
-	path := filepath.Join(dir, "chatlog.log")
-	if f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, os.ModePerm); err != nil {
-		return "", err
-	} else {
-		_ = f.Close()
-	}
+	_ = f.Close()
 	return path, nil
 }
 
