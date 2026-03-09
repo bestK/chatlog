@@ -118,7 +118,12 @@ func New(configPath string) (*Context, error) {
 
 func (c *Context) loadConfig() {
 	c.History = c.conf.ParseHistory()
-	c.SwitchHistory(c.conf.LastAccount)
+	selected := c.conf.SelectedAccount()
+	c.conf.CurrentAccount = selected
+	if c.conf.LastAccount == "" {
+		c.conf.LastAccount = selected
+	}
+	c.SwitchHistory(selected)
 	c.Refresh()
 }
 
@@ -392,6 +397,14 @@ func (c *Context) UpdateConfig() {
 		if !isFind {
 			c.conf.History = append(c.conf.History, pconf)
 		}
+	}
+
+	c.conf.CurrentAccount = c.Account
+	c.conf.LastAccount = c.Account
+
+	if err := c.cm.SetConfig("current_account", c.Account); err != nil {
+		log.Error().Err(err).Msg("set current_account failed")
+		return
 	}
 
 	if err := c.cm.SetConfig("last_account", c.Account); err != nil {

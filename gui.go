@@ -138,13 +138,12 @@ func (a *App) startup(ctx context.Context) {
 
 func (a *App) initLogger() {
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	_, _ = a.ensureLogFile()
+	a.resetLogger()
+}
+
+func (a *App) resetLogger() {
 	writers := []io.Writer{zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "2006-01-02 15:04:05"}}
-	if a.logFile == nil {
-		if f, path, err := util.OpenLogFile(); err == nil {
-			a.logFile = f
-			a.logPath = path
-		}
-	}
 	if a.logFile != nil {
 		writers = append(writers, a.logFile)
 	}
@@ -215,11 +214,21 @@ func (a *App) debounceLogChanged() {
 }
 
 func (a *App) ensureLogFile() (string, error) {
+	if a.logFile != nil && a.logPath != "" {
+		return a.logPath, nil
+	}
+
 	f, path, err := util.OpenLogFile()
 	if err != nil {
 		return "", err
 	}
-	_ = f.Close()
+
+	if a.logFile != nil {
+		_ = a.logFile.Close()
+	}
+	a.logFile = f
+	a.logPath = path
+	a.resetLogger()
 	return path, nil
 }
 
