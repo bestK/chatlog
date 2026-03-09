@@ -130,6 +130,13 @@ func (ds *DataSource) SetCallback(group string, callback func(event fsnotify.Eve
 	return ds.dbm.AddCallback(group, callback)
 }
 
+func (ds *DataSource) RemoveCallback(group string, callback func(event fsnotify.Event) error) bool {
+	if group == "chatroom" {
+		group = Contact
+	}
+	return ds.dbm.RemoveCallback(group, callback)
+}
+
 func (ds *DataSource) initMessageDbs() error {
 	dbPaths, err := ds.dbm.GetDBPath(Message)
 	if err != nil {

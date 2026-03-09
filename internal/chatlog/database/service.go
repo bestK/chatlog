@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/rs/zerolog/log"
 
 	"github.com/sjzar/chatlog/internal/chatlog/conf"
@@ -26,6 +27,12 @@ type Service struct {
 	db            *wechatdb.DB
 	webhook       *webhook.Service
 	webhookCancel context.CancelFunc
+	webhookRegs   []webhookRegistration
+}
+
+type webhookRegistration struct {
+	group    string
+	callback func(event fsnotify.Event) error
 }
 
 type Config interface {
@@ -53,6 +60,7 @@ func (s *Service) Start() error {
 }
 
 func (s *Service) Stop() error {
+	s.clearWebhookCallbacks()
 	if s.db != nil {
 		s.db.Close()
 	}
@@ -111,6 +119,7 @@ func (s *Service) initWebhook() error {
 	if s.webhook == nil {
 		return nil
 	}
+	s.clearWebhookCallbacks()
 
 	// 输出详细的 webhook 配置
 	config := s.webhook.GetConfig()
@@ -127,17 +136,21 @@ func (s *Service) initWebhook() error {
 	s.webhookCancel = cancel
 	hooks := s.webhook.GetHooks(ctx, s.db)
 	log.Info().Msgf("webhook: %d hooks registered", len(hooks))
+	s.webhookRegs = make([]webhookRegistration, 0, len(hooks))
 	for _, hook := range hooks {
 		log.Info().Msgf("set callback for group: %v", hook.Group())
-		if err := s.db.SetCallback(hook.Group(), hook.Callback); err != nil {
+		cb := hook.Callback
+		if err := s.db.SetCallback(hook.Group(), cb); err != nil {
 			log.Error().Err(err).Msgf("set callback %#v failed", hook)
 			return err
 		}
+		s.webhookRegs = append(s.webhookRegs, webhookRegistration{group: hook.Group(), callback: cb})
 	}
 	return nil
 }
 
 func (s *Service) ReloadWebhook() error {
+	s.clearWebhookCallbacks()
 	if s.webhookCancel != nil {
 		s.webhookCancel()
 		s.webhookCancel = nil
@@ -152,6 +165,7 @@ func (s *Service) ReloadWebhook() error {
 // Close closes the database connection
 func (s *Service) Close() {
 	// Add cleanup code if needed
+	s.clearWebhookCallbacks()
 	if s.db != nil {
 		s.db.Close()
 	}
@@ -196,4 +210,15 @@ func (s *Service) GetSelfName() string {
 		return s.db.GetSelfName()
 	}
 	return ""
+}
+
+func (s *Service) clearWebhookCallbacks() {
+	if s.db == nil || len(s.webhookRegs) == 0 {
+		s.webhookRegs = nil
+		return
+	}
+	for _, reg := range s.webhookRegs {
+		s.db.RemoveCallback(reg.group, reg.callback)
+	}
+	s.webhookRegs = nil
 }
