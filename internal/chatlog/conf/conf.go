@@ -3,11 +3,9 @@ package conf
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 
 	"github.com/rs/zerolog/log"
 	"github.com/sjzar/chatlog/pkg/config"
-	"github.com/sjzar/chatlog/pkg/util"
 )
 
 const (
@@ -70,37 +68,8 @@ func LoadServiceConfig(configPath string, cmdConf map[string]any) (*ServerConfig
 		return nil, nil, err
 	}
 
-	// Load Data Dir config
-	if len(conf.DataDir) != 0 && len(conf.DataKey) == 0 {
-		conf.DataDir = util.NormalizeDataDirPath(conf.DataDir)
-		if b, err := os.ReadFile(filepath.Join(conf.DataDir, "chatlog.json")); err == nil {
-			var pconf map[string]any
-			if err := json.Unmarshal(b, &pconf); err == nil {
-				for key, value := range pconf {
-					if !DataDirConfigs[key] {
-						continue
-					}
-					scm.SetConfig(key, value)
-				}
-			}
-		}
-		if err := scm.Load(conf); err != nil {
-			log.Error().Err(err).Msg("reload server config failed")
-			return nil, nil, err
-		}
-	}
-
 	b, _ := json.Marshal(conf)
 	log.Info().Msgf("server config: %s", string(b))
 
 	return conf, scm, nil
-}
-
-var DataDirConfigs = map[string]bool{
-	"type":     true,
-	"platform": true,
-
-	"full_version": true,
-	"data_key":     true,
-	"img_key":      true,
 }

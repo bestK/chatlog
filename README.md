@@ -214,7 +214,7 @@ GET /api/v1/chatlog?time=2023-01-01&talker=wxid_xxx
 
 #### 0. 回调配置
 
-使用桌面版的话，在 `$HOME/.chatlog/chatlog.json` 配置文件中，新增 `webhook` 配置。  
+使用桌面版的话，所有配置统一保存在 `$HOME/.chatlog/chatlog.json` 配置文件中，在其中新增 `webhook` 配置。  
 （Windows 用户的配置文件在 `%USERPROFILE%/.chatlog/chatlog.json`)
 
 ```json
