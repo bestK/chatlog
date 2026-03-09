@@ -122,6 +122,7 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.initLogger()
 	a.startLogWatcher()
+	a.ensureFileLogging()
 	a.mgr.OnSync(func() {
 		_ = a.emitState()
 	})
@@ -140,15 +141,30 @@ func (a *App) initLogger() {
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	_, _ = a.ensureLogFile()
 	a.resetLogger()
+	log.Info().Str("path", a.logPath).Msg("gui logger initialized")
 }
 
 func (a *App) resetLogger() {
-	writers := []io.Writer{util.NewPlainLogWriter(os.Stderr, false)}
+	writers := make([]io.Writer, 0, 3)
+	if util.HasUsableConsole(os.Stderr) {
+		writers = append(writers, util.NewPlainLogWriter(os.Stderr, false))
+	}
 	if a.logFile != nil {
 		writers = append(writers, util.NewPlainLogWriter(a.logFile, true))
 	}
 	writers = append(writers, &notifyingWriter{app: a})
 	log.Logger = log.Output(io.MultiWriter(writers...))
+}
+
+func (a *App) ensureFileLogging() {
+	if a.logFile != nil {
+		return
+	}
+	if _, err := a.ensureLogFile(); err != nil {
+		log.Error().Err(err).Msg("enable file logging failed")
+		return
+	}
+	log.Info().Str("path", a.logPath).Msg("file logging enabled")
 }
 
 func (a *App) startLogWatcher() {
@@ -547,6 +563,7 @@ func (a *App) SetAutoDecrypt(enabled bool) error {
 }
 
 func (a *App) GetLogPath() (string, error) {
+	a.ensureFileLogging()
 	if a.logPath != "" {
 		return a.logPath, nil
 	}
