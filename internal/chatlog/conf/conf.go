@@ -25,7 +25,7 @@ func LoadAppConfig(configPath string) (*AppConfig, *config.Manager, error) {
 
 	tcm, err := config.New(AppName, configPath, "", EnvPrefix, true)
 	if err != nil {
-		log.Error().Err(err).Msg("load tui config failed")
+		log.Error().Err(err).Msg("load app config failed")
 		return nil, nil, err
 	}
 
@@ -33,7 +33,7 @@ func LoadAppConfig(configPath string) (*AppConfig, *config.Manager, error) {
 	config.SetDefaults(tcm.Viper, conf, AppDefaults)
 
 	if err := tcm.Load(conf); err != nil {
-		log.Error().Err(err).Msg("load tui config failed")
+		log.Error().Err(err).Msg("load app config failed")
 		return nil, nil, err
 	}
 	conf.ConfigDir = tcm.Path
