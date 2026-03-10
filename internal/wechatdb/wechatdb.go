@@ -100,7 +100,7 @@ type GetContactsResp struct {
 func (w *DB) GetContacts(key string, limit, offset int) (*GetContactsResp, error) {
 	ctx := context.Background()
 
-	total, contacts, err := w.repo.GetContacts(ctx, key, limit, offset)
+	total, contacts, err := w.repo.GetAddressBookContacts(ctx, key, limit, offset)
 	if err != nil {
 		return nil, err
 	}
