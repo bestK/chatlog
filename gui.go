@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sjzar/chatlog/internal/chatlog"
 	"github.com/sjzar/chatlog/internal/chatlog/conf"
+	"github.com/sjzar/chatlog/internal/wechatdb"
 	"github.com/sjzar/chatlog/pkg/util"
 
 	"github.com/wailsapp/wails/v2"
@@ -422,6 +423,14 @@ func (a *App) Refresh() (State, error) {
 	a.mgr.ReloadWeChatInstances()
 	_ = a.mgr.RefreshSession()
 	return a.GetState()
+}
+
+func (a *App) GetContacts(keyword string, limit, offset int) (*wechatdb.GetContactsResp, error) {
+	ctx := a.mgr.Context()
+	if ctx == nil {
+		return nil, errors.New("未初始化")
+	}
+	return a.mgr.GetContacts(strings.TrimSpace(keyword), limit, offset)
 }
 
 func (a *App) SwitchToPID(pid int) (State, error) {

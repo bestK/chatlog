@@ -15,6 +15,7 @@ import (
 	"github.com/sjzar/chatlog/internal/chatlog/http"
 	"github.com/sjzar/chatlog/internal/chatlog/wechat"
 	iwechat "github.com/sjzar/chatlog/internal/wechat"
+	"github.com/sjzar/chatlog/internal/wechatdb"
 	"github.com/sjzar/chatlog/pkg/config"
 	"github.com/sjzar/chatlog/pkg/filemonitor"
 	"github.com/sjzar/chatlog/pkg/util"
@@ -414,6 +415,25 @@ func (m *Manager) RefreshSession() error {
 	}
 	m.ctx.LastSession = resp.Items[0].NTime.Time()
 	return nil
+}
+
+func (m *Manager) GetContacts(keyword string, limit, offset int) (*wechatdb.GetContactsResp, error) {
+	if m == nil || m.db == nil {
+		return nil, fmt.Errorf("未初始化")
+	}
+	if limit < 0 {
+		limit = 0
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if m.db.GetDB() == nil {
+		if err := m.db.Start(); err != nil {
+			return nil, err
+		}
+		m.syncCurrentProfile()
+	}
+	return m.db.GetContacts(keyword, limit, offset)
 }
 
 func (m *Manager) syncCurrentProfile() {
