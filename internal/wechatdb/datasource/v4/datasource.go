@@ -435,13 +435,13 @@ func (ds *DataSource) GetContacts(ctx context.Context, key string, limit, offset
 
 	if key != "" {
 		// 按照关键字查询
-		query = `SELECT username, local_type, alias, remark, nick_name, IFNULL(small_head_url,''), IFNULL(big_head_url,'')
+		query = `SELECT username, local_type, flag, delete_flag, IFNULL(is_in_chat_room,0), alias, remark, nick_name, IFNULL(small_head_url,''), IFNULL(big_head_url,'')
 				FROM contact 
 				WHERE username = ? OR alias = ? OR remark = ? OR nick_name = ?`
 		args = []interface{}{key, key, key, key}
 	} else {
 		// 查询所有联系人
-		query = `SELECT username, local_type, alias, remark, nick_name, IFNULL(small_head_url,''), IFNULL(big_head_url,'') FROM contact`
+		query = `SELECT username, local_type, flag, delete_flag, IFNULL(is_in_chat_room,0), alias, remark, nick_name, IFNULL(small_head_url,''), IFNULL(big_head_url,'') FROM contact`
 	}
 
 	// 添加排序、分页
@@ -471,6 +471,9 @@ func (ds *DataSource) GetContacts(ctx context.Context, key string, limit, offset
 		err := rows.Scan(
 			&contactV4.UserName,
 			&contactV4.LocalType,
+			&contactV4.Flag,
+			&contactV4.DeleteFlag,
+			&contactV4.IsInChatRoom,
 			&contactV4.Alias,
 			&contactV4.Remark,
 			&contactV4.NickName,
@@ -511,6 +514,91 @@ func (ds *DataSource) GetContactsCount(ctx context.Context, key string) (int, er
 		return 0, errors.QueryFailed(query, err)
 	}
 
+	return count, nil
+}
+
+func (ds *DataSource) GetAddressBookContacts(ctx context.Context, key string, limit, offset int) ([]*model.Contact, error) {
+	query := `SELECT username, local_type, flag, delete_flag, IFNULL(is_in_chat_room,0), alias, remark, nick_name, IFNULL(small_head_url,''), IFNULL(big_head_url,'')
+			FROM contact
+			WHERE flag in (2,3) and delete_flag = 0`
+	args := make([]interface{}, 0, 4)
+	if strings.TrimSpace(key) != "" {
+		query += ` AND (
+			username LIKE '%' || ? || '%' OR
+			alias LIKE '%' || ? || '%' OR
+			remark LIKE '%' || ? || '%' OR
+			nick_name LIKE '%' || ? || '%'
+		)`
+		args = append(args, key, key, key, key)
+	}
+	query += ` ORDER BY username`
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+		if offset > 0 {
+			query += fmt.Sprintf(" OFFSET %d", offset)
+		}
+	}
+
+	db, err := ds.dbm.GetDB(Contact)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, errors.QueryFailed(query, err)
+	}
+	defer rows.Close()
+
+	contacts := make([]*model.Contact, 0)
+	for rows.Next() {
+		var contactV4 model.ContactV4
+		err := rows.Scan(
+			&contactV4.UserName,
+			&contactV4.LocalType,
+			&contactV4.Flag,
+			&contactV4.DeleteFlag,
+			&contactV4.IsInChatRoom,
+			&contactV4.Alias,
+			&contactV4.Remark,
+			&contactV4.NickName,
+			&contactV4.SmallHeadUrl,
+			&contactV4.BigHeadUrl,
+		)
+		if err != nil {
+			return nil, errors.ScanRowFailed(err)
+		}
+		contacts = append(contacts, contactV4.Wrap())
+	}
+	return contacts, nil
+}
+
+func (ds *DataSource) GetAddressBookContactsCount(ctx context.Context, key string) (int, error) {
+	query := `SELECT COUNT(*)
+			FROM contact
+			WHERE flag in (2,3) and delete_flag = 0`
+	args := make([]interface{}, 0, 4)
+	if strings.TrimSpace(key) != "" {
+		query += ` AND (
+			username LIKE '%' || ? || '%' OR
+			alias LIKE '%' || ? || '%' OR
+			remark LIKE '%' || ? || '%' OR
+			nick_name LIKE '%' || ? || '%'
+		)`
+		args = append(args, key, key, key, key)
+	}
+
+	db, err := ds.dbm.GetDB(Contact)
+	if err != nil {
+		return 0, err
+	}
+	defer db.Close()
+
+	var count int
+	if err := db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		return 0, errors.QueryFailed(query, err)
+	}
 	return count, nil
 }
 

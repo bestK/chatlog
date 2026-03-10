@@ -66,7 +66,7 @@ func (r *Repository) initContactCache(ctx context.Context) error {
 		}
 
 		// 如果是群聊成员（非好友），添加到群聊成员索引
-		if !contact.IsFriend {
+		if contact.LocalType == 3 {
 			chatRoomUserMap[contact.UserName] = contact
 		}
 
@@ -157,6 +157,18 @@ func (r *Repository) GetContacts(ctx context.Context, key string, limit, offset 
 		}
 		return total, ret, nil
 	}
+}
+
+func (r *Repository) GetAddressBookContacts(ctx context.Context, key string, limit, offset int) (int, []*model.Contact, error) {
+	total, err := r.ds.GetAddressBookContactsCount(ctx, key)
+	if err != nil {
+		return 0, nil, err
+	}
+	items, err := r.ds.GetAddressBookContacts(ctx, key, limit, offset)
+	if err != nil {
+		return 0, nil, err
+	}
+	return total, items, nil
 }
 
 func (r *Repository) findContact(key string) *model.Contact {
