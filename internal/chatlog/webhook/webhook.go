@@ -324,8 +324,8 @@ func (m *MessageWebhook) Do(event fsnotify.Event) {
 	req, _ := http.NewRequest("POST", m.conf.URL, bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	log.Info().Msgf("🚀 post messages to %s, length=%d", m.conf.URL, len(filtered))
-	log.Debug().Msgf("post body: %s", string(body))
+	log.Info().Msgf("⚡ webhook %s, length=%d", m.conf.URL, len(filtered))
+	log.Info().Msgf("⚡ body: %s", string(body))
 	resp, err := m.client.Do(req)
 	if err != nil {
 		log.Error().Err(err).Msgf("post messages failed")
