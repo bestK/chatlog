@@ -14,6 +14,10 @@ export function EnableStateEvents(arg1) {
   return window['go']['main']['App']['EnableStateEvents'](arg1);
 }
 
+export function GetContacts(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GetContacts'](arg1, arg2, arg3);
+}
+
 export function GetDataKey() {
   return window['go']['main']['App']['GetDataKey']();
 }
