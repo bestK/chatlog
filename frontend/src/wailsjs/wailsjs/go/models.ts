@@ -135,6 +135,9 @@ export namespace model {
 	    remark: string;
 	    nickName: string;
 	    isFriend: boolean;
+	    localType: number;
+	    flag: number;
+	    deleteFlag: number;
 	    smallHeadImgUrl: string;
 	    bigHeadImgUrl: string;
 	
@@ -149,6 +152,9 @@ export namespace model {
 	        this.remark = source["remark"];
 	        this.nickName = source["nickName"];
 	        this.isFriend = source["isFriend"];
+	        this.localType = source["localType"];
+	        this.flag = source["flag"];
+	        this.deleteFlag = source["deleteFlag"];
 	        this.smallHeadImgUrl = source["smallHeadImgUrl"];
 	        this.bigHeadImgUrl = source["bigHeadImgUrl"];
 	    }

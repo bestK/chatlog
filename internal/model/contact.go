@@ -1,11 +1,14 @@
 package model
 
 type Contact struct {
-	UserName string `json:"userName"`
-	Alias    string `json:"alias"`
-	Remark   string `json:"remark"`
-	NickName string `json:"nickName"`
+	UserName        string `json:"userName"`
+	Alias           string `json:"alias"`
+	Remark          string `json:"remark"`
+	NickName        string `json:"nickName"`
 	IsFriend        bool   `json:"isFriend"`
+	LocalType       int    `json:"localType"`
+	Flag            int    `json:"flag"`
+	DeleteFlag      int    `json:"deleteFlag"`
 	SmallHeadImgUrl string `json:"smallHeadImgUrl"`
 	BigHeadImgUrl   string `json:"bigHeadImgUrl"`
 }
@@ -53,11 +56,14 @@ type ContactV3 struct {
 
 func (c *ContactV3) Wrap() *Contact {
 	return &Contact{
-		UserName: c.UserName,
-		Alias:    c.Alias,
-		Remark:   c.Remark,
-		NickName: c.NickName,
-		IsFriend: c.Reserved1 == 1,
+		UserName:   c.UserName,
+		Alias:      c.Alias,
+		Remark:     c.Remark,
+		NickName:   c.NickName,
+		IsFriend:   c.Reserved1 == 1,
+		LocalType:  0,
+		Flag:       0,
+		DeleteFlag: 0,
 	}
 }
 
