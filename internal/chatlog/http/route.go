@@ -171,7 +171,7 @@ func (s *Service) handleContacts(c *gin.Context) {
 		return
 	}
 
-	list, err := s.db.GetContacts(q.Keyword, q.Limit, q.Offset)
+	list, err := s.db.GetContacts(q.Keyword, -1, q.Limit, q.Offset)
 	if err != nil {
 		errors.Err(c, err)
 		return

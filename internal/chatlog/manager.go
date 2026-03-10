@@ -417,7 +417,7 @@ func (m *Manager) RefreshSession() error {
 	return nil
 }
 
-func (m *Manager) GetContacts(keyword string, limit, offset int) (*wechatdb.GetContactsResp, error) {
+func (m *Manager) GetContacts(keyword string, isInChatRoom, limit, offset int) (*wechatdb.GetContactsResp, error) {
 	if m == nil || m.db == nil {
 		return nil, fmt.Errorf("未初始化")
 	}
@@ -433,7 +433,7 @@ func (m *Manager) GetContacts(keyword string, limit, offset int) (*wechatdb.GetC
 		}
 		m.syncCurrentProfile()
 	}
-	return m.db.GetContacts(keyword, limit, offset)
+	return m.db.GetContacts(keyword, isInChatRoom, limit, offset)
 }
 
 func (m *Manager) syncCurrentProfile() {

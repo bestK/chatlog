@@ -425,12 +425,12 @@ func (a *App) Refresh() (State, error) {
 	return a.GetState()
 }
 
-func (a *App) GetContacts(keyword string, limit, offset int) (*wechatdb.GetContactsResp, error) {
+func (a *App) GetContacts(keyword string, isInChatRoom, limit, offset int) (*wechatdb.GetContactsResp, error) {
 	ctx := a.mgr.Context()
 	if ctx == nil {
 		return nil, errors.New("未初始化")
 	}
-	return a.mgr.GetContacts(strings.TrimSpace(keyword), limit, offset)
+	return a.mgr.GetContacts(strings.TrimSpace(keyword), isInChatRoom, limit, offset)
 }
 
 func (a *App) SwitchToPID(pid int) (State, error) {

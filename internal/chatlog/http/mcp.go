@@ -169,7 +169,7 @@ func (s *Service) handleMCPContact(ctx context.Context, request mcp.CallToolRequ
 		return errors.ErrMCPTool(err), nil
 	}
 
-	list, err := s.db.GetContacts(req.Keyword, req.Limit, req.Offset)
+	list, err := s.db.GetContacts(req.Keyword, -1, req.Limit, req.Offset)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get contacts")
 		return errors.ErrMCPTool(err), nil
