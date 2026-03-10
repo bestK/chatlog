@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, onMounted, ref, watch } from 'vue';
+import { computed, inject, nextTick, onMounted, ref, watch } from 'vue';
 import { backend, type Contact, type Instance } from '../wailsbridge';
 import { chatlogKey } from '../composables/chatlogContext';
 
@@ -15,6 +15,7 @@ const contactsTotal = ref(0);
 const contacts = ref<Contact[]>([]);
 const contactLimit = ref(50);
 const contactOffset = ref(0);
+const contactLoadingSource = ref<'init' | 'refresh' | 'search' | 'prev' | 'next' | 'limit' | 'account' | null>(null);
 
 const contactRangeText = computed(() => {
 	if (contactsTotal.value <= 0) return '0';
@@ -23,14 +24,40 @@ const contactRangeText = computed(() => {
 	return `${start}-${end}/${contactsTotal.value}`;
 });
 
+const hasContacts = computed(() => contacts.value.length > 0);
+
+const prevButtonText = computed(() => (contactsLoading.value && contactLoadingSource.value === 'prev' ? '加载中…' : '上一页'));
+
+const nextButtonText = computed(() => (contactsLoading.value && contactLoadingSource.value === 'next' ? '加载中…' : '下一页'));
+
 let contactLoadTimer: number | undefined;
 
-async function loadContacts() {
+function getPageScrollContainer() {
+	if (typeof document === 'undefined') return null;
+	const page = document.querySelector('.page');
+	return page instanceof HTMLElement ? page : null;
+}
+
+function restorePageScroll(scrollTop: number | null) {
+	if (scrollTop === null) return;
+	const container = getPageScrollContainer();
+	if (!container) return;
+	window.requestAnimationFrame(() => {
+		container.scrollTop = scrollTop;
+	});
+}
+
+async function loadContacts(options?: {
+	preserveScroll?: boolean;
+	source?: 'init' | 'refresh' | 'search' | 'prev' | 'next' | 'limit' | 'account';
+}) {
 	if (!backend.isWails) {
 		contacts.value = [];
 		contactsTotal.value = 0;
 		return;
 	}
+	contactLoadingSource.value = options?.source ?? 'refresh';
+	const preservedScrollTop = options?.preserveScroll ? getPageScrollContainer()?.scrollTop ?? 0 : null;
 	contactsLoading.value = true;
 	try {
 		const resp = await backend.GetContacts(contactKeyword.value.trim(), contactLimit.value, contactOffset.value);
@@ -40,25 +67,28 @@ async function loadContacts() {
 		chat.toast('加载联系人失败', String(e));
 	} finally {
 		contactsLoading.value = false;
+		contactLoadingSource.value = null;
+		await nextTick();
+		restorePageScroll(preservedScrollTop);
 	}
 }
 
 function scheduleLoadContacts(delayMs = 200) {
 	if (contactLoadTimer) window.clearTimeout(contactLoadTimer);
 	contactLoadTimer = window.setTimeout(() => {
-		void loadContacts();
+		void loadContacts({ preserveScroll: true, source: 'search' });
 	}, delayMs);
 }
 
 function prevContactsPage() {
 	contactOffset.value = Math.max(0, contactOffset.value - contactLimit.value);
-	void loadContacts();
+	void loadContacts({ preserveScroll: true, source: 'prev' });
 }
 
 function nextContactsPage() {
 	if (contactOffset.value + contactLimit.value >= contactsTotal.value) return;
 	contactOffset.value = contactOffset.value + contactLimit.value;
-	void loadContacts();
+	void loadContacts({ preserveScroll: true, source: 'next' });
 }
 
 function getAccountName(instance: Instance) {
@@ -98,20 +128,26 @@ function getContactAvatarFallback(c: Contact) {
 }
 
 onMounted(() => {
-	void loadContacts();
+	void loadContacts({ source: 'init' });
 });
 
 watch(
 	() => state.value?.account,
 	() => {
 		contactOffset.value = 0;
-		scheduleLoadContacts(0);
+		if (contactLoadTimer) window.clearTimeout(contactLoadTimer);
+		void loadContacts({ preserveScroll: true, source: 'account' });
 	},
 );
 
 watch(contactKeyword, () => {
 	contactOffset.value = 0;
 	scheduleLoadContacts();
+});
+
+watch(contactLimit, () => {
+	contactOffset.value = 0;
+	void loadContacts({ preserveScroll: true, source: 'limit' });
 });
 </script>
 
@@ -192,35 +228,63 @@ watch(contactKeyword, () => {
 
         <div class="card cardWide">
             <div class="toolbar contactToolbar">
-                <div class="toolbarGroup">
-                    <div class="pill">范围: {{ contactRangeText }}</div>
-                    <div class="pill">关键字: {{ contactKeyword.trim() ? '已过滤' : '全部' }}</div>
+                <div class="contactToolbarInfo">
+                    <div class="contactToolbarTitleWrap">
+                        <div class="contactToolbarTitle">联系人筛选</div>
+                        <div class="contactToolbarHint">搜索昵称、备注或微信 ID，并快速调整分页大小</div>
+                    </div>
+                    <div class="contactToolbarMeta">
+                        <div class="pill contactMetaPill">范围: {{ contactRangeText }}</div>
+                        <div class="pill contactMetaPill">关键字: {{ contactKeyword.trim() ? '已过滤' : '全部' }}</div>
+                    </div>
                 </div>
-                <div class="toolbarGroup toolbarRight">
-                    <input v-model="contactKeyword" class="input mono contactSearch" placeholder="搜索昵称/备注/ID" />
-                    <button type="button" class="btn" :disabled="contactsLoading" @click="loadContacts">刷新</button>
-                    <button type="button" class="btn" :disabled="contactsLoading || contactOffset === 0" @click="prevContactsPage">
-                        上一页
-                    </button>
-                    <button
-                        type="button"
-                        class="btn"
-                        :disabled="contactsLoading || contactOffset + contactLimit >= contactsTotal"
-                        @click="nextContactsPage"
-                    >
-                        下一页
-                    </button>
+                <div class="contactToolbarControls">
+                    <div class="contactSearchWrap">
+                        <input v-model="contactKeyword" class="input mono contactSearch" placeholder="搜索昵称 / 备注 / ID" />
+                    </div>
+                    <div class="contactActions">
+                        <select v-model.number="contactLimit" class="input mono contactPageSize" title="每页数量">
+                            <option :value="20">20/页</option>
+                            <option :value="50">50/页</option>
+                            <option :value="100">100/页</option>
+                            <option :value="200">200/页</option>
+                        </select>
+                        <button
+                            type="button"
+                            :class="['btn', 'contactActionBtn']"
+                            :disabled="contactsLoading"
+                            @click="loadContacts({ source: 'refresh' })"
+                        >
+                            刷新
+                        </button>
+                        <button
+                            type="button"
+                            :class="['btn', 'contactActionBtn']"
+                            :disabled="contactsLoading || contactOffset === 0"
+                            @click="prevContactsPage"
+                        >
+                            {{ prevButtonText }}
+                        </button>
+                        <button
+                            type="button"
+                            :class="['btn', 'btnBrand', 'contactActionBtn']"
+                            :disabled="contactsLoading || contactOffset + contactLimit >= contactsTotal"
+                            @click="nextContactsPage"
+                        >
+                            {{ nextButtonText }}
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div class="list">
-                <div v-if="contactsLoading" class="listItem contactItemEmpty">
+            <div :class="['list', { contactListBusy: contactsLoading && hasContacts }]">
+                <div v-if="contactsLoading && !hasContacts" class="listItem contactItemEmpty">
                     <div class="listMain">
                         <div class="listTitle">正在加载联系人…</div>
                         <div class="listMeta">请稍候</div>
                     </div>
                 </div>
-                <div v-else-if="contacts.length === 0" class="listItem contactItemEmpty">
+                <div v-else-if="!hasContacts" class="listItem contactItemEmpty">
                     <div class="listMain">
                         <div class="listTitle">暂无联系人</div>
                         <div class="listMeta">可尝试先解密数据或切换账号后刷新</div>
@@ -427,18 +491,108 @@ watch(contactKeyword, () => {
 }
 
 .contactToolbar {
-	margin-bottom: 16px;
-	background: transparent;
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	display: grid;
+	grid-template-columns: minmax(240px, 1fr) minmax(420px, 1.35fr);
+	align-items: center;
+	gap: 18px;
+	margin: -14px -14px 12px;
+	padding: 14px 14px 12px;
+	background: linear-gradient(180deg, rgba(14, 18, 28, 0.96), rgba(10, 12, 18, 0.96));
+	backdrop-filter: blur(14px);
 	border: none;
-	padding: 0;
+	border-bottom: 1px solid var(--border);
+	border-top-left-radius: var(--radius);
+	border-top-right-radius: var(--radius);
+	box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 }
 
-.toolbarRight {
-	justify-content: flex-end;
+.contactToolbarInfo {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	min-width: 0;
+}
+
+.contactToolbarTitleWrap {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.contactToolbarTitle {
+	font-size: 13px;
+	font-weight: 700;
+	color: var(--text);
+	letter-spacing: 0.02em;
+}
+
+.contactToolbarHint {
+	font-size: 11px;
+	line-height: 1.45;
+	color: var(--muted);
+}
+
+.contactToolbarMeta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.contactMetaPill {
+	min-width: 140px;
+	justify-content: center;
+}
+
+.contactToolbarControls {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	min-width: 0;
+}
+
+.contactSearchWrap {
+	width: 100%;
 }
 
 .contactSearch {
-	min-width: 220px;
+	width: 100%;
+}
+
+.contactActions {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.contactActions :deep(.btn) {
+	margin-left: 0;
+}
+
+.contactActionBtn {
+	min-width: 96px;
+}
+
+.contactActions :deep(.btn:disabled) {
+	opacity: 0.42;
+	color: var(--subtle);
+	background: rgba(255, 255, 255, 0.03);
+	border-color: rgba(255, 255, 255, 0.08);
+	cursor: not-allowed;
+	box-shadow: none;
+}
+
+.contactActions :deep(.btn:disabled:hover) {
+	background: rgba(255, 255, 255, 0.03);
+}
+
+.contactPageSize {
+	width: 94px;
+	flex: 0 0 auto;
 }
 
 .contactItem {
@@ -456,6 +610,23 @@ watch(contactKeyword, () => {
 	min-height: 100px;
 	justify-content: center;
 	text-align: center;
+}
+
+.contactListBusy {
+	position: relative;
+}
+
+.contactListBusy::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: var(--radius);
+	background: linear-gradient(180deg, rgba(8, 10, 16, 0.04), rgba(8, 10, 16, 0.1));
+	pointer-events: none;
+}
+
+.contactListBusy :deep(.contactItem) {
+	opacity: 0.76;
 }
 
 .contactHeader {
@@ -523,5 +694,19 @@ watch(contactKeyword, () => {
     .accountAction {
         width: 100%;
     }
+	.contactToolbar {
+		grid-template-columns: 1fr;
+		gap: 14px;
+	}
+	.contactToolbarControls {
+		gap: 12px;
+	}
+	.contactActions {
+		justify-content: stretch;
+	}
+	.contactActions :deep(.btn),
+	.contactPageSize {
+		width: 100%;
+	}
 }
 </style>
