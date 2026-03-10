@@ -2,12 +2,14 @@ package database
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/rs/zerolog/log"
 
 	"github.com/sjzar/chatlog/internal/chatlog/conf"
+	"github.com/sjzar/chatlog/internal/chatlog/messageview"
 	"github.com/sjzar/chatlog/internal/chatlog/webhook"
 	"github.com/sjzar/chatlog/internal/model"
 	"github.com/sjzar/chatlog/internal/wechatdb"
@@ -28,6 +30,9 @@ type Service struct {
 	webhook       *webhook.Service
 	webhookCancel context.CancelFunc
 	webhookRegs   []webhookRegistration
+	messageLogCb  func(event fsnotify.Event) error
+	sessionLogMu  sync.Mutex
+	sessionLogSeq map[string]int
 }
 
 type webhookRegistration struct {
@@ -43,8 +48,9 @@ type Config interface {
 
 func NewService(conf Config) *Service {
 	return &Service{
-		conf:    conf,
-		webhook: webhook.New(conf),
+		conf:          conf,
+		webhook:       webhook.New(conf),
+		sessionLogSeq: make(map[string]int),
 	}
 }
 
@@ -55,11 +61,13 @@ func (s *Service) Start() error {
 	}
 	s.SetReady()
 	s.db = db
+	s.initMessageObserver()
 	s.initWebhook()
 	return nil
 }
 
 func (s *Service) Stop() error {
+	s.clearMessageObserver()
 	s.clearWebhookCallbacks()
 	if s.db != nil {
 		s.db.Close()
@@ -165,6 +173,7 @@ func (s *Service) ReloadWebhook() error {
 // Close closes the database connection
 func (s *Service) Close() {
 	// Add cleanup code if needed
+	s.clearMessageObserver()
 	s.clearWebhookCallbacks()
 	if s.db != nil {
 		s.db.Close()
@@ -221,4 +230,85 @@ func (s *Service) clearWebhookCallbacks() {
 		s.db.RemoveCallback(reg.group, reg.callback)
 	}
 	s.webhookRegs = nil
+}
+
+func (s *Service) initMessageObserver() {
+	if s.db == nil {
+		return
+	}
+	s.seedSessionLogState()
+	if s.messageLogCb != nil {
+		s.db.RemoveCallback("message", s.messageLogCb)
+	}
+	s.messageLogCb = s.onMessageEvent
+	if err := s.db.SetCallback("message", s.messageLogCb); err != nil {
+		log.Error().Err(err).Msg("set message observer callback failed")
+	}
+}
+
+func (s *Service) clearMessageObserver() {
+	if s.db != nil && s.messageLogCb != nil {
+		s.db.RemoveCallback("message", s.messageLogCb)
+	}
+	s.messageLogCb = nil
+	s.sessionLogMu.Lock()
+	s.sessionLogSeq = make(map[string]int)
+	s.sessionLogMu.Unlock()
+}
+
+func (s *Service) seedSessionLogState() {
+	resp, err := s.db.GetSessions("", 50, 0)
+	if err != nil {
+		return
+	}
+	state := make(map[string]int, len(resp.Items))
+	for _, session := range resp.Items {
+		if session == nil {
+			continue
+		}
+		state[session.TopicID] = sessionKey(session)
+	}
+	s.sessionLogMu.Lock()
+	s.sessionLogSeq = state
+	s.sessionLogMu.Unlock()
+}
+
+func (s *Service) onMessageEvent(event fsnotify.Event) error {
+	if !(event.Op.Has(fsnotify.Create) || event.Op.Has(fsnotify.Write) || event.Op.Has(fsnotify.Rename)) {
+		return nil
+	}
+	resp, err := s.db.GetSessions("", 20, 0)
+	if err != nil {
+		return nil
+	}
+	s.sessionLogMu.Lock()
+	defer s.sessionLogMu.Unlock()
+	for _, session := range resp.Items {
+		if session == nil || session.TopicID == "" {
+			continue
+		}
+		current := sessionKey(session)
+		previous := s.sessionLogSeq[session.TopicID]
+		if current <= previous {
+			continue
+		}
+		s.sessionLogSeq[session.TopicID] = current
+		log.Info().Msgf(
+			"📨 receive message: talker=%s sender=%s content=%s",
+			messageview.SessionTalkerName(session),
+			messageview.SessionSenderName(session),
+			session.Content,
+		)
+	}
+	return nil
+}
+
+func sessionKey(session *model.Session) int {
+	if session == nil {
+		return 0
+	}
+	if session.LastMsgLocalID > 0 {
+		return session.LastMsgLocalID
+	}
+	return session.NOrder
 }
