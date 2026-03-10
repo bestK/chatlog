@@ -9,6 +9,7 @@ type Contact struct {
 	LocalType       int    `json:"localType"`
 	Flag            int    `json:"flag"`
 	DeleteFlag      int    `json:"deleteFlag"`
+	IsInChatRoom    int    `json:"isInChatRoom"`
 	SmallHeadImgUrl string `json:"smallHeadImgUrl"`
 	BigHeadImgUrl   string `json:"bigHeadImgUrl"`
 }
@@ -56,14 +57,15 @@ type ContactV3 struct {
 
 func (c *ContactV3) Wrap() *Contact {
 	return &Contact{
-		UserName:   c.UserName,
-		Alias:      c.Alias,
-		Remark:     c.Remark,
-		NickName:   c.NickName,
-		IsFriend:   c.Reserved1 == 1,
-		LocalType:  0,
-		Flag:       0,
-		DeleteFlag: 0,
+		UserName:     c.UserName,
+		Alias:        c.Alias,
+		Remark:       c.Remark,
+		NickName:     c.NickName,
+		IsFriend:     c.Reserved1 == 1,
+		LocalType:    0,
+		Flag:         0,
+		DeleteFlag:   0,
+		IsInChatRoom: 0,
 	}
 }
 
