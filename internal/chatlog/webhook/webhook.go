@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"sync"
 	"time"
 
@@ -13,8 +14,10 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/sjzar/chatlog/internal/chatlog/conf"
+	"github.com/sjzar/chatlog/internal/chatlog/messageview"
 	"github.com/sjzar/chatlog/internal/model"
 	"github.com/sjzar/chatlog/internal/wechatdb"
+	"github.com/sjzar/chatlog/pkg/util"
 )
 
 type Config interface {
@@ -30,7 +33,8 @@ type Service struct {
 	hooks  map[string][]*conf.WebhookItem
 }
 
-var processedMessages = newProcessedMessageStore()
+var processedMessages = messageview.NewDedupStore(5 * time.Minute)
+var observedMessages = messageview.NewDedupStore(5 * time.Minute)
 
 func New(config Config) *Service {
 	s := &Service{
@@ -204,7 +208,7 @@ func NewMessageWebhook(conf *conf.WebhookItem, db *wechatdb.DB, host string) *Me
 		conf:     conf,
 		client:   &http.Client{Timeout: time.Second * 10},
 		db:       db,
-		lastTime: time.Now(),
+		lastTime: time.Now().Add(-5 * time.Second),
 	}
 	return m
 }
@@ -213,17 +217,23 @@ func (m *MessageWebhook) Do(event fsnotify.Event) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	messages, err := m.db.GetMessages(m.lastTime, time.Now().Add(time.Minute*10), m.conf.Talker, m.conf.Sender, m.conf.Keyword, 0, 0)
+	messages, err := m.db.GetMessages(m.lastTime, time.Now().Add(time.Minute*10), m.conf.Talker, "", "", 0, 0)
 	if err != nil {
 		log.Error().Err(err).Msgf("webhook get messages failed")
 		return
 	}
 
 	if len(messages.Items) == 0 {
+		log.Debug().Msgf(
+			"🔎 webhook fetch: cfgTalker=%s cfgSender=%s cfgKeyword=%s result=0",
+			m.conf.Talker,
+			m.conf.Sender,
+			m.conf.Keyword,
+		)
 		return
 	}
 
-	filtered := make([]*model.Message, 0, len(messages.Items))
+	observed := make([]*model.Message, 0, len(messages.Items))
 	for _, message := range messages.Items {
 		if message == nil {
 			continue
@@ -231,38 +241,72 @@ func (m *MessageWebhook) Do(event fsnotify.Event) {
 		if m.lastSeq != 0 && message.Seq <= m.lastSeq {
 			continue
 		}
-		if processedMessages.Seen(m.conf, message.Seq) {
+		if observedMessages.Seen(fmt.Sprintf("talker:%s#%d", m.conf.Talker, message.Seq)) {
+			continue
+		}
+		observed = append(observed, message)
+	}
+
+	if len(observed) == 0 {
+		log.Debug().Msgf(
+			"🔎 webhook observe: cfgTalker=%s cfgSender=%s cfgKeyword=%s observed=0 (seq/dedup)",
+			m.conf.Talker,
+			m.conf.Sender,
+			m.conf.Keyword,
+		)
+		return
+	}
+
+	m.lastTime = observed[len(observed)-1].Time.Time()
+	m.lastSeq = observed[len(observed)-1].Seq
+
+	for _, message := range observed {
+		message.SetContent("host", m.host)
+		message.Content = message.PlainTextContent()
+	}
+
+	filtered := make([]*model.Message, 0, len(observed))
+	for _, message := range observed {
+		senderMatched := matchSender(message, m.conf.Sender)
+		keywordMatched := matchKeyword(message, m.conf.Keyword)
+		log.Debug().Msgf(
+			"🔎 webhook filter: cfgTalker=%s cfgSender=%s msgTalker=%s msgSender=%s msgSenderName=%s senderOK=%t keywordOK=%t content=%s",
+			m.conf.Talker,
+			m.conf.Sender,
+			messageview.TalkerName(message),
+			message.Sender,
+			messageview.SenderName(message),
+			senderMatched,
+			keywordMatched,
+			message.Content,
+		)
+		if !senderMatched {
+			continue
+		}
+		if !keywordMatched {
+			continue
+		}
+		if processedMessages.Seen(fmt.Sprintf("%s#%d", webhookItemSignature(m.conf), message.Seq)) {
 			continue
 		}
 		filtered = append(filtered, message)
 	}
 
 	if len(filtered) == 0 {
+		log.Debug().Msgf(
+			"🔎 webhook match: cfgTalker=%s cfgSender=%s cfgKeyword=%s matched=0",
+			m.conf.Talker,
+			m.conf.Sender,
+			m.conf.Keyword,
+		)
 		return
 	}
 
-	m.lastTime = filtered[len(filtered)-1].Time.Add(time.Second).Time()
-	m.lastSeq = filtered[len(filtered)-1].Seq
-
-	for _, message := range filtered {
-		message.SetContent("host", m.host)
-		message.Content = message.PlainTextContent()
-		log.Info().Msgf(
-			"📨 receive message: talker=%s sender=%s content=%s",
-			displayTalker(message),
-			displayName(message.SenderName, message.Sender),
-			message.Content,
-		)
-	}
-
 	actualTalker := uniqueJoined(filtered, func(message *model.Message) string {
-		return displayTalker(message)
+		return messageview.TalkerName(message)
 	})
 	actualSender := uniqueJoined(filtered, func(message *model.Message) string {
-		if message.SenderName != "" {
-			return message.SenderName
-		}
-		return message.Sender
+		return messageview.SenderName(message)
 	})
 
 	ret := map[string]any{
@@ -280,7 +324,8 @@ func (m *MessageWebhook) Do(event fsnotify.Event) {
 	req, _ := http.NewRequest("POST", m.conf.URL, bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	log.Info().Msgf("🚀 post messages to %s, body: %s", m.conf.URL, string(body))
+	log.Info().Msgf("🚀 post messages to %s, length=%d", m.conf.URL, len(filtered))
+	log.Debug().Msgf("post body: %s", string(body))
 	resp, err := m.client.Do(req)
 	if err != nil {
 		log.Error().Err(err).Msgf("post messages failed")
@@ -320,26 +365,6 @@ func uniqueJoined(messages []*model.Message, selector func(*model.Message) strin
 	return result
 }
 
-func displayName(preferred string, fallback string) string {
-	if preferred != "" {
-		return preferred
-	}
-	return fallback
-}
-
-func displayTalker(message *model.Message) string {
-	if message == nil {
-		return ""
-	}
-	if message.TalkerName != "" {
-		return message.TalkerName
-	}
-	if !message.IsChatRoom {
-		return displayName(message.SenderName, message.Sender)
-	}
-	return message.Talker
-}
-
 func webhookItemSignature(item *conf.WebhookItem) string {
 	if item == nil {
 		return ""
@@ -354,32 +379,25 @@ func webhookItemSignature(item *conf.WebhookItem) string {
 	)
 }
 
-type processedMessageStore struct {
-	mu    sync.Mutex
-	items map[string]time.Time
-}
-
-func newProcessedMessageStore() *processedMessageStore {
-	return &processedMessageStore{items: make(map[string]time.Time)}
-}
-
-func (s *processedMessageStore) Seen(item *conf.WebhookItem, seq int64) bool {
-	if item == nil || seq == 0 {
-		return false
-	}
-	now := time.Now()
-	key := fmt.Sprintf("%s#%d", webhookItemSignature(item), seq)
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for existingKey, expiry := range s.items {
-		if now.After(expiry) {
-			delete(s.items, existingKey)
-		}
-	}
-	if expiry, ok := s.items[key]; ok && now.Before(expiry) {
+func matchSender(message *model.Message, sender string) bool {
+	if sender == "" {
 		return true
 	}
-	s.items[key] = now.Add(5 * time.Minute)
+	for _, item := range util.Str2List(sender, ",") {
+		if item == message.Sender || item == messageview.SenderName(message) {
+			return true
+		}
+	}
 	return false
+}
+
+func matchKeyword(message *model.Message, keyword string) bool {
+	if keyword == "" {
+		return true
+	}
+	re, err := regexp.Compile(keyword)
+	if err != nil {
+		return false
+	}
+	return re.MatchString(message.PlainTextContent())
 }

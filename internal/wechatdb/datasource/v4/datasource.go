@@ -384,6 +384,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 					if regex != nil {
 						if !regex.MatchString(message.PlainTextContent()) {
 							log.Debug().Msgf("keyword not match: %s", message.PlainTextContent())
+							continue
 						}
 					}
 
