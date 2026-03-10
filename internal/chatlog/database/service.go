@@ -294,7 +294,7 @@ func (s *Service) onMessageEvent(event fsnotify.Event) error {
 		}
 		s.sessionLogSeq[session.TopicID] = current
 		log.Info().Msgf(
-			"📨 receive message: talker=%s sender=%s content=%s",
+			"📨 message: talker=%s sender=%s content=%s",
 			messageview.SessionTalkerName(session),
 			messageview.SessionSenderName(session),
 			session.Content,
