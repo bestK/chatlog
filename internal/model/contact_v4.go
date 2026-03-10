@@ -48,6 +48,7 @@ func (c *ContactV4) Wrap() *Contact {
 		LocalType:       c.LocalType,
 		Flag:            c.Flag,
 		DeleteFlag:      c.DeleteFlag,
+		IsInChatRoom:    c.IsInChatRoom,
 		SmallHeadImgUrl: c.SmallHeadUrl,
 		BigHeadImgUrl:   c.BigHeadUrl,
 	}

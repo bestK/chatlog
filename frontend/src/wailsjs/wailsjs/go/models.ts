@@ -138,6 +138,7 @@ export namespace model {
 	    localType: number;
 	    flag: number;
 	    deleteFlag: number;
+	    isInChatRoom: number;
 	    smallHeadImgUrl: string;
 	    bigHeadImgUrl: string;
 	
@@ -155,6 +156,7 @@ export namespace model {
 	        this.localType = source["localType"];
 	        this.flag = source["flag"];
 	        this.deleteFlag = source["deleteFlag"];
+	        this.isInChatRoom = source["isInChatRoom"];
 	        this.smallHeadImgUrl = source["smallHeadImgUrl"];
 	        this.bigHeadImgUrl = source["bigHeadImgUrl"];
 	    }
