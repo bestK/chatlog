@@ -106,8 +106,8 @@ func (s *Service) GetMessages(start, end time.Time, talker string, sender string
 	return s.db.GetMessages(start, end, talker, sender, keyword, limit, offset)
 }
 
-func (s *Service) GetContacts(key string, limit, offset int) (*wechatdb.GetContactsResp, error) {
-	return s.db.GetContacts(key, limit, offset)
+func (s *Service) GetContacts(key string, isInChatRoom, limit, offset int) (*wechatdb.GetContactsResp, error) {
+	return s.db.GetContacts(key, isInChatRoom, limit, offset)
 }
 
 func (s *Service) GetChatRooms(key string, limit, offset int) (*wechatdb.GetChatRoomsResp, error) {
