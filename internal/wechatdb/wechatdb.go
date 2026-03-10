@@ -97,10 +97,10 @@ type GetContactsResp struct {
 	Items []*model.Contact `json:"items"`
 }
 
-func (w *DB) GetContacts(key string, limit, offset int) (*GetContactsResp, error) {
+func (w *DB) GetContacts(key string, isInChatRoom, limit, offset int) (*GetContactsResp, error) {
 	ctx := context.Background()
 
-	total, contacts, err := w.repo.GetAddressBookContacts(ctx, key, limit, offset)
+	total, contacts, err := w.repo.GetAddressBookContacts(ctx, key, isInChatRoom, limit, offset)
 	if err != nil {
 		return nil, err
 	}

@@ -517,11 +517,15 @@ func (ds *DataSource) GetContactsCount(ctx context.Context, key string) (int, er
 	return count, nil
 }
 
-func (ds *DataSource) GetAddressBookContacts(ctx context.Context, key string, limit, offset int) ([]*model.Contact, error) {
+func (ds *DataSource) GetAddressBookContacts(ctx context.Context, key string, isInChatRoom, limit, offset int) ([]*model.Contact, error) {
 	query := `SELECT username, local_type, flag, delete_flag, IFNULL(is_in_chat_room,0), alias, remark, nick_name, IFNULL(small_head_url,''), IFNULL(big_head_url,'')
 			FROM contact
 			WHERE flag in (2,3) and delete_flag = 0`
 	args := make([]interface{}, 0, 4)
+	if isInChatRoom >= 0 {
+		query += ` AND IFNULL(is_in_chat_room,0) = ?`
+		args = append(args, isInChatRoom)
+	}
 	if strings.TrimSpace(key) != "" {
 		query += ` AND (
 			username LIKE '%' || ? || '%' OR
@@ -574,11 +578,15 @@ func (ds *DataSource) GetAddressBookContacts(ctx context.Context, key string, li
 	return contacts, nil
 }
 
-func (ds *DataSource) GetAddressBookContactsCount(ctx context.Context, key string) (int, error) {
+func (ds *DataSource) GetAddressBookContactsCount(ctx context.Context, key string, isInChatRoom int) (int, error) {
 	query := `SELECT COUNT(*)
 			FROM contact
 			WHERE flag in (2,3) and delete_flag = 0`
 	args := make([]interface{}, 0, 4)
+	if isInChatRoom >= 0 {
+		query += ` AND IFNULL(is_in_chat_room,0) = ?`
+		args = append(args, isInChatRoom)
+	}
 	if strings.TrimSpace(key) != "" {
 		query += ` AND (
 			username LIKE '%' || ? || '%' OR

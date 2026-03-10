@@ -159,12 +159,12 @@ func (r *Repository) GetContacts(ctx context.Context, key string, limit, offset 
 	}
 }
 
-func (r *Repository) GetAddressBookContacts(ctx context.Context, key string, limit, offset int) (int, []*model.Contact, error) {
-	total, err := r.ds.GetAddressBookContactsCount(ctx, key)
+func (r *Repository) GetAddressBookContacts(ctx context.Context, key string, isInChatRoom, limit, offset int) (int, []*model.Contact, error) {
+	total, err := r.ds.GetAddressBookContactsCount(ctx, key, isInChatRoom)
 	if err != nil {
 		return 0, nil, err
 	}
-	items, err := r.ds.GetAddressBookContacts(ctx, key, limit, offset)
+	items, err := r.ds.GetAddressBookContacts(ctx, key, isInChatRoom, limit, offset)
 	if err != nil {
 		return 0, nil, err
 	}

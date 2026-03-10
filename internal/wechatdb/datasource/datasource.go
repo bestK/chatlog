@@ -20,8 +20,8 @@ type DataSource interface {
 	// 联系人
 	GetContacts(ctx context.Context, key string, limit, offset int) ([]*model.Contact, error)
 	GetContactsCount(ctx context.Context, key string) (int, error)
-	GetAddressBookContacts(ctx context.Context, key string, limit, offset int) ([]*model.Contact, error)
-	GetAddressBookContactsCount(ctx context.Context, key string) (int, error)
+	GetAddressBookContacts(ctx context.Context, key string, isInChatRoom, limit, offset int) ([]*model.Contact, error)
+	GetAddressBookContactsCount(ctx context.Context, key string, isInChatRoom int) (int, error)
 
 	// 群聊
 	GetChatRooms(ctx context.Context, key string, limit, offset int) ([]*model.ChatRoom, error)
