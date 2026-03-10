@@ -16,7 +16,6 @@ const contacts = ref<Contact[]>([]);
 const contactLimit = ref(50);
 const contactOffset = ref(0);
 const contactLoadingSource = ref<'init' | 'refresh' | 'search' | 'prev' | 'next' | 'limit' | 'account' | null>(null);
-const contactChatRoomFilter = ref<-1 | 0 | 1>(-1);
 
 const contactRangeText = computed(() => {
 	if (contactsTotal.value <= 0) return '0';
@@ -26,12 +25,6 @@ const contactRangeText = computed(() => {
 });
 
 const hasContacts = computed(() => contacts.value.length > 0);
-
-const contactChatRoomFilterText = computed(() => {
-	if (contactChatRoomFilter.value === 1) return '仅群聊';
-	if (contactChatRoomFilter.value === 0) return '仅非群聊';
-	return '全部';
-});
 
 const prevButtonText = computed(() => (contactsLoading.value && contactLoadingSource.value === 'prev' ? '加载中…' : '上一页'));
 
@@ -69,7 +62,7 @@ async function loadContacts(options?: {
 	try {
 		const resp = await backend.GetContacts(
 			contactKeyword.value.trim(),
-			contactChatRoomFilter.value,
+			-1,
 			contactLimit.value,
 			contactOffset.value,
 		);
@@ -139,10 +132,6 @@ function getContactAvatarFallback(c: Contact) {
 	return name ? name.slice(0, 1).toUpperCase() : '?';
 }
 
-function getContactChatRoomText(c: Contact) {
-	return c.isInChatRoom === 1 ? '群聊' : '非群聊';
-}
-
 onMounted(() => {
 	void loadContacts({ source: 'init' });
 });
@@ -164,11 +153,6 @@ watch(contactKeyword, () => {
 watch(contactLimit, () => {
 	contactOffset.value = 0;
 	void loadContacts({ preserveScroll: true, source: 'limit' });
-});
-
-watch(contactChatRoomFilter, () => {
-	contactOffset.value = 0;
-	void loadContacts({ preserveScroll: true, source: 'refresh' });
 });
 </script>
 
@@ -252,12 +236,11 @@ watch(contactChatRoomFilter, () => {
                 <div class="contactToolbarInfo">
                     <div class="contactToolbarTitleWrap">
                         <div class="contactToolbarTitle">联系人筛选</div>
-                        <div class="contactToolbarHint">搜索昵称、备注或微信 ID，并按群聊可见状态筛选联系人</div>
+	                        <div class="contactToolbarHint">搜索昵称、备注或微信 ID，并快速调整分页大小</div>
                     </div>
                     <div class="contactToolbarMeta">
                         <div class="pill contactMetaPill">范围: {{ contactRangeText }}</div>
                         <div class="pill contactMetaPill">关键字: {{ contactKeyword.trim() ? '已过滤' : '全部' }}</div>
-                        <div class="pill contactMetaPill">群聊状态: {{ contactChatRoomFilterText }}</div>
                     </div>
                 </div>
                 <div class="contactToolbarControls">
@@ -265,11 +248,6 @@ watch(contactChatRoomFilter, () => {
                         <input v-model="contactKeyword" class="input mono contactSearch" placeholder="搜索昵称 / 备注 / ID" />
                     </div>
                     <div class="contactActions">
-                        <select v-model.number="contactChatRoomFilter" class="input mono contactFilterSelect" title="群聊可见筛选">
-                            <option :value="-1">全部状态</option>
-                            <option :value="1">仅群聊</option>
-                            <option :value="0">仅非群聊</option>
-                        </select>
                         <select v-model.number="contactLimit" class="input mono contactPageSize" title="每页数量">
                             <option :value="20">20/页</option>
                             <option :value="50">50/页</option>
@@ -332,10 +310,6 @@ watch(contactChatRoomFilter, () => {
                                  </div>
                              </div>
                          </div>
-                        <div class="contactBadges">
-						<span :class="['status-badge-mini', c.isFriend ? 'ok' : 'bad']">{{ c.isFriend ? '好友' : '非好友' }}</span>
-						<span :class="['status-badge-mini', c.isInChatRoom === 1 ? 'warn' : 'muted']">{{ getContactChatRoomText(c) }}</span>
-					</div>
 				</div>
 				<div class="contactFacts">
 					<div class="contactFact">localType: {{ c.localType }}</div>
@@ -630,11 +604,6 @@ watch(contactChatRoomFilter, () => {
 	flex: 0 0 auto;
 }
 
-.contactFilterSelect {
-	width: 118px;
-	flex: 0 0 auto;
-}
-
 .contactItem {
 	display: flex;
 	flex-direction: column;
@@ -731,18 +700,6 @@ watch(contactChatRoomFilter, () => {
 	word-break: break-all;
 }
 
-.status-badge-mini.warn {
-	background: rgba(245, 158, 11, 0.14);
-	color: #fbbf24;
-	border: 1px solid rgba(245, 158, 11, 0.26);
-}
-
-.status-badge-mini.muted {
-	background: rgba(148, 163, 184, 0.1);
-	color: var(--muted);
-	border: 1px solid rgba(148, 163, 184, 0.22);
-}
-
 .contactFacts {
 	display: flex;
 	flex-wrap: wrap;
@@ -782,8 +739,7 @@ watch(contactChatRoomFilter, () => {
 		justify-content: stretch;
 	}
 	.contactActions :deep(.btn),
-	.contactPageSize,
-	.contactFilterSelect {
+	.contactPageSize {
 		width: 100%;
 	}
 	.contactHeader {
