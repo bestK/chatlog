@@ -1,12 +1,65 @@
 <script setup lang="ts">
-import { inject } from 'vue';
-import { backend, type Instance } from '../wailsbridge';
+import { computed, inject, onMounted, ref, watch } from 'vue';
+import { backend, type Contact, type Instance } from '../wailsbridge';
 import { chatlogKey } from '../composables/chatlogContext';
 
-const chat = inject(chatlogKey);
-if (!chat) throw new Error('chatlog not provided');
+const injected = inject(chatlogKey);
+if (!injected) throw new Error('chatlog not provided');
+const chat = injected;
 
 const { instances, run, state } = chat;
+
+const contactKeyword = ref('');
+const contactsLoading = ref(false);
+const contactsTotal = ref(0);
+const contacts = ref<Contact[]>([]);
+const contactLimit = ref(50);
+const contactOffset = ref(0);
+
+const contactRangeText = computed(() => {
+	if (contactsTotal.value <= 0) return '0';
+	const start = Math.min(contactOffset.value + 1, contactsTotal.value);
+	const end = Math.min(contactOffset.value + contacts.value.length, contactsTotal.value);
+	return `${start}-${end}/${contactsTotal.value}`;
+});
+
+let contactLoadTimer: number | undefined;
+
+async function loadContacts() {
+	if (!backend.isWails) {
+		contacts.value = [];
+		contactsTotal.value = 0;
+		return;
+	}
+	contactsLoading.value = true;
+	try {
+		const resp = await backend.GetContacts(contactKeyword.value.trim(), contactLimit.value, contactOffset.value);
+		contactsTotal.value = resp.total || 0;
+		contacts.value = Array.isArray(resp.items) ? resp.items : [];
+	} catch (e) {
+		chat.toast('加载联系人失败', String(e));
+	} finally {
+		contactsLoading.value = false;
+	}
+}
+
+function scheduleLoadContacts(delayMs = 200) {
+	if (contactLoadTimer) window.clearTimeout(contactLoadTimer);
+	contactLoadTimer = window.setTimeout(() => {
+		void loadContacts();
+	}, delayMs);
+}
+
+function prevContactsPage() {
+	contactOffset.value = Math.max(0, contactOffset.value - contactLimit.value);
+	void loadContacts();
+}
+
+function nextContactsPage() {
+	if (contactOffset.value + contactLimit.value >= contactsTotal.value) return;
+	contactOffset.value = contactOffset.value + contactLimit.value;
+	void loadContacts();
+}
 
 function getAccountName(instance: Instance) {
 	if (state.value?.pid === instance.pid && state.value.nickname) {
@@ -30,6 +83,36 @@ function getAvatarFallback(instance: Instance) {
 function switchTo(pid: number) {
 	return run(() => backend.SwitchToPID(pid), '已切换账号');
 }
+
+function getContactName(c: Contact) {
+	return c.remark || c.nickName || c.alias || c.userName || '未知联系人';
+}
+
+function getContactAvatar(c: Contact) {
+	return c.smallHeadImgUrl || '';
+}
+
+function getContactAvatarFallback(c: Contact) {
+	const name = getContactName(c).trim();
+	return name ? name.slice(0, 1).toUpperCase() : '?';
+}
+
+onMounted(() => {
+	void loadContacts();
+});
+
+watch(
+	() => state.value?.account,
+	() => {
+		contactOffset.value = 0;
+		scheduleLoadContacts(0);
+	},
+);
+
+watch(contactKeyword, () => {
+	contactOffset.value = 0;
+	scheduleLoadContacts();
+});
 </script>
 
 <template>
@@ -98,6 +181,69 @@ function switchTo(pid: number) {
                         <div class="listMeta mono accountPath" :title="x.dataDir || '-'">{{ x.dataDir || '-' }}</div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <div class="section-header">
+            <span class="section-number">02</span>
+            <span class="section-title">Contacts</span>
+            <div class="section-dot"></div>
+        </div>
+
+        <div class="card cardWide">
+            <div class="toolbar contactToolbar">
+                <div class="toolbarGroup">
+                    <div class="pill">范围: {{ contactRangeText }}</div>
+                    <div class="pill">关键字: {{ contactKeyword.trim() ? '已过滤' : '全部' }}</div>
+                </div>
+                <div class="toolbarGroup toolbarRight">
+                    <input v-model="contactKeyword" class="input mono contactSearch" placeholder="搜索昵称/备注/ID" />
+                    <button type="button" class="btn" :disabled="contactsLoading" @click="loadContacts">刷新</button>
+                    <button type="button" class="btn" :disabled="contactsLoading || contactOffset === 0" @click="prevContactsPage">
+                        上一页
+                    </button>
+                    <button
+                        type="button"
+                        class="btn"
+                        :disabled="contactsLoading || contactOffset + contactLimit >= contactsTotal"
+                        @click="nextContactsPage"
+                    >
+                        下一页
+                    </button>
+                </div>
+            </div>
+
+            <div class="list">
+                <div v-if="contactsLoading" class="listItem contactItemEmpty">
+                    <div class="listMain">
+                        <div class="listTitle">正在加载联系人…</div>
+                        <div class="listMeta">请稍候</div>
+                    </div>
+                </div>
+                <div v-else-if="contacts.length === 0" class="listItem contactItemEmpty">
+                    <div class="listMain">
+                        <div class="listTitle">暂无联系人</div>
+                        <div class="listMeta">可尝试先解密数据或切换账号后刷新</div>
+                    </div>
+                </div>
+
+                <div v-else v-for="c in contacts" :key="c.userName" class="listItem contactItem">
+                    <div class="contactHeader">
+                        <div class="contactIdentity">
+                            <div class="contactAvatarWrap">
+                                <img v-if="getContactAvatar(c)" :src="getContactAvatar(c)" :alt="`${getContactName(c)} 头像`" class="contactAvatar" />
+                                <div v-else class="contactAvatar contactAvatarFallback">{{ getContactAvatarFallback(c) }}</div>
+                            </div>
+                            <div class="contactTitleWrap">
+                                <div class="listTitle contactTitle">{{ getContactName(c) }}</div>
+                                <div class="listMeta mono contactMeta">
+                                    {{ c.userName }}<span v-if="c.alias"> · {{ c.alias }}</span>
+                                </div>
+                            </div>
+                        </div>
+						<span :class="['status-badge-mini', c.isFriend ? 'ok' : 'bad']">{{ c.isFriend ? '好友' : '非好友' }}</span>
+					</div>
+				</div>
             </div>
         </div>
     </div>
@@ -278,6 +424,92 @@ function switchTo(pid: number) {
 
 .accountAction {
     min-width: 80px;
+}
+
+.contactToolbar {
+	margin-bottom: 16px;
+	background: transparent;
+	border: none;
+	padding: 0;
+}
+
+.toolbarRight {
+	justify-content: flex-end;
+}
+
+.contactSearch {
+	min-width: 220px;
+}
+
+.contactItem {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 10px;
+	padding: 16px;
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+
+.contactItemEmpty {
+	min-height: 100px;
+	justify-content: center;
+	text-align: center;
+}
+
+.contactHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.contactIdentity {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-width: 0;
+}
+
+.contactTitleWrap {
+	min-width: 0;
+}
+
+.contactAvatarWrap {
+	flex-shrink: 0;
+}
+
+.contactAvatar {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	object-fit: cover;
+	display: block;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	background: rgba(255, 255, 255, 0.04);
+}
+
+.contactAvatarFallback {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 13px;
+	font-weight: 700;
+	color: var(--text);
+	background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(59, 130, 246, 0.22));
+}
+
+.contactTitle {
+	font-size: 15px;
+	font-weight: 600;
+	min-width: 0;
+}
+
+.contactMeta {
+	font-size: 11px;
+	color: var(--muted);
+	word-break: break-all;
 }
 
 @media (max-width: 600px) {

@@ -27,6 +27,21 @@ export type Instance = {
 	status: string;
 };
 
+export type Contact = {
+	userName: string;
+	alias: string;
+	remark: string;
+	nickName: string;
+	isFriend: boolean;
+	smallHeadImgUrl: string;
+	bigHeadImgUrl: string;
+};
+
+export type ContactsResp = {
+	total: number;
+	items: Contact[];
+};
+
 export type WebhookItem = {
 	description: string;
 	type: string;
@@ -49,6 +64,7 @@ type Backend = {
 	ListInstances(): Promise<Instance[]>;
 	SwitchToPID(pid: number): Promise<State>;
 	SwitchToHistory(account: string): Promise<State>;
+	GetContacts(keyword: string, limit: number, offset: number): Promise<ContactsResp>;
 	GetDataKey(): Promise<string>;
 	GetImgKey(): Promise<string>;
 	GetKeys(): Promise<Record<string, string>>;
@@ -91,6 +107,7 @@ export const backend = {
 	ListInstances: () => window.go.main.App.ListInstances(),
 	SwitchToPID: (pid: number) => window.go.main.App.SwitchToPID(pid),
 	SwitchToHistory: (account: string) => window.go.main.App.SwitchToHistory(account),
+	GetContacts: (keyword: string, limit: number, offset: number) => window.go.main.App.GetContacts(keyword, limit, offset),
 	GetDataKey: () => window.go.main.App.GetDataKey(),
 	GetImgKey: () => window.go.main.App.GetImgKey(),
 	GetKeys: () => window.go.main.App.GetKeys(),
