@@ -9,7 +9,7 @@ export function EnableLogEvents(arg1:boolean):Promise<void>;
 
 export function EnableStateEvents(arg1:boolean):Promise<void>;
 
-export function GetContacts(arg1:string,arg2:number,arg3:number):Promise<wechatdb.GetContactsResp>;
+export function GetContacts(arg1:string,arg2:number,arg3:number,arg4:number):Promise<wechatdb.GetContactsResp>;
 
 export function GetDataKey():Promise<string>;
 
