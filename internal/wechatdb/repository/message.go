@@ -101,6 +101,7 @@ func (r *Repository) enrichMessage(msg *model.Message) {
 }
 
 func (r *Repository) parseTalkerAndSender(ctx context.Context, talker, sender string) (string, string) {
+	originalTalker, originalSender := talker, sender
 	displayName2User := make(map[string]string)
 	users := make(map[string]bool)
 
@@ -152,6 +153,18 @@ func (r *Repository) parseTalkerAndSender(ctx context.Context, talker, sender st
 		}
 		sender = strings.Join(senders, ",")
 	}
+
+	querySender := sender
+	if querySender == "" {
+		querySender = "(all)"
+	}
+	log.Debug().Msgf(
+		"🔎 message query: talker[%s => %s] sender[%s => %s]",
+		originalTalker,
+		talker,
+		originalSender,
+		querySender,
+	)
 
 	return talker, sender
 }
