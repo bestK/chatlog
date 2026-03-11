@@ -120,12 +120,19 @@ watch(
     </div>
 
     <Card class="flex min-h-0 flex-col border-border/60 bg-card/70 shadow-sm">
-      <CardHeader class="gap-3">
-        <CardTitle class="text-base">日志查看</CardTitle>
-        <CardDescription>支持刷新、复制与关键字过滤，默认读取最近 {{ maxLines }} 行。</CardDescription>
-      </CardHeader>
+      <CardHeader class="sticky top-4 z-20 gap-4 rounded-t-xl border-b border-border/40 bg-card/85 pb-4 backdrop-blur-md">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div class="space-y-1.5">
+            <CardTitle class="text-base">日志查看</CardTitle>
+            <CardDescription>支持刷新、复制与关键字过滤，默认读取最近 {{ maxLines }} 行。</CardDescription>
+          </div>
 
-      <CardContent class="flex min-h-0 flex-1 flex-col gap-5">
+          <div class="flex flex-wrap gap-2">
+            <Badge :variant="loading ? 'default' : 'secondary'">{{ loading ? 'Reading logs...' : `Lines: ${maxLines}` }}</Badge>
+            <Badge v-if="keyword.trim()" variant="outline">Filtering: {{ keyword.trim() }}</Badge>
+          </div>
+        </div>
+
         <div class="grid gap-4">
           <div class="grid gap-2">
             <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Log File Path</div>
@@ -146,12 +153,9 @@ watch(
             </div>
           </div>
         </div>
+      </CardHeader>
 
-        <div class="flex flex-wrap gap-2">
-          <Badge :variant="loading ? 'default' : 'secondary'">{{ loading ? 'Reading logs...' : `Lines: ${maxLines}` }}</Badge>
-          <Badge v-if="keyword.trim()" variant="outline">Filtering: {{ keyword.trim() }}</Badge>
-        </div>
-
+      <CardContent class="flex min-h-0 flex-1 flex-col p-5 pt-4">
         <div class="min-h-0 flex-1 overflow-hidden rounded-xl border border-border/60 bg-black/80 shadow-inner">
           <pre
             ref="logBox"
