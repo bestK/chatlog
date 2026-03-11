@@ -3,7 +3,9 @@ package wechat
 import (
 	"context"
 	"os"
+	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/wechat/decrypt"
 	"github.com/sjzar/chatlog/internal/wechat/key"
@@ -100,49 +102,106 @@ func (a *Account) GetDataKeyWithProgress(ctx context.Context, onProgress func(st
 }
 
 func (a *Account) getDataKey(ctx context.Context, onProgress func(string)) (string, error) {
+	startedAt := time.Now()
+	log.Info().
+		Str("account", a.Name).
+		Uint32("pid", a.PID).
+		Str("platform", a.Platform).
+		Msg("account get data key entered")
 	// 如果已经有密钥，直接返回
 	if a.Key != "" {
+		log.Info().
+			Str("account", a.Name).
+			Uint32("pid", a.PID).
+			Msg("account get data key hit cached key")
 		return a.Key, nil
 	}
 
 	// 刷新进程状态
 	if err := a.RefreshStatus(); err != nil {
+		log.Info().Err(err).Str("account", a.Name).Uint32("pid", a.PID).Msg("account refresh status failed before get data key")
 		return "", errors.RefreshProcessStatusFailed(err)
 	}
+	log.Info().
+		Str("account", a.Name).
+		Uint32("pid", a.PID).
+		Str("status", a.Status).
+		Str("data_dir", a.DataDir).
+		Dur("elapsed", time.Since(startedAt)).
+		Msg("account refresh status completed before get data key")
 
 	// 检查账号状态
 	if a.Status != model.StatusOnline {
+		log.Info().Str("account", a.Name).Uint32("pid", a.PID).Str("status", a.Status).Msg("account is not online for data key extraction")
 		return "", errors.WeChatAccountNotOnline(a.Name)
 	}
 
 	// 创建密钥提取器
 	extractor, err := key.NewExtractor(a.Platform)
 	if err != nil {
+		log.Info().Err(err).Str("account", a.Name).Uint32("pid", a.PID).Str("platform", a.Platform).Msg("create key extractor failed")
 		return "", err
 	}
+	log.Info().Str("account", a.Name).Uint32("pid", a.PID).Str("platform", a.Platform).Msg("key extractor created")
 
 	process, err := a.resolveProcess()
 	if err != nil {
+		log.Info().Err(err).Str("account", a.Name).Uint32("pid", a.PID).Msg("resolve process failed before data key extraction")
 		return "", err
 	}
-
-	validator, err := decrypt.NewValidator(process.Platform, process.DataDir)
-	if err != nil {
-		return "", err
-	}
+	log.Info().
+		Str("account", a.Name).
+		Uint32("pid", process.PID).
+		Str("process_data_dir", process.DataDir).
+		Dur("elapsed", time.Since(startedAt)).
+		Msg("resolve process completed before data key extraction")
 
 	extractor.SetProgress(onProgress)
-	extractor.SetValidate(validator)
+	if process.Platform != "windows" {
+		validator, err := decrypt.NewValidator(process.Platform, process.DataDir)
+		if err != nil {
+			log.Info().Err(err).Str("account", a.Name).Uint32("pid", process.PID).Str("process_data_dir", process.DataDir).Msg("create validator failed before data key extraction")
+			return "", err
+		}
+		log.Info().
+			Str("account", a.Name).
+			Uint32("pid", process.PID).
+			Dur("elapsed", time.Since(startedAt)).
+			Msg("validator created before data key extraction")
+		extractor.SetValidate(validator)
+	} else {
+		log.Info().
+			Str("account", a.Name).
+			Uint32("pid", process.PID).
+			Dur("elapsed", time.Since(startedAt)).
+			Msg("skip validator creation for windows data key extraction")
+	}
+	log.Info().
+		Str("account", a.Name).
+		Uint32("pid", process.PID).
+		Dur("elapsed", time.Since(startedAt)).
+		Msg("calling extractor extract data key")
 
 	// 提取数据库密钥
 	dataKey, err := extractor.ExtractDataKey(ctx, process)
 	if err != nil {
+		log.Info().
+			Err(err).
+			Str("account", a.Name).
+			Uint32("pid", process.PID).
+			Dur("elapsed", time.Since(startedAt)).
+			Msg("extract data key failed")
 		return "", err
 	}
 
 	if dataKey != "" {
 		a.Key = dataKey
 	}
+	log.Info().
+		Str("account", a.Name).
+		Uint32("pid", process.PID).
+		Dur("elapsed", time.Since(startedAt)).
+		Msg("account get data key finished")
 
 	return dataKey, nil
 }

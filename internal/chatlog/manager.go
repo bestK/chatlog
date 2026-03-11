@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -257,23 +258,41 @@ func (m *Manager) currentAccountOrErr() (*iwechat.Account, error) {
 }
 
 func (m *Manager) GetDataKeyWithProgress(onProgress func(string)) (string, error) {
+	startedAt := time.Now()
 	if err := m.stopAutoDecryptBeforeGetKey(onProgress); err != nil {
 		return "", err
 	}
 	current, err := m.currentAccountOrErr()
 	if err != nil {
+		log.Info().Err(err).Msg("get data key aborted before extraction")
 		return "", err
 	}
+	log.Info().
+		Str("account", current.Name).
+		Uint32("pid", current.PID).
+		Str("platform", current.Platform).
+		Msg("start getting data key for current account")
 	if onProgress != nil {
 		onProgress("正在读取当前账号的数据库密钥...")
 	}
 
 	dataKey, err := m.wechat.GetDataKeyWithProgress(current, onProgress)
 	if err != nil {
+		log.Info().
+			Err(err).
+			Str("account", current.Name).
+			Uint32("pid", current.PID).
+			Dur("elapsed", time.Since(startedAt)).
+			Msg("get data key failed")
 		return "", err
 	}
 	m.ctx.Refresh()
 	m.ctx.UpdateConfig()
+	log.Info().
+		Str("account", current.Name).
+		Uint32("pid", current.PID).
+		Dur("elapsed", time.Since(startedAt)).
+		Msg("get data key succeeded")
 
 	return dataKey, nil
 }
