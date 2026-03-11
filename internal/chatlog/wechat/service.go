@@ -75,6 +75,12 @@ func (s *Service) GetDataKeyWithProgress(info *wechat.Account, onProgress func(s
 	if info == nil {
 		return "", fmt.Errorf("no WeChat instance selected")
 	}
+	startedAt := time.Now()
+	log.Info().
+		Str("account", info.Name).
+		Uint32("pid", info.PID).
+		Str("platform", info.Platform).
+		Msg("service get data key started")
 
 	// 设置90秒超时（比底层的60秒多留余量）
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -82,8 +88,19 @@ func (s *Service) GetDataKeyWithProgress(info *wechat.Account, onProgress func(s
 
 	dataKey, err := info.GetDataKeyWithProgress(ctx, onProgress)
 	if err != nil {
+		log.Info().
+			Err(err).
+			Str("account", info.Name).
+			Uint32("pid", info.PID).
+			Dur("elapsed", time.Since(startedAt)).
+			Msg("service get data key failed")
 		return "", err
 	}
+	log.Info().
+		Str("account", info.Name).
+		Uint32("pid", info.PID).
+		Dur("elapsed", time.Since(startedAt)).
+		Msg("service get data key succeeded")
 
 	return dataKey, nil
 }
