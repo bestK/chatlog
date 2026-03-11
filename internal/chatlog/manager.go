@@ -249,37 +249,26 @@ func (m *Manager) GetDataKey() (string, error) {
 	return m.GetDataKeyWithProgress(nil)
 }
 
+func (m *Manager) currentAccountOrErr() (*iwechat.Account, error) {
+	if m == nil || m.ctx == nil || m.ctx.Current == nil {
+		return nil, fmt.Errorf("未选择任何账号，请先在[切换账号]菜单中选择一个运行中的微信进程")
+	}
+	return m.ctx.Current, nil
+}
+
 func (m *Manager) GetDataKeyWithProgress(onProgress func(string)) (string, error) {
 	if err := m.stopAutoDecryptBeforeGetKey(onProgress); err != nil {
 		return "", err
 	}
+	current, err := m.currentAccountOrErr()
+	if err != nil {
+		return "", err
+	}
 	if onProgress != nil {
-		onProgress("正在定位当前微信账号...")
+		onProgress("正在读取当前账号的数据库密钥...")
 	}
 
-	// 尝试自动关联当前账号的进程
-	if m.ctx.Current == nil {
-		instances := m.wechat.GetWeChatInstances()
-		// 1. 尝试通过账号名匹配
-		if m.ctx.Account != "" {
-			for _, instance := range instances {
-				if instance.Name == m.ctx.Account {
-					m.ctx.SwitchCurrent(instance)
-					break
-				}
-			}
-		}
-		// 2. 如果还是没选中，且只有一个实例，默认选中它
-		if m.ctx.Current == nil && len(instances) == 1 {
-			m.ctx.SwitchCurrent(instances[0])
-		}
-	}
-
-	if m.ctx.Current == nil {
-		return "", fmt.Errorf("未选择任何账号，请先在[切换账号]菜单中选择一个运行中的微信进程")
-	}
-
-	dataKey, err := m.wechat.GetDataKeyWithProgress(m.ctx.Current, onProgress)
+	dataKey, err := m.wechat.GetDataKeyWithProgress(current, onProgress)
 	if err != nil {
 		return "", err
 	}
@@ -297,30 +286,15 @@ func (m *Manager) GetKeysWithProgress(onProgress func(string)) (string, string, 
 	if err := m.stopAutoDecryptBeforeGetKey(onProgress); err != nil {
 		return "", "", err
 	}
+	current, err := m.currentAccountOrErr()
+	if err != nil {
+		return "", "", err
+	}
 	if onProgress != nil {
-		onProgress("正在定位当前微信账号...")
+		onProgress("正在读取当前账号的密钥信息...")
 	}
 
-	if m.ctx.Current == nil {
-		instances := m.wechat.GetWeChatInstances()
-		if m.ctx.Account != "" {
-			for _, instance := range instances {
-				if instance.Name == m.ctx.Account {
-					m.ctx.SwitchCurrent(instance)
-					break
-				}
-			}
-		}
-		if m.ctx.Current == nil && len(instances) == 1 {
-			m.ctx.SwitchCurrent(instances[0])
-		}
-	}
-
-	if m.ctx.Current == nil {
-		return "", "", fmt.Errorf("未选择任何账号，请先在[切换账号]菜单中选择一个运行中的微信进程")
-	}
-
-	dataKey, imgKey, err := m.wechat.GetKeysWithProgress(m.ctx.Current, onProgress)
+	dataKey, imgKey, err := m.wechat.GetKeysWithProgress(current, onProgress)
 	if err != nil {
 		return "", "", err
 	}
@@ -340,30 +314,12 @@ func (m *Manager) GetImgKey() (string, error) {
 	if err := m.stopAutoDecryptBeforeGetKey(nil); err != nil {
 		return "", err
 	}
-
-	// 尝试自动关联当前账号的进程
-	if m.ctx.Current == nil {
-		instances := m.wechat.GetWeChatInstances()
-		// 1. 尝试通过账号名匹配
-		if m.ctx.Account != "" {
-			for _, instance := range instances {
-				if instance.Name == m.ctx.Account {
-					m.ctx.SwitchCurrent(instance)
-					break
-				}
-			}
-		}
-		// 2. 如果还是没选中，且只有一个实例，默认选中它
-		if m.ctx.Current == nil && len(instances) == 1 {
-			m.ctx.SwitchCurrent(instances[0])
-		}
+	current, err := m.currentAccountOrErr()
+	if err != nil {
+		return "", err
 	}
 
-	if m.ctx.Current == nil {
-		return "", fmt.Errorf("未选择任何账号，请先在[切换账号]菜单中选择一个运行中的微信进程")
-	}
-
-	imgKey, err := m.wechat.GetImgKey(m.ctx.Current)
+	imgKey, err := m.wechat.GetImgKey(current)
 	if err != nil {
 		return "", err
 	}
