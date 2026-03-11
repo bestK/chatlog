@@ -1,320 +1,218 @@
 <script setup lang="ts">
-import { inject, onMounted, ref } from 'vue';
-import { chatlogKey } from '../composables/chatlogContext';
-import { backend, type WebhookConfig, type WebhookItem } from '../wailsbridge';
+import { inject, onMounted, ref } from 'vue'
+import { appContextKey } from '../app/context'
+import { backend, type WebhookConfig, type WebhookItem } from '../wailsbridge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
-const chat = inject(chatlogKey);
-if (!chat) throw new Error('chatlog not provided');
-const injected = chat;
+const injected = inject(appContextKey)
+if (!injected) throw new Error('chatlog not provided')
+const app = injected
 
-const toast = injected.toast;
-const run = injected.run;
-
-const cfg = ref<WebhookConfig>({ host: '', delayMs: 0, items: [] });
+const cfg = ref<WebhookConfig>({ host: '', delayMs: 0, items: [] })
 
 async function load() {
-    try {
-        cfg.value = await backend.GetWebhookConfig();
-        if (!cfg.value.items) cfg.value.items = [];
-    } catch (e) {
-        toast('读取失败', String(e));
-    }
+  try {
+    cfg.value = await backend.GetWebhookConfig()
+    if (!cfg.value.items) cfg.value.items = []
+  }
+  catch (e) {
+    app.feedback.toast('读取失败', String(e))
+  }
 }
 
 function addItem() {
-    cfg.value.items.push({
-        description: '',
-        type: 'message',
-        url: '',
-        talker: '',
-        sender: '',
-        keyword: '',
-        disabled: false,
-    });
+  cfg.value.items.push({
+    description: '',
+    type: 'message',
+    url: '',
+    talker: '',
+    sender: '',
+    keyword: '',
+    disabled: false,
+  })
 }
 
 async function removeItem(index: number) {
-    const ok = await injected.confirm({
-        title: '删除规则',
-        message: '确定删除该规则？此操作将从配置中移除，保存后生效。',
-        confirmText: '删除',
-        cancelText: '取消',
-        danger: true,
-    });
-    if (!ok) return;
-    cfg.value.items.splice(index, 1);
+  const ok = await app.feedback.confirm({
+    title: '删除规则',
+    message: '确定删除该规则？此操作将从配置中移除，保存后生效。',
+    confirmText: '删除',
+    cancelText: '取消',
+    danger: true,
+  })
+  if (!ok) return
+  cfg.value.items.splice(index, 1)
 }
 
 function normalizeItem(it: WebhookItem) {
-    it.type = 'message';
-    it.description = (it.description || '').trim();
-    it.url = (it.url || '').trim();
-    it.talker = (it.talker || '').trim();
-    it.sender = (it.sender || '').trim();
-    it.keyword = (it.keyword || '').trim();
+  it.type = 'message'
+  it.description = (it.description || '').trim()
+  it.url = (it.url || '').trim()
+  it.talker = (it.talker || '').trim()
+  it.sender = (it.sender || '').trim()
+  it.keyword = (it.keyword || '').trim()
 }
 
 function validateItems(items: WebhookItem[]) {
-    for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (!item.url) {
-            toast('校验失败', `第 ${i + 1} 条规则缺少 URL`);
-            return false;
-        }
-        if (!item.talker) {
-            toast('校验失败', `第 ${i + 1} 条规则缺少 Talker`);
-            return false;
-        }
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    if (!item.url) {
+      app.feedback.toast('校验失败', `第 ${i + 1} 条规则缺少 URL`)
+      return false
     }
-    return true;
+    if (!item.talker) {
+      app.feedback.toast('校验失败', `第 ${i + 1} 条规则缺少 Talker`)
+      return false
+    }
+  }
+  return true
 }
 
 async function save() {
-    const ok = await injected.confirm({
-        title: '保存 Webhook 配置',
-        message: '确认保存并立即应用当前配置？',
-        confirmText: '保存',
-        cancelText: '取消',
-    });
-    if (!ok) return;
-    const next: WebhookConfig = {
-        host: (cfg.value.host || '').trim(),
-        delayMs: Number(cfg.value.delayMs || 0),
-        items: cfg.value.items.map(x => ({ ...x })),
-    };
-    for (const it of next.items) normalizeItem(it);
-    if (!validateItems(next.items)) return;
-    await run(() => backend.SetWebhookConfig(next), '已保存 Webhook 配置');
+  const ok = await app.feedback.confirm({
+    title: '保存 Webhook 配置',
+    message: '确认保存并立即应用当前配置？',
+    confirmText: '保存',
+    cancelText: '取消',
+  })
+  if (!ok) return
+  const next: WebhookConfig = {
+    host: (cfg.value.host || '').trim(),
+    delayMs: Number(cfg.value.delayMs || 0),
+    items: cfg.value.items.map(x => ({ ...x })),
+  }
+  for (const it of next.items) normalizeItem(it)
+  if (!validateItems(next.items)) return
+  await app.run(() => backend.SetWebhookConfig(next), '已保存 Webhook 配置')
 }
 
 onMounted(() => {
-    void load();
-});
+  void load()
+})
 </script>
 
 <template>
-    <div class="webhook-container">
-        <div class="section-header">
-            <span class="section-number">01</span>
-            <span class="section-title">Configuration</span>
-            <div class="section-dot"></div>
-        </div>
+  <div class="space-y-8">
+    <section class="space-y-4">
+      <div class="border-b border-border/60 pb-3">
+        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">01 · Configuration</div>
+      </div>
 
-        <div class="card cardWide">
-            <div class="row config-row">
-                <div class="field">
-                    <div class="label">Resource Host</div>
-                    <input v-model="cfg.host" class="input mono" placeholder="localhost:5030" />
-                </div>
-                <div class="field delay-field">
-                    <div class="label">Delay (ms)</div>
-                    <input v-model.number="cfg.delayMs" class="input mono" type="number" min="0" step="100" />
-                </div>
-                <div class="config-actions">
-                    <button type="button" class="btn" @click="load">Refresh</button>
-                    <button type="button" class="btn btnBrand" @click="save">Save Changes</button>
-                </div>
+      <Card class="border-border/60 bg-card/70 shadow-sm">
+        <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-6">
+          <div class="space-y-1.5">
+            <CardTitle class="text-base">基础配置</CardTitle>
+            <CardDescription>设置资源 Host、推送延迟，并保存当前配置。</CardDescription>
+          </div>
+          <div class="flex items-center gap-2">
+            <Button variant="outline" size="sm" @click="load">Refresh</Button>
+            <Button size="sm" @click="save">Save Changes</Button>
+          </div>
+        </CardHeader>
+        <CardContent class="grid gap-6 md:grid-cols-2">
+          <div class="space-y-2">
+ Jefferson            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Resource Host</div>
+            <Input v-model="cfg.host" class="font-mono" placeholder="localhost:5030" />
+          </div>
+          <div class="space-y-2">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Delay (ms)</div>
+            <Input v-model.number="cfg.delayMs" type="number" min="0" step="100" class="font-mono" />
+          </div>
+        </CardContent>
+      </Card>
+    </section>
+
+    <section class="space-y-4">
+      <div class="border-b border-border/60 pb-3">
+        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">02 · Rules</div>
+      </div>
+
+      <Card class="border-border/60 bg-card/70 shadow-sm">
+        <CardHeader class="gap-4">
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div class="space-y-2">
+              <CardTitle class="text-base">规则列表</CardTitle>
+              <CardDescription>修改后需保存才会生效。</CardDescription>
             </div>
-        </div>
-
-        <div class="section-header">
-            <span class="section-number">02</span>
-            <span class="section-title">Rules</span>
-            <div class="section-dot"></div>
-        </div>
-
-        <div class="card cardWide grow flex-column">
-            <div class="toolbar">
-                <div class="toolbarGroup">
-                    <button type="button" class="btn" @click="addItem">Add Rule</button>
-                    <div class="pill">Rules: {{ cfg.items.length }}</div>
-                </div>
-                <div class="toolbarGroup">
-                    <div class="navHint">Changes take effect after saving</div>
-                </div>
+            <div class="flex items-center gap-2">
+              <Badge variant="outline">Rules: {{ cfg.items.length }}</Badge>
+              <Button variant="outline" @click="addItem">Add Rule</Button>
             </div>
+          </div>
+        </CardHeader>
 
-            <div class="rules-list scrollbar">
-                <div v-if="cfg.items.length === 0" class="empty-state">
-                    <div class="listMain">
-                        <div class="listTitle">No Rules Defined</div>
-                        <div class="listMeta">Add a rule and save to start pushing messages.</div>
-                    </div>
-                </div>
+        <CardContent class="space-y-4">
+          <div v-if="cfg.items.length === 0" class="rounded-xl border border-dashed border-border/60 bg-background/20 p-8 text-center">
+            <div class="text-sm font-medium text-foreground">No Rules Defined</div>
+            <div class="mt-2 text-sm text-muted-foreground">Add a rule and save to start pushing messages.</div>
+          </div>
 
-                <div v-for="(it, idx) in cfg.items" :key="idx" class="rule-item">
-                    <div class="rule-main">
-                        <div class="row" style="margin-top: 0">
-                            <div class="field">
-                                <div class="label">Description</div>
-                                <input
-                                    v-model="it.description"
-                                    class="input"
-                                    placeholder="e.g. Forward group messages to local service"
-                                />
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="field">
-                                <div class="label">URL</div>
-                                <input
-                                    v-model="it.url"
-                                    class="input mono"
-                                    placeholder="http://127.0.0.1:3000/api/v1/webhook"
-                                    required
-                                />
-                            </div>
-                        </div>
-                        <div class="row grid-row">
-                            <div class="field">
-                                <div class="label">Talker</div>
-                                <input
-                                    v-model="it.talker"
-                                    class="input mono"
-                                    placeholder="Group or User name"
-                                    required
-                                />
-                            </div>
-                            <div class="field">
-                                <div class="label">Sender</div>
-                                <input v-model="it.sender" class="input mono" placeholder="Sender (Optional)" />
-                            </div>
-                            <div class="field">
-                                <div class="label">Keyword</div>
-                                <input v-model="it.keyword" class="input mono" placeholder="Keyword (Optional)" />
-                            </div>
-                        </div>
-                        <div class="row rule-footer">
-                            <button
-                                type="button"
-                                :class="['btn', it.disabled ? 'btnOff' : 'btnBrand']"
-                                @click="it.disabled = !it.disabled"
-                            >
-                                {{ it.disabled ? 'Disabled' : 'Enabled' }}
-                            </button>
-                            <button type="button" class="btn" @click="removeItem(idx)">Delete Rule</button>
-                        </div>
-                    </div>
-                </div>
+          <Card
+            v-for="(it, idx) in cfg.items"
+            :key="idx"
+            class="overflow-hidden border-border/60 bg-background/30 shadow-none transition-all hover:bg-background/40"
+          >
+            <!-- 规则头部状态栏 -->
+            <div class="flex items-center justify-between border-b border-border/40 bg-muted/20 px-4 py-2">
+              <div class="flex items-center gap-3">
+                <Badge variant="outline" class="h-5 bg-background/50 font-mono text-[10px]">#{{ idx + 1 }}</Badge>
+                <span class="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Rule Details</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <!-- 强化后的状态开关 -->
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="h-7 gap-2 px-3 text-[10px] font-bold uppercase tracking-tight hover:bg-background"
+                  @click="it.disabled = !it.disabled"
+                >
+                  <div :class="['h-2 w-2 rounded-full transition-all', it.disabled ? 'bg-muted-foreground' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]']" />
+                  <span :class="it.disabled ? 'text-muted-foreground' : 'text-foreground'">
+                    {{ it.disabled ? 'Inactive' : 'Active' }}
+                  </span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="h-7 px-3 text-[10px] font-bold uppercase tracking-tight text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  @click="removeItem(idx)"
+                >
+                  Delete
+                </Button>
+              </div>
             </div>
-        </div>
-    </div>
+            <CardContent class="grid gap-6 p-6">
+              <div class="grid gap-4 md:grid-cols-2">
+                <div class="space-y-2">
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Description</div>
+                  <Input v-model="it.description" placeholder="e.g. Forward group messages to local service" />
+                </div>
+                <div class="space-y-2">
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">URL</div>
+                  <Input v-model="it.url" class="font-mono" placeholder="http://127.0.0.1:3000/api/v1/webhook" />
+                </div>
+              </div>
+              <div class="grid gap-4 md:grid-cols-3">
+                <div class="space-y-2">
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Talker</div>
+                  <Input v-model="it.talker" class="font-mono" placeholder="Group or User name" />
+                </div>
+                <div class="space-y-2">
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Sender</div>
+                  <Input v-model="it.sender" class="font-mono" placeholder="Sender (Optional)" />
+                </div>
+                <div class="space-y-2">
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Keyword</div>
+                  <Input v-model="it.keyword" class="font-mono" placeholder="Keyword (Optional)" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </CardContent>
+      </Card>
+    </section>
+  </div>
 </template>
-
-<style scoped>
-.webhook-container {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-}
-
-.section-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 24px;
-    margin-top: 24px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 12px;
-    position: relative;
-}
-
-.section-number {
-    font-size: 11px;
-    color: var(--muted);
-    margin-right: 12px;
-    font-weight: 700;
-}
-
-.section-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.section-dot {
-    width: 4px;
-    height: 4px;
-    background-color: var(--brand);
-    border-radius: 50%;
-    position: absolute;
-    bottom: -2.5px;
-    left: 0;
-}
-
-.flex-column {
-    display: flex;
-    flex-direction: column;
-}
-
-.config-row {
-    align-items: flex-end;
-}
-
-.delay-field {
-    max-width: 140px;
-}
-
-.config-actions {
-    display: flex;
-    gap: 12px;
-}
-
-.toolbar {
-    margin-bottom: 20px;
-    padding: 0;
-    background: transparent;
-    border: none;
-}
-
-.rules-list {
-    flex: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    padding-right: 8px;
-}
-
-.empty-state {
-    padding: 40px;
-    text-align: center;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px dashed var(--border);
-    border-radius: var(--radius);
-}
-
-.rule-item {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 24px;
-}
-
-.grid-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 16px;
-}
-
-.rule-footer {
-    margin-top: 24px;
-    justify-content: flex-start;
-    border-top: 1px solid var(--border);
-    padding-top: 20px;
-}
-
-@media (max-width: 800px) {
-    .grid-row {
-        grid-template-columns: 1fr;
-    }
-    .config-row {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .delay-field {
-        max-width: none;
-    }
-}
-</style>

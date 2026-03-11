@@ -68,6 +68,10 @@ func (s *Service) GetWeChatInstances() []*wechat.Account {
 }
 
 func (s *Service) GetDataKey(info *wechat.Account) (string, error) {
+	return s.GetDataKeyWithProgress(info, nil)
+}
+
+func (s *Service) GetDataKeyWithProgress(info *wechat.Account, onProgress func(string)) (string, error) {
 	if info == nil {
 		return "", fmt.Errorf("no WeChat instance selected")
 	}
@@ -76,7 +80,7 @@ func (s *Service) GetDataKey(info *wechat.Account) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
-	dataKey, err := info.GetDataKey(ctx)
+	dataKey, err := info.GetDataKeyWithProgress(ctx, onProgress)
 	if err != nil {
 		return "", err
 	}
@@ -85,6 +89,10 @@ func (s *Service) GetDataKey(info *wechat.Account) (string, error) {
 }
 
 func (s *Service) GetKeys(info *wechat.Account) (string, string, error) {
+	return s.GetKeysWithProgress(info, nil)
+}
+
+func (s *Service) GetKeysWithProgress(info *wechat.Account, onProgress func(string)) (string, string, error) {
 	if info == nil {
 		return "", "", fmt.Errorf("no WeChat instance selected")
 	}
@@ -92,7 +100,7 @@ func (s *Service) GetKeys(info *wechat.Account) (string, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
-	return info.GetKey(ctx)
+	return info.GetKeyWithProgress(ctx, onProgress)
 }
 
 // GetImgKey 仅获取图片密钥（不会重启微信）

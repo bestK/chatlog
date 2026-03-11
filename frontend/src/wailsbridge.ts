@@ -62,6 +62,11 @@ export type WebhookConfig = {
 	items: WebhookItem[];
 };
 
+export type KeyProgressEvent = {
+	operation: string;
+	message: string;
+};
+
 type Backend = {
 	GetState(): Promise<State>;
 	Refresh(): Promise<State>;

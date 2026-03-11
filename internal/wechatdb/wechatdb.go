@@ -2,6 +2,7 @@ package wechatdb
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 	"github.com/sjzar/chatlog/internal/wechatdb/datasource"
 	"github.com/sjzar/chatlog/internal/wechatdb/repository"
 )
+
+var ErrDBUnavailable = errors.New("wechatdb unavailable")
 
 type DB struct {
 	path     string
@@ -136,6 +139,10 @@ type GetSessionsResp struct {
 }
 
 func (w *DB) GetSessions(key string, limit, offset int) (*GetSessionsResp, error) {
+	if w == nil || w.repo == nil {
+		return nil, ErrDBUnavailable
+	}
+
 	ctx := context.Background()
 
 	// 使用 repository 获取会话列表
