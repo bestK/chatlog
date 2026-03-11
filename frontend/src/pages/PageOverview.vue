@@ -30,88 +30,130 @@ async function toggleHTTP() {
 </script>
 
 <template>
-  <div class="space-y-8">
-    <section class="space-y-4">
-      <div class="border-b border-border/60 pb-3">
-        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">01 · Key Information</div>
+  <div class="space-y-10">
+    <section class="space-y-6">
+      <div class="flex items-center gap-4 border-b border-border/40 pb-4">
+        <div class="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-[10px] font-bold text-primary">01</div>
+        <div class="text-xs font-bold uppercase tracking-[0.2em] text-foreground/70">核心信息 / KEY INFORMATION</div>
       </div>
 
-      <Card class="border-border/60 bg-card/70 shadow-sm">
-        <CardContent class="grid gap-4 pt-6 md:grid-cols-3">
-          <div class="space-y-2 rounded-xl border border-border/60 bg-background/30 p-4">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Data Key</div>
-            <div class="font-mono text-sm text-foreground">{{ maskKey(dataKey) || '-' }}</div>
+      <div class="grid gap-6 md:grid-cols-3">
+        <Card class="overflow-hidden border-border/40 bg-card/40 shadow-none">
+          <CardContent class="p-6">
+            <div class="flex flex-col gap-3">
+              <div class="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Data Key</div>
+              <div class="font-mono text-sm font-medium text-foreground">{{ maskKey(dataKey) || '未设置' }}</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card class="overflow-hidden border-border/40 bg-card/40 shadow-none">
+          <CardContent class="p-6">
+            <div class="flex flex-col gap-3">
+              <div class="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Img Key</div>
+              <div class="font-mono text-sm font-medium text-foreground">{{ maskKey(imgKey) || '未设置' }}</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card class="overflow-hidden border-border/40 bg-card/40 shadow-none">
+          <CardContent class="p-6">
+            <div class="flex flex-col gap-3">
+              <div class="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Process PID</div>
+              <div class="flex items-center gap-2">
+                <span class="text-lg font-bold tracking-tight text-foreground">{{ state?.pid || '-' }}</span>
+                <Badge v-if="state?.pid" variant="outline" class="h-5 bg-emerald-500/10 text-[9px] font-bold text-emerald-500 border-emerald-500/20">Running</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </section>
+
+    <section class="space-y-6">
+      <div class="flex items-center gap-4 border-b border-border/40 pb-4">
+        <div class="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-[10px] font-bold text-primary">02</div>
+        <div class="text-xs font-bold uppercase tracking-[0.2em] text-foreground/70">目录路径 / DIRECTORY PATHS</div>
+      </div>
+
+      <Card class="overflow-hidden border-border/40 bg-card/40 shadow-none">
+        <CardContent class="divide-y divide-border/40 p-0">
+          <div class="grid gap-4 p-6 lg:grid-cols-[200px_1fr]">
+            <div class="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 pt-1">Data Directory</div>
+            <div class="rounded-lg border border-border/40 bg-muted/20 px-3 py-2 font-mono text-[11px] text-foreground/70 break-all leading-relaxed">
+              {{ dataDir || '未配置' }}
+            </div>
           </div>
-          <div class="space-y-2 rounded-xl border border-border/60 bg-background/30 p-4">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Img Key</div>
-            <div class="font-mono text-sm text-foreground">{{ maskKey(imgKey) || '-' }}</div>
-          </div>
-          <div class="space-y-2 rounded-xl border border-border/60 bg-background/30 p-4">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Process PID</div>
-            <div class="text-sm font-medium text-foreground">{{ state?.pid || '-' }}</div>
+          <div class="grid gap-4 p-6 lg:grid-cols-[200px_1fr]">
+            <div class="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 pt-1">Work Directory</div>
+            <div class="rounded-lg border border-border/40 bg-muted/20 px-3 py-2 font-mono text-[11px] text-foreground/70 break-all leading-relaxed">
+              {{ workDir || '未配置' }}
+            </div>
           </div>
         </CardContent>
       </Card>
     </section>
 
-    <section class="space-y-4">
-      <div class="border-b border-border/60 pb-3">
-        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">02 · Directory Paths</div>
+    <section class="space-y-6">
+      <div class="flex items-center gap-4 border-b border-border/40 pb-4">
+        <div class="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-[10px] font-bold text-primary">03</div>
+        <div class="text-xs font-bold uppercase tracking-[0.2em] text-foreground/70">服务控制台 / SERVICE CONSOLE</div>
       </div>
 
-      <Card class="border-border/60 bg-card/70 shadow-sm">
-        <CardContent class="space-y-4 pt-6">
-          <div class="space-y-2">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Data Directory</div>
-            <div class="rounded-xl border border-border/60 bg-background/30 px-4 py-3 font-mono text-xs text-foreground break-all">
-              {{ dataDir || '-' }}
+      <Card class="overflow-hidden border-border/40 bg-card/40 shadow-none">
+        <CardHeader class="border-b border-border/40 bg-muted/5 pb-6">
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div class="space-y-1.5">
+              <CardTitle class="text-lg font-bold tracking-tight">服务管理</CardTitle>
+              <CardDescription class="text-xs">快速切换 HTTP 服务状态并查看当前可用接口地址。</CardDescription>
+            </div>
+            
+            <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2 rounded-full border border-border/40 bg-background/50 px-3 py-1.5">
+                <div :class="['size-2 rounded-full transition-all', state?.httpEnabled ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse' : 'bg-muted-foreground']" />
+                <span class="font-mono text-[10px] font-bold uppercase tracking-widest">
+                  {{ state?.httpEnabled ? 'Online' : 'Offline' }}
+                </span>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <Button variant="outline" size="sm" class="h-9 px-4 text-[10px] font-bold uppercase tracking-widest" @click="run(() => backend.Refresh(), '已刷新成功')">
+                  刷新同步
+                </Button>
+                <Button 
+                  :variant="state?.httpEnabled ? 'destructive' : 'default'" 
+                  class="h-9 px-5 text-[10px] font-bold uppercase tracking-widest shadow-md transition-all" 
+                  @click="toggleHTTP"
+                >
+                  {{ state?.httpEnabled ? '停止服务' : '启动服务' }}
+                </Button>
+              </div>
             </div>
           </div>
-          <div class="space-y-2">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Work Directory</div>
-            <div class="rounded-xl border border-border/60 bg-background/30 px-4 py-3 font-mono text-xs text-foreground break-all">
-              {{ workDir || '-' }}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </section>
-
-    <section class="space-y-4">
-      <div class="border-b border-border/60 pb-3">
-        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">03 · Quick Actions & Services</div>
-      </div>
-
-      <Card class="border-border/60 bg-card/70 shadow-sm">
-        <CardHeader class="gap-3">
-          <CardTitle class="text-base">服务控制</CardTitle>
-          <CardDescription>快速切换 HTTP 服务并查看当前接口地址。</CardDescription>
         </CardHeader>
-        <CardContent class="space-y-5">
-          <div class="flex flex-wrap gap-3">
-            <Button :variant="state?.httpEnabled ? 'destructive' : 'default'" @click="toggleHTTP">
-              {{ state?.httpEnabled ? 'Stop HTTP Service' : 'Start HTTP Service' }}
-            </Button>
-            <Button variant="outline" @click="run(() => backend.Refresh(), 'Refreshed')">
-              Refresh Status
-            </Button>
+        
+        <CardContent class="p-0">
+          <div v-if="state?.httpAddr" class="grid divide-x divide-border/40 md:grid-cols-2">
+            <div class="group relative flex flex-col gap-3 p-6 transition-colors hover:bg-muted/10">
+              <div class="flex items-center justify-between">
+                <div class="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">API Endpoint</div>
+                <Badge variant="outline" class="h-5 bg-background/50 font-mono text-[9px] uppercase">Session</Badge>
+              </div>
+              <div class="flex-1 rounded-lg border border-border/40 bg-muted/20 px-3 py-2 font-mono text-[11px] text-primary/80 break-all">
+                http://{{ state.httpAddr }}/api/v1/session
+              </div>
+            </div>
+            <div class="group relative flex flex-col gap-3 p-6 transition-colors hover:bg-muted/10">
+              <div class="flex items-center justify-between">
+                <div class="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">MCP Endpoint</div>
+                <Badge variant="outline" class="h-5 bg-background/50 font-mono text-[9px] uppercase">MCP</Badge>
+              </div>
+              <div class="flex-1 rounded-lg border border-border/40 bg-muted/20 px-3 py-2 font-mono text-[11px] text-primary/80 break-all">
+                http://{{ state.httpAddr }}/mcp
+              </div>
+            </div>
           </div>
-
-          <div v-if="state?.httpAddr" class="grid gap-4 md:grid-cols-2">
-            <div class="space-y-2 rounded-xl border border-border/60 bg-background/30 p-4">
-              <div class="flex items-center justify-between gap-2">
-                <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">API Endpoint</div>
-                <Badge variant="outline" class="rounded-md">Session</Badge>
-              </div>
-              <div class="font-mono text-xs text-primary break-all">http://{{ state.httpAddr }}/api/v1/session</div>
-            </div>
-            <div class="space-y-2 rounded-xl border border-border/60 bg-background/30 p-4">
-              <div class="flex items-center justify-between gap-2">
-                <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">MCP Endpoint</div>
-                <Badge variant="outline" class="rounded-md">MCP</Badge>
-              </div>
-              <div class="font-mono text-xs text-primary break-all">http://{{ state.httpAddr }}/mcp</div>
-            </div>
+          <div v-else class="flex flex-col items-center justify-center py-12 px-6 text-center opacity-40">
+            <div class="text-[11px] font-bold uppercase tracking-widest">HTTP 服务未运行</div>
+            <div class="mt-1 text-[10px]">启动服务后可在此处查看 API 端点地址</div>
           </div>
         </CardContent>
       </Card>
