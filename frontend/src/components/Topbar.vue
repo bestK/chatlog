@@ -35,7 +35,7 @@ defineEmits<{
     </div>
 
     <Button type="button" class="shrink-0" @click="$emit('refresh')">
-      Refresh Status
+      Refresh
     </Button>
   </header>
 </template>
