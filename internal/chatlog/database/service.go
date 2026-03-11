@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -257,7 +258,12 @@ func (s *Service) clearMessageObserver() {
 }
 
 func (s *Service) seedSessionLogState() {
-	resp, err := s.db.GetSessions("", 50, 0)
+	db := s.db
+	if db == nil {
+		return
+	}
+
+	resp, err := db.GetSessions("", 50, 0)
 	if err != nil {
 		return
 	}
@@ -277,8 +283,16 @@ func (s *Service) onMessageEvent(event fsnotify.Event) error {
 	if !(event.Op.Has(fsnotify.Create) || event.Op.Has(fsnotify.Write) || event.Op.Has(fsnotify.Rename)) {
 		return nil
 	}
-	resp, err := s.db.GetSessions("", 20, 0)
+	db := s.db
+	if db == nil {
+		return nil
+	}
+
+	resp, err := db.GetSessions("", 20, 0)
 	if err != nil {
+		if errors.Is(err, wechatdb.ErrDBUnavailable) {
+			return nil
+		}
 		return nil
 	}
 	s.sessionLogMu.Lock()

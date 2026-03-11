@@ -8,6 +8,7 @@ import (
 
 type V4Extractor struct {
 	validator *decrypt.Validator
+	progress  func(string)
 }
 
 func NewV4Extractor() *V4Extractor {
@@ -21,4 +22,8 @@ func (e *V4Extractor) SearchKey(ctx context.Context, memory []byte) (string, boo
 
 func (e *V4Extractor) SetValidate(validator *decrypt.Validator) {
 	e.validator = validator
+}
+
+func (e *V4Extractor) SetProgress(progress func(string)) {
+	e.progress = progress
 }

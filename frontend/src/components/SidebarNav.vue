@@ -1,292 +1,92 @@
 <script setup lang="ts">
-import type { Page } from '../composables/useChatlog';
-import type { State } from '../wailsbridge';
+import type { Page } from '../app/state'
+import type { State } from '../wailsbridge'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 
-const props = defineProps<{
-	nav: Array<{ name: Page; hint: string }>;
-	page: Page;
-	state: State | null;
-}>();
-const emit = defineEmits<{ (e: 'update:page', value: Page): void }>();
+defineProps<{
+  nav: Array<{ name: Page; hint: string }>
+  page: Page
+  state: State | null
+}>()
 
-function setPage(p: Page) {
-	emit('update:page', p);
+const emit = defineEmits<{
+  (e: 'update:page', value: Page): void
+}>()
+
+function setPage(page: Page) {
+  emit('update:page', page)
 }
 </script>
 
 <template>
-	<div class="sidebarContainer">
-		<header class="brand">
-			<div class="brandMark">
-				<div class="markInner" />
-			</div>
-			<div class="brandText">
-				<h1 class="brandTitle">Chatlog</h1>
-				<span class="brandSub">Wails Desktop</span>
-			</div>
-		</header>
+  <aside class="flex h-full flex-col border-r border-border/60 bg-sidebar/70 px-4 py-6 backdrop-blur xl:px-5">
+    <div class="mb-8 flex items-center gap-3 px-2">
+      <div class="flex size-10 items-center justify-center rounded-xl border border-border/60 bg-card/70 shadow-sm">
+        <div class="size-4 rounded-md bg-primary shadow-[0_0_24px_rgba(53,215,255,0.35)]" />
+      </div>
+      <div class="min-w-0">
+        <h1 class="truncate text-base font-semibold tracking-tight text-foreground">Chatlog</h1>
+        <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Wails Desktop</p>
+      </div>
+    </div>
 
-		<nav class="nav">
-			<div class="navGroup">
-				<button
-					v-for="n in props.nav"
-					:key="n.name"
-					type="button"
-					:class="['navItem', props.page === n.name ? 'navItemActive' : '']"
-					@click="setPage(n.name)"
-				>
-					<div class="navContent">
-						<span class="navText">{{ n.name }}</span>
-						<span class="navHint">{{ n.hint }}</span>
-					</div>
-					<div v-if="props.page === n.name" class="activeIndicator" />
-				</button>
-			</div>
-		</nav>
+    <nav class="flex-1 space-y-1">
+      <Button
+        v-for="item in nav"
+        :key="item.name"
+        type="button"
+        :variant="page === item.name ? 'secondary' : 'ghost'"
+        class="h-auto w-full justify-start rounded-xl px-3 py-3 text-left"
+        :class="page === item.name ? 'border border-border/60 bg-secondary/80 shadow-sm' : 'text-muted-foreground'"
+        @click="setPage(item.name)"
+      >
+        <div class="flex w-full items-center justify-between gap-3">
+          <div class="min-w-0 space-y-1">
+            <div class="truncate text-sm font-medium text-foreground">{{ item.name }}</div>
+            <div class="truncate text-xs text-muted-foreground">{{ item.hint }}</div>
+          </div>
+          <div
+            v-if="page === item.name"
+            class="h-6 w-1 rounded-full bg-primary shadow-[0_0_16px_rgba(53,215,255,0.35)]"
+          />
+        </div>
+      </Button>
+    </nav>
 
-		<footer v-if="props.state?.account" class="sidebarFooter">
-			<div class="userCard">
-				<div class="avatarWrapper">
-					<img
-						v-if="props.state.smallHeadImgUrl"
-						:src="props.state.smallHeadImgUrl"
-						class="userAvatar"
-						alt="Avatar"
-						referrerpolicy="no-referrer"
-					/>
-					<div v-else class="userAvatarPlaceholder">
-						{{ props.state.nickname?.slice(0, 1)?.toUpperCase() || props.state.account?.slice(0, 1)?.toUpperCase() || '?' }}
-					</div>
-					<div :class="['statusBadge', props.state.status === 'online' ? 'online' : 'offline']" />
-				</div>
-				<div class="userInfo">
-					<div class="userName">{{ props.state.nickname || props.state.account }}</div>
-					<div class="userStatusLabel">{{ props.state.status === 'online' ? 'Connected' : 'Disconnected' }}</div>
-				</div>
-			</div>
-		</footer>
-	</div>
+    <div v-if="state?.account" class="mt-6 rounded-2xl border border-border/60 bg-card/60 p-3 shadow-sm">
+      <div class="flex items-center gap-3">
+        <div class="relative shrink-0">
+          <img
+            v-if="state.smallHeadImgUrl"
+            :src="state.smallHeadImgUrl"
+            class="size-10 rounded-xl border border-border/60 object-cover"
+            alt="Avatar"
+            referrerpolicy="no-referrer"
+          >
+          <div
+            v-else
+            class="flex size-10 items-center justify-center rounded-xl border border-border/60 bg-muted/20 text-sm font-semibold text-foreground"
+          >
+            {{ state.nickname?.slice(0, 1)?.toUpperCase() || state.account?.slice(0, 1)?.toUpperCase() || '?' }}
+          </div>
+          <span
+            class="absolute -right-1 -bottom-1 size-3 rounded-full border-2 border-card"
+            :class="state.status === 'online' ? 'bg-emerald-400' : 'bg-zinc-500'"
+          />
+        </div>
+
+        <div class="min-w-0 flex-1">
+          <div class="truncate text-sm font-medium text-foreground">
+            {{ state.nickname || state.account }}
+          </div>
+          <div class="mt-1">
+            <Badge variant="outline" class="rounded-md text-[10px] uppercase tracking-[0.14em]">
+              {{ state.status === 'online' ? 'Connected' : 'Disconnected' }}
+            </Badge>
+          </div>
+        </div>
+      </div>
+    </div>
+  </aside>
 </template>
-
-<style scoped>
-.sidebarContainer {
-	display: flex;
-	flex-direction: column;
-	height: 100%;
-	padding: 40px 24px;
-	box-sizing: border-box;
-	background: var(--bg-sidebar);
-	border-right: 1px solid var(--border);
-	position: relative;
-}
-
-/* Brand Section */
-.brand {
-	display: flex;
-	align-items: center;
-	gap: 14px;
-	margin-bottom: 60px;
-}
-
-.brandMark {
-	width: 36px;
-	height: 36px;
-	border-radius: 10px;
-	background: var(--panel);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	border: 1px solid var(--border);
-}
-
-.markInner {
-	width: 14px;
-	height: 14px;
-	border-radius: 3px;
-	background: var(--brand);
-	box-shadow: 0 0 12px rgba(53, 215, 255, 0.4);
-}
-
-.brandText {
-	display: flex;
-	flex-direction: column;
-}
-
-.brandTitle {
-	font-size: 20px;
-	font-weight: 700;
-	color: var(--text);
-	letter-spacing: -0.02em;
-	line-height: 1;
-	margin: 0;
-}
-
-.brandSub {
-	font-size: 10px;
-	font-weight: 700;
-	color: var(--muted);
-	text-transform: uppercase;
-	letter-spacing: 0.1em;
-	margin-top: 4px;
-}
-
-/* Navigation */
-.nav {
-	flex: 1;
-}
-
-.navGroup {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-}
-
-.navItem {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: 12px 16px;
-	border-radius: 12px;
-	background: transparent;
-	border: 1px solid transparent;
-	cursor: pointer;
-	transition: all 0.2s ease;
-	width: 100%;
-	text-align: left;
-	position: relative;
-}
-
-.navItem:hover {
-	background: var(--panel);
-}
-
-.navItemActive {
-	background: var(--panel-2) !important;
-	border-color: var(--border);
-}
-
-.navContent {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-	z-index: 1;
-}
-
-.navText {
-	font-size: 14px;
-	font-weight: 600;
-	color: var(--muted);
-	transition: color 0.2s ease;
-}
-
-.navItem:hover .navText,
-.navItemActive .navText {
-	color: var(--text);
-}
-
-.navHint {
-	font-size: 10px;
-	color: var(--subtle);
-}
-
-.activeIndicator {
-	position: absolute;
-	left: 0;
-	top: 50%;
-	transform: translateY(-50%);
-	width: 3px;
-	height: 16px;
-	background: var(--brand);
-	border-radius: 0 2px 2px 0;
-	box-shadow: 0 0 12px var(--brand);
-}
-
-/* User Footer */
-.sidebarFooter {
-	margin-top: auto;
-	padding-top: 24px;
-}
-
-.userCard {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	padding: 12px;
-	border-radius: 16px;
-	background: rgba(255, 255, 255, 0.02);
-	border: 1px solid var(--border);
-	transition: all 0.2s ease;
-}
-
-.userCard:hover {
-	background: var(--panel);
-}
-
-.avatarWrapper {
-	position: relative;
-	flex-shrink: 0;
-}
-
-.userAvatar {
-	width: 36px;
-	height: 36px;
-	border-radius: 10px;
-	object-fit: cover;
-	background: var(--bg-sidebar);
-	border: 1px solid var(--border);
-}
-
-.userAvatarPlaceholder {
-	width: 36px;
-	height: 36px;
-	border-radius: 10px;
-	background: var(--panel);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 14px;
-	font-weight: 700;
-	color: var(--muted);
-	border: 1px solid var(--border);
-}
-
-.statusBadge {
-	position: absolute;
-	bottom: -2px;
-	right: -2px;
-	width: 10px;
-	height: 10px;
-	border-radius: 50%;
-	border: 2px solid var(--bg-sidebar);
-}
-
-.statusBadge.online {
-	background: var(--ok);
-	box-shadow: 0 0 8px var(--ok);
-}
-
-.statusBadge.offline {
-	background: var(--subtle);
-}
-
-.userInfo {
-	min-width: 0;
-	flex: 1;
-}
-
-.userName {
-	font-size: 13px;
-	font-weight: 700;
-	color: var(--text);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.userStatusLabel {
-	font-size: 10px;
-	font-weight: 600;
-	color: var(--muted);
-	margin-top: 1px;
-}
-</style>

@@ -1,222 +1,120 @@
 <script setup lang="ts">
-import { inject } from 'vue';
-import { chatlogKey } from '../composables/chatlogContext';
-import { maskKey } from '../composables/useChatlog';
-import { backend } from '../wailsbridge';
+import { inject } from 'vue'
+import { appContextKey } from '../app/context'
+import { maskKey } from '../app/state'
+import { backend } from '../wailsbridge'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 
-const injected = inject(chatlogKey);
-if (!injected) throw new Error('chatlog not provided');
-const chat = injected;
+const injected = inject(appContextKey)
+if (!injected) throw new Error('chatlog not provided')
+const app = injected
 
-const { dataKey, imgKey, dataDir, workDir, state, run } = chat;
+const { dataKey, imgKey, dataDir, workDir, state, run } = app
 
 async function toggleHTTP() {
-    if (state.value?.httpEnabled) {
-        const ok = await chat.confirm({
-            title: '停止 HTTP 服务',
-            message: '确认停止 HTTP 服务？停止后 API 与 MCP 接口将不可访问。',
-            confirmText: '停止',
-            cancelText: '取消',
-            danger: true,
-        });
-        if (!ok) return;
-        return run(() => backend.StopHTTP(), '已停止 HTTP 服务');
-    }
-    return run(() => backend.StartHTTP(), '已启动 HTTP 服务');
+  if (state.value?.httpEnabled) {
+    const ok = await app.feedback.confirm({
+      title: '停止 HTTP 服务',
+      message: '确认停止 HTTP 服务？停止后 API 与 MCP 接口将不可访问。',
+      confirmText: '停止',
+      cancelText: '取消',
+      danger: true,
+    })
+    if (!ok) return
+    return run(() => backend.StopHTTP(), '已停止 HTTP 服务')
+  }
+  return run(() => backend.StartHTTP(), '已启动 HTTP 服务')
 }
 </script>
 
 <template>
-    <div class="overview-container">
-        <div class="section-header">
-            <span class="section-number">01</span>
-            <span class="section-title">Key Information</span>
-            <div class="section-dot"></div>
-        </div>
+  <div class="space-y-8">
+    <section class="space-y-4">
+      <div class="border-b border-border/60 pb-3">
+        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">01 · Key Information</div>
+      </div>
 
-        <div class="card overview-section">
-            <div class="stats-grid">
-                <div class="stat-item">
-                    <span class="stat-label">Data Key</span>
-                    <span class="stat-value mono">{{ maskKey(dataKey) }}</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Img Key</span>
-                    <span class="stat-value mono">{{ maskKey(imgKey) }}</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Process PID</span>
-                    <span class="stat-value">{{ state?.pid || '-' }}</span>
-                </div>
+      <Card class="border-border/60 bg-card/70 shadow-sm">
+        <CardContent class="grid gap-4 pt-6 md:grid-cols-3">
+          <div class="space-y-2 rounded-xl border border-border/60 bg-background/30 p-4">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Data Key</div>
+            <div class="font-mono text-sm text-foreground">{{ maskKey(dataKey) || '-' }}</div>
+          </div>
+          <div class="space-y-2 rounded-xl border border-border/60 bg-background/30 p-4">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Img Key</div>
+            <div class="font-mono text-sm text-foreground">{{ maskKey(imgKey) || '-' }}</div>
+          </div>
+          <div class="space-y-2 rounded-xl border border-border/60 bg-background/30 p-4">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Process PID</div>
+            <div class="text-sm font-medium text-foreground">{{ state?.pid || '-' }}</div>
+          </div>
+        </CardContent>
+      </Card>
+    </section>
+
+    <section class="space-y-4">
+      <div class="border-b border-border/60 pb-3">
+        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">02 · Directory Paths</div>
+      </div>
+
+      <Card class="border-border/60 bg-card/70 shadow-sm">
+        <CardContent class="space-y-4 pt-6">
+          <div class="space-y-2">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Data Directory</div>
+            <div class="rounded-xl border border-border/60 bg-background/30 px-4 py-3 font-mono text-xs text-foreground break-all">
+              {{ dataDir || '-' }}
             </div>
-        </div>
-
-        <div class="section-header">
-            <span class="section-number">02</span>
-            <span class="section-title">Directory Paths</span>
-            <div class="section-dot"></div>
-        </div>
-
-        <div class="card overview-section">
-            <div class="path-info">
-                <div class="path-item">
-                    <span class="stat-label">Data Directory</span>
-                    <div class="path-value">{{ dataDir || '-' }}</div>
-                </div>
-                <div class="path-item" style="margin-top: 24px">
-                    <span class="stat-label">Work Directory</span>
-                    <div class="path-value">{{ workDir || '-' }}</div>
-                </div>
+          </div>
+          <div class="space-y-2">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Work Directory</div>
+            <div class="rounded-xl border border-border/60 bg-background/30 px-4 py-3 font-mono text-xs text-foreground break-all">
+              {{ workDir || '-' }}
             </div>
-        </div>
+          </div>
+        </CardContent>
+      </Card>
+    </section>
 
-        <div class="section-header">
-            <span class="section-number">03</span>
-            <span class="section-title">Quick Actions & Services</span>
-            <div class="section-dot"></div>
-        </div>
+    <section class="space-y-4">
+      <div class="border-b border-border/60 pb-3">
+        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">03 · Quick Actions & Services</div>
+      </div>
 
-        <div class="card">
-            <div class="actions-row">
-                <button
-                    type="button"
-                    :class="['btn', state?.httpEnabled ? 'btnDanger' : 'btnBrand']"
-                    @click="toggleHTTP"
-                >
-                    {{ state?.httpEnabled ? 'Stop HTTP Service' : 'Start HTTP Service' }}
-                </button>
-                <button type="button" class="btn" @click="run(() => backend.Refresh(), 'Refreshed')">
-                    Refresh Status
-                </button>
+      <Card class="border-border/60 bg-card/70 shadow-sm">
+        <CardHeader class="gap-3">
+          <CardTitle class="text-base">服务控制</CardTitle>
+          <CardDescription>快速切换 HTTP 服务并查看当前接口地址。</CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-5">
+          <div class="flex flex-wrap gap-3">
+            <Button :variant="state?.httpEnabled ? 'destructive' : 'default'" @click="toggleHTTP">
+              {{ state?.httpEnabled ? 'Stop HTTP Service' : 'Start HTTP Service' }}
+            </Button>
+            <Button variant="outline" @click="run(() => backend.Refresh(), 'Refreshed')">
+              Refresh Status
+            </Button>
+          </div>
+
+          <div v-if="state?.httpAddr" class="grid gap-4 md:grid-cols-2">
+            <div class="space-y-2 rounded-xl border border-border/60 bg-background/30 p-4">
+              <div class="flex items-center justify-between gap-2">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">API Endpoint</div>
+                <Badge variant="outline" class="rounded-md">Session</Badge>
+              </div>
+              <div class="font-mono text-xs text-primary break-all">http://{{ state.httpAddr }}/api/v1/session</div>
             </div>
-            <div v-if="state?.httpAddr" class="api-links">
-                <div class="api-item">
-                    <span class="stat-label">API Endpoint</span>
-                    <div class="path-value link-style">http://{{ state.httpAddr }}/api/v1/session</div>
-                </div>
-                <div class="api-item">
-                    <span class="stat-label">MCP Endpoint</span>
-                    <div class="path-value link-style">http://{{ state.httpAddr }}/mcp</div>
-                </div>
+            <div class="space-y-2 rounded-xl border border-border/60 bg-background/30 p-4">
+              <div class="flex items-center justify-between gap-2">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">MCP Endpoint</div>
+                <Badge variant="outline" class="rounded-md">MCP</Badge>
+              </div>
+              <div class="font-mono text-xs text-primary break-all">http://{{ state.httpAddr }}/mcp</div>
             </div>
-        </div>
-    </div>
+          </div>
+        </CardContent>
+      </Card>
+    </section>
+  </div>
 </template>
-
-<style scoped>
-.overview-container {
-    display: flex;
-    flex-direction: column;
-}
-
-.overview-section {
-    margin-bottom: 40px;
-}
-
-.section-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 24px;
-    margin-top: 24px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 12px;
-    position: relative;
-}
-
-.section-number {
-    font-size: 11px;
-    color: var(--muted);
-    margin-right: 12px;
-    font-weight: 700;
-}
-
-.section-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.section-dot {
-    width: 4px;
-    height: 4px;
-    background-color: var(--brand);
-    border-radius: 50%;
-    position: absolute;
-    bottom: -2.5px;
-    left: 0;
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-}
-
-.stat-item {
-    padding: 0 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    border-right: 1px solid var(--border);
-}
-
-.stat-item:first-child {
-    padding-left: 0;
-}
-
-.stat-item:last-child {
-    border-right: none;
-}
-
-.stat-label {
-    font-size: 10px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-weight: 700;
-}
-
-.stat-value {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text);
-}
-
-.stat-value.mono {
-    font-family: ui-monospace, SFMono-Regular, monospace;
-    font-size: 15px;
-    letter-spacing: 0.02em;
-}
-
-.path-value {
-    font-family: ui-monospace, SFMono-Regular, monospace;
-    font-size: 12px;
-    color: var(--text);
-    margin-top: 8px;
-    word-break: break-all;
-    padding: 10px 14px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-}
-
-.link-style {
-    color: var(--brand);
-    border-color: rgba(53, 215, 255, 0.2);
-}
-
-.actions-row {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 24px;
-}
-
-.api-links {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-    padding-top: 24px;
-    border-top: 1px solid var(--border);
-}
-</style>

@@ -39,6 +39,7 @@ var V4ImgKeyPatterns = []KeyPatternInfo{
 
 type V4Extractor struct {
 	validator         *decrypt.Validator
+	progress          func(string)
 	dataKeyPatterns   []KeyPatternInfo
 	imgKeyPatterns    []KeyPatternInfo
 	processedDataKeys sync.Map // Thread-safe map for processed data keys
@@ -50,6 +51,10 @@ func NewV4Extractor() *V4Extractor {
 		dataKeyPatterns: V4KeyPatterns,
 		imgKeyPatterns:  V4ImgKeyPatterns,
 	}
+}
+
+func (e *V4Extractor) SetProgress(progress func(string)) {
+	e.progress = progress
 }
 
 func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string, string, error) {

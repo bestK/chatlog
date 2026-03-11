@@ -98,6 +98,11 @@ type WebhookConfig struct {
 	Items   []WebhookItem `json:"items"`
 }
 
+type KeyProgressEvent struct {
+	Operation string `json:"operation"`
+	Message   string `json:"message"`
+}
+
 func newApp() *App {
 	return &App{mgr: chatlog.New(), closed: make(chan struct{})}
 }
@@ -287,6 +292,20 @@ func (a *App) emitState() error {
 	return nil
 }
 
+func (a *App) emitKeyProgress(operation string, message string) {
+	if a.ctx == nil {
+		return
+	}
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return
+	}
+	runtime.EventsEmit(a.ctx, "key:progress", KeyProgressEvent{
+		Operation: operation,
+		Message:   message,
+	})
+}
+
 func (a *App) EnableStateEvents(enabled bool) {
 	a.stateEvents = enabled
 	if enabled {
@@ -459,7 +478,9 @@ func (a *App) SwitchToHistory(account string) (State, error) {
 }
 
 func (a *App) GetDataKey() (string, error) {
-	key, err := a.mgr.GetDataKey()
+	key, err := a.mgr.GetDataKeyWithProgress(func(message string) {
+		a.emitKeyProgress("dataKey", message)
+	})
 	if err != nil {
 		return "", err
 	}
@@ -477,7 +498,9 @@ func (a *App) GetImgKey() (string, error) {
 }
 
 func (a *App) GetKeys() (map[string]string, error) {
-	dataKey, imgKey, err := a.mgr.GetKeys()
+	dataKey, imgKey, err := a.mgr.GetKeysWithProgress(func(message string) {
+		a.emitKeyProgress("dataKey", message)
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,10 @@
+- Windows 微信数据库密钥提取流程位于 `internal/wechat/key/windows`。
+- 当前前端实时进度采用 Wails 事件 `key:progress`，事件体包含 `operation` 与 `message`。
+- 进度回调链路: `gui.App -> Manager.GetDataKeyWithProgress/GetKeysWithProgress -> wechat.Service -> wechat.Account -> key.Extractor.SetProgress -> windows.V4Extractor -> GetDbKeyFull`。
+- 设置页 `frontend/src/pages/PageSettings.vue` 在数据库密钥加载弹窗期间订阅 `key:progress`，实时替换 loading message。数据库密钥加载默认文案应反映真实流程：自动重启微信、准备注入 Hook，而不是要求用户先保持微信运行登录。
+- 失败时仍保留错误文本里的过程信息作为兜底。
+- Hook 安装完成后必须确认目标 PID 仍然存活；若微信在安装后或等待密钥期间退出，应立即失败并返回明确错误，不能继续显示等待登录。
+- 自动重启微信前的残留进程清理需要一并处理 `crashpad_handler.exe` 和 `WeChatAppEx.exe`。
+- 清理微信进程时，优先使用 `taskkill /F /IM Weixin.exe /T` 或 `taskkill /F /IM WeChat.exe /T` 杀掉整棵进程树，再用逐 PID 终止兜底。
+- 自动重启前应显式执行“结束当前进程 -> 清理残留 -> 确认所有相关进程完全退出 -> 再启动微信”的独立步骤。
+- 当前实现中，启动前清理不再依赖“是否检测到进程”的前置判断，而是每次都直接执行。

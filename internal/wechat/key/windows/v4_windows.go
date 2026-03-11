@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 
@@ -64,8 +65,16 @@ func (e *V4Extractor) ExtractDataKey(ctx context.Context, proc *model.Process) (
 	})
 
 	go func() {
+		progressMessages := make([]string, 0, 24)
+
 		// 获取数据库密钥 - 使用完整流程（自动重启微信）
 		dbKeyResult := GetDbKeyFull(getDllPath(), 60, func(msg string) {
+			if msg != "" {
+				progressMessages = append(progressMessages, msg)
+			}
+			if e.progress != nil {
+				e.progress(msg)
+			}
 			log.Debug().Msg(msg)
 		})
 
@@ -75,10 +84,22 @@ func (e *V4Extractor) ExtractDataKey(ctx context.Context, proc *model.Process) (
 				err     error
 			}{dbKeyResult.Key, nil}
 		} else {
+			errorMessage := strings.TrimSpace(dbKeyResult.Error)
+			progressMessage := strings.TrimSpace(dbKeyResult.Message)
+			if progressMessage == "" && len(progressMessages) > 0 {
+				progressMessage = strings.Join(progressMessages, "\n")
+			}
+			if progressMessage != "" {
+				if errorMessage != "" {
+					errorMessage = fmt.Sprintf("%s\n\n过程信息：\n%s", errorMessage, progressMessage)
+				} else {
+					errorMessage = progressMessage
+				}
+			}
 			resultChan <- struct {
 				dataKey string
 				err     error
-			}{"", fmt.Errorf("%s", dbKeyResult.Error)}
+			}{"", fmt.Errorf("%s", errorMessage)}
 		}
 	}()
 

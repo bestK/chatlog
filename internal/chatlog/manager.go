@@ -246,6 +246,17 @@ func (m *Manager) SetHTTPAddr(text string) error {
 }
 
 func (m *Manager) GetDataKey() (string, error) {
+	return m.GetDataKeyWithProgress(nil)
+}
+
+func (m *Manager) GetDataKeyWithProgress(onProgress func(string)) (string, error) {
+	if err := m.stopAutoDecryptBeforeGetKey(onProgress); err != nil {
+		return "", err
+	}
+	if onProgress != nil {
+		onProgress("正在定位当前微信账号...")
+	}
+
 	// 尝试自动关联当前账号的进程
 	if m.ctx.Current == nil {
 		instances := m.wechat.GetWeChatInstances()
@@ -268,7 +279,7 @@ func (m *Manager) GetDataKey() (string, error) {
 		return "", fmt.Errorf("未选择任何账号，请先在[切换账号]菜单中选择一个运行中的微信进程")
 	}
 
-	dataKey, err := m.wechat.GetDataKey(m.ctx.Current)
+	dataKey, err := m.wechat.GetDataKeyWithProgress(m.ctx.Current, onProgress)
 	if err != nil {
 		return "", err
 	}
@@ -279,6 +290,17 @@ func (m *Manager) GetDataKey() (string, error) {
 }
 
 func (m *Manager) GetKeys() (string, string, error) {
+	return m.GetKeysWithProgress(nil)
+}
+
+func (m *Manager) GetKeysWithProgress(onProgress func(string)) (string, string, error) {
+	if err := m.stopAutoDecryptBeforeGetKey(onProgress); err != nil {
+		return "", "", err
+	}
+	if onProgress != nil {
+		onProgress("正在定位当前微信账号...")
+	}
+
 	if m.ctx.Current == nil {
 		instances := m.wechat.GetWeChatInstances()
 		if m.ctx.Account != "" {
@@ -298,7 +320,7 @@ func (m *Manager) GetKeys() (string, string, error) {
 		return "", "", fmt.Errorf("未选择任何账号，请先在[切换账号]菜单中选择一个运行中的微信进程")
 	}
 
-	dataKey, imgKey, err := m.wechat.GetKeys(m.ctx.Current)
+	dataKey, imgKey, err := m.wechat.GetKeysWithProgress(m.ctx.Current, onProgress)
 	if err != nil {
 		return "", "", err
 	}
@@ -315,6 +337,10 @@ func (m *Manager) GetKeys() (string, string, error) {
 
 // GetImgKey 仅获取图片密钥（不会重启微信）
 func (m *Manager) GetImgKey() (string, error) {
+	if err := m.stopAutoDecryptBeforeGetKey(nil); err != nil {
+		return "", err
+	}
+
 	// 尝试自动关联当前账号的进程
 	if m.ctx.Current == nil {
 		instances := m.wechat.GetWeChatInstances()
@@ -351,6 +377,18 @@ func (m *Manager) GetImgKey() (string, error) {
 	}
 
 	return imgKey, nil
+}
+
+func (m *Manager) stopAutoDecryptBeforeGetKey(onProgress func(string)) error {
+	if m == nil || m.ctx == nil || !m.ctx.AutoDecrypt {
+		return nil
+	}
+
+	if onProgress != nil {
+		onProgress("正在停止自动解密...")
+	}
+	log.Info().Msg("获取 key 前先停止自动解密")
+	return m.StopAutoDecrypt()
 }
 
 func (m *Manager) DecryptDBFiles() error {

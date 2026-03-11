@@ -92,6 +92,14 @@ func (a *Account) RefreshStatus() error {
 
 // GetDataKey 获取数据库密钥
 func (a *Account) GetDataKey(ctx context.Context) (string, error) {
+	return a.getDataKey(ctx, nil)
+}
+
+func (a *Account) GetDataKeyWithProgress(ctx context.Context, onProgress func(string)) (string, error) {
+	return a.getDataKey(ctx, onProgress)
+}
+
+func (a *Account) getDataKey(ctx context.Context, onProgress func(string)) (string, error) {
 	// 如果已经有密钥，直接返回
 	if a.Key != "" {
 		return a.Key, nil
@@ -123,6 +131,7 @@ func (a *Account) GetDataKey(ctx context.Context) (string, error) {
 		return "", err
 	}
 
+	extractor.SetProgress(onProgress)
 	extractor.SetValidate(validator)
 
 	// 提取数据库密钥
@@ -177,6 +186,20 @@ func (a *Account) GetImgKey(ctx context.Context) (string, error) {
 // GetKey 获取账号的密钥（兼容旧接口）
 func (a *Account) GetKey(ctx context.Context) (string, string, error) {
 	dataKey, err := a.GetDataKey(ctx)
+	if err != nil {
+		return "", "", err
+	}
+
+	imgKey, err := a.GetImgKey(ctx)
+	if err != nil {
+		return dataKey, "", err
+	}
+
+	return dataKey, imgKey, nil
+}
+
+func (a *Account) GetKeyWithProgress(ctx context.Context, onProgress func(string)) (string, string, error) {
+	dataKey, err := a.GetDataKeyWithProgress(ctx, onProgress)
 	if err != nil {
 		return "", "", err
 	}

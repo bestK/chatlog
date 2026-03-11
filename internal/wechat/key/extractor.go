@@ -26,6 +26,7 @@ type Extractor interface {
 	SearchKey(ctx context.Context, memory []byte) (string, bool)
 
 	SetValidate(validator *decrypt.Validator)
+	SetProgress(progress func(string))
 }
 
 // NewExtractor 创建适合当前平台的密钥提取器
