@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	// DLL 文件名
-	DllName = "wx_key.dll"
+	DllName               = "wx_key.dll"
+	DataKeyTimeoutSeconds = 20
 )
 
 // getDllPath 返回 wx_key.dll 的绝对路径（基于 exe 所在目录）
@@ -58,6 +58,11 @@ func (e *V4Extractor) ExtractDataKey(ctx context.Context, proc *model.Process) (
 	if proc.Status == model.StatusOffline {
 		return "", errors.ErrWeChatOffline
 	}
+	log.Info().
+		Uint32("pid", proc.PID).
+		Str("account", proc.AccountName).
+		Int("timeout_seconds", DataKeyTimeoutSeconds).
+		Msg("windows data key extraction started")
 
 	resultChan := make(chan struct {
 		dataKey string
@@ -67,18 +72,23 @@ func (e *V4Extractor) ExtractDataKey(ctx context.Context, proc *model.Process) (
 	go func() {
 		progressMessages := make([]string, 0, 24)
 
-		// 获取数据库密钥 - 使用完整流程（自动重启微信）
-		dbKeyResult := GetDbKeyFull(getDllPath(), 60, func(msg string) {
+		dbKeyResult := GetDbKeyFull(getDllPath(), DataKeyTimeoutSeconds, func(msg string) {
 			if msg != "" {
 				progressMessages = append(progressMessages, msg)
 			}
 			if e.progress != nil {
 				e.progress(msg)
 			}
-			log.Debug().Msg(msg)
+			log.Info().
+				Uint32("pid", proc.PID).
+				Str("progress", msg).
+				Msg("windows data key extraction progress")
 		})
 
 		if dbKeyResult.Success {
+			log.Info().
+				Uint32("pid", proc.PID).
+				Msg("windows data key extraction succeeded")
 			resultChan <- struct {
 				dataKey string
 				err     error
@@ -96,6 +106,10 @@ func (e *V4Extractor) ExtractDataKey(ctx context.Context, proc *model.Process) (
 					errorMessage = progressMessage
 				}
 			}
+			log.Info().
+				Uint32("pid", proc.PID).
+				Str("error", errorMessage).
+				Msg("windows data key extraction failed")
 			resultChan <- struct {
 				dataKey string
 				err     error
@@ -105,6 +119,10 @@ func (e *V4Extractor) ExtractDataKey(ctx context.Context, proc *model.Process) (
 
 	select {
 	case <-ctx.Done():
+		log.Info().
+			Uint32("pid", proc.PID).
+			Err(ctx.Err()).
+			Msg("windows data key extraction canceled or timed out")
 		return "", ctx.Err()
 	case res := <-resultChan:
 		return res.dataKey, res.err
