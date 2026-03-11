@@ -97,7 +97,7 @@ onMounted(() => {
 <template>
   <div class="space-y-8">
     <!-- 页面头部操作栏 -->
-    <header class="sticky top-4 z-20 flex flex-col gap-4 rounded-xl border border-border/40 bg-card/75 px-5 py-4 shadow-sm backdrop-blur-md md:flex-row md:items-center md:justify-between">
+    <header class="sticky -top-px z-30 flex flex-col gap-4 rounded-xl border border-border/40 bg-card/95 px-5 py-4 shadow-sm backdrop-blur-md md:flex-row md:items-center md:justify-between">
       <div class="space-y-1">
         <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Page Actions</div>
         <p class="text-sm text-muted-foreground">基础配置和转发规则共用同一份配置，修改后需统一保存生效。</p>

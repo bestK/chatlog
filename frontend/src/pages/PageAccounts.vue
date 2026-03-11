@@ -237,10 +237,10 @@ watch(contactLimit, () => {
       </div>
 
       <Card class="border-border/40 bg-card/40 shadow-none">
-        <CardHeader class="sticky -top-px z-30 border-b border-border/40 bg-card/80 p-0 backdrop-blur-md rounded-t-xl">
+        <CardHeader class="sticky -top-px z-30 border-b border-border/40 bg-card/80 p-0 backdrop-blur-md">
           <div class="divide-y divide-border/40 ">
             <!-- 标题与摘要状态 -->
-            <div class="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between rounded-t-xl">
+            <div class="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
               <div class="space-y-1">
                 <CardTitle class="text-lg font-bold tracking-tight">联系人筛选</CardTitle>
                 <CardDescription class="text-xs">检索当前账号下的联系人、群聊及公众号数据</CardDescription>
