@@ -98,15 +98,16 @@ function scrollToBottom(el: HTMLElement) {
 watch(
   () => filtered.value,
   async () => {
-    await nextTick()
     const el = logBox.value
     if (!el) return
+    const shouldScroll = firstScroll || isNearBottom(el)
+    await nextTick()
     if (firstScroll) {
       firstScroll = false
       scrollToBottom(el)
       return
     }
-    if (isNearBottom(el)) {
+    if (shouldScroll) {
       scrollToBottom(el)
     }
   },
@@ -120,7 +121,7 @@ watch(
     </div>
 
     <Card class="flex min-h-0 flex-col border-border/60 bg-card/70 shadow-sm">
-      <CardHeader class="sticky top-4 z-20 gap-4 rounded-t-xl border-b border-border/40 bg-card/85 pb-4 backdrop-blur-md">
+      <CardHeader class="sticky -top-px z-30 gap-4 rounded-t-xl border-b border-border/40 bg-card/95 pb-4 backdrop-blur-md">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div class="space-y-1.5">
             <CardTitle class="text-base">日志查看</CardTitle>
