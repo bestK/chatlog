@@ -105,7 +105,7 @@ onMounted(() => {
         <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-6">
           <div class="space-y-1.5">
             <CardTitle class="text-base">基础配置</CardTitle>
-            <CardDescription>设置资源 Host、推送延迟，并保存当前配置。</CardDescription>
+            <CardDescription>设置资源地址、推送延迟，并保存当前配置。</CardDescription>
           </div>
           <div class="flex items-center gap-2">
             <Button variant="outline" size="sm" @click="load">Refresh</Button>
@@ -114,7 +114,7 @@ onMounted(() => {
         </CardHeader>
         <CardContent class="grid gap-6 md:grid-cols-2">
           <div class="space-y-2">
- Jefferson            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Resource Host</div>
+            <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">资源地址</div>
             <Input v-model="cfg.host" class="font-mono" placeholder="localhost:5030" />
           </div>
           <div class="space-y-2">

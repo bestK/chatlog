@@ -22,13 +22,18 @@ const contactOffset = ref(0)
 const contactLoadingSource = ref<'init' | 'refresh' | 'search' | 'prev' | 'next' | 'limit' | 'account' | null>(null)
 
 const contactRangeText = computed(() => {
-  if (contactsTotal.value <= 0) return '0'
+  if (contactsTotal.value <= 0) return '0 / 0'
   const start = Math.min(contactOffset.value + 1, contactsTotal.value)
   const end = Math.min(contactOffset.value + contacts.value.length, contactsTotal.value)
-  return `${start}-${end}/${contactsTotal.value}`
+  return `${start}-${end} / ${contactsTotal.value}`
 })
 
 const hasContacts = computed(() => contacts.value.length > 0)
+const hasKeyword = computed(() => contactKeyword.value.trim().length > 0)
+const contactPageText = computed(() => {
+  if (contactsTotal.value <= 0) return '第 0 页'
+  return `第 ${Math.floor(contactOffset.value / contactLimit.value) + 1} 页`
+})
 
 const prevButtonText = computed(() => (contactsLoading.value && contactLoadingSource.value === 'prev' ? '加载中…' : '上一页'))
 const nextButtonText = computed(() => (contactsLoading.value && contactLoadingSource.value === 'next' ? '加载中…' : '下一页'))
@@ -163,172 +168,181 @@ watch(contactLimit, () => {
 
 <template>
   <div class="space-y-8">
-    <section class="space-y-4">
-      <div class="border-b border-border/60 pb-3">
-        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">01 · WeChat Processes</div>
+    <section class="space-y-6">
+      <div class="flex items-center gap-4 border-b border-border/40 pb-4">
+        <div class="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-[10px] font-bold text-primary">01</div>
+        <div class="text-xs font-bold uppercase tracking-[0.2em] text-foreground/70">账号进程 / PROCESSES</div>
       </div>
 
-      <Card class="border-border/60 bg-card/70 shadow-sm">
-        <CardHeader>
-          <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div class="space-y-2">
-              <CardTitle class="text-base">账号进程</CardTitle>
-              <CardDescription>Check status before switching accounts.</CardDescription>
-            </div>
-            <Badge variant="outline">Detected: {{ instances.length }}</Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div v-if="instances.length === 0" class="rounded-xl border border-dashed border-border/60 bg-background/20 p-8 text-center">
-            <div class="text-sm font-medium text-foreground">No WeChat Process Detected</div>
-            <div class="mt-2 text-sm text-muted-foreground">Please start and login to WeChat first.</div>
-          </div>
+      <div class="grid gap-6 lg:grid-cols-2">
+        <div v-if="instances.length === 0" class="col-span-full rounded-2xl border border-dashed border-border/40 bg-muted/5 py-12 text-center">
+          <div class="text-sm font-semibold text-foreground/80">未探测到活跃微信进程</div>
+          <div class="mt-1 text-xs text-muted-foreground">请启动并登录微信后点击页面顶部刷新</div>
+        </div>
 
-          <div v-else class="grid gap-4 xl:grid-cols-2">
-            <Card
-              v-for="instance in instances"
-              :key="instance.pid"
-              class="border-border/60 bg-background/20 shadow-none"
-            >
-              <CardContent class="space-y-4 pt-6">
-                <div class="flex items-start justify-between gap-4">
-                  <div class="flex min-w-0 items-center gap-3">
-                    <img
-                      v-if="getAccountAvatar(instance)"
-                      :src="getAccountAvatar(instance)"
-                      :alt="`${getAccountName(instance)} 头像`"
-                      class="size-11 rounded-xl border border-border/60 object-cover"
-                    >
-                    <div
-                      v-else
-                      class="flex size-11 items-center justify-center rounded-xl border border-border/60 bg-muted/20 text-sm font-semibold text-foreground"
-                    >
-                      {{ getAvatarFallback(instance) }}
-                    </div>
-
-                    <div class="min-w-0 space-y-1">
-                      <div class="truncate text-sm font-medium text-foreground">{{ getAccountName(instance) }}</div>
-                      <div class="truncate font-mono text-xs text-muted-foreground">
-                        PID {{ instance.pid }} · v{{ instance.fullVersion || '-' }} · {{ instance.platform || '-' }}
-                      </div>
-                    </div>
-                  </div>
-
-                  <Badge
-                    variant="outline"
-                    :class="instance.status === 'online'
-                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                      : 'border-rose-500/30 bg-rose-500/10 text-rose-300'"
+        <Card
+          v-for="instance in instances"
+          :key="instance.pid"
+          class="group relative overflow-hidden border-border/40 bg-card/40 transition-all hover:border-primary/30 hover:bg-card/60"
+        >
+          <CardContent class="p-6">
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-4">
+                <div class="relative">
+                  <img
+                    v-if="getAccountAvatar(instance)"
+                    :src="getAccountAvatar(instance)"
+                    class="size-14 rounded-2xl border border-border/20 object-cover shadow-sm"
                   >
-                    {{ instance.status === 'online' ? 'Online' : instance.status === 'offline' ? 'Offline' : instance.status || 'Unknown' }}
-                  </Badge>
+                  <div v-else class="flex size-14 items-center justify-center rounded-2xl border border-border/20 bg-muted/30 text-lg font-bold">
+                    {{ getAvatarFallback(instance) }}
+                  </div>
+                  <div
+                    class="absolute -right-1 -top-1 size-4 rounded-full border-2 border-background"
+                    :class="instance.status === 'online' ? 'bg-emerald-500' : 'bg-rose-500'"
+                  ></div>
                 </div>
-
-                <div class="rounded-xl border border-border/60 bg-background/30 p-4">
-                  <div class="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Data Directory</div>
-                  <div class="font-mono text-xs text-foreground break-all">{{ instance.dataDir || '-' }}</div>
+                <div class="space-y-1">
+                  <div class="text-base font-bold tracking-tight">{{ getAccountName(instance) }}</div>
+                  <div class="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] text-muted-foreground">
+                    <span class="rounded bg-muted/50 px-1.5 py-0.5">PID {{ instance.pid }}</span>
+                    <span>v{{ instance.fullVersion || '-' }}</span>
+                    <span class="opacity-40">/</span>
+                    <span>{{ instance.platform || '-' }}</span>
+                  </div>
                 </div>
+              </div>
+              <Button variant="secondary" size="sm" class="h-8 px-3 text-xs" @click="switchTo(instance.pid)">
+                切换账号
+              </Button>
+            </div>
 
-                <Button @click="switchTo(instance.pid)">Switch</Button>
-              </CardContent>
-            </Card>
-          </div>
-        </CardContent>
-      </Card>
+            <div class="mt-6 space-y-2">
+              <div class="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">数据存储路径</div>
+              <div class="rounded-xl border border-border/40 bg-muted/20 p-3">
+                <div class="break-all font-mono text-[11px] leading-relaxed text-foreground/70">
+                  {{ instance.dataDir || '未定义路径' }}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </section>
 
-    <section class="space-y-4">
-      <div class="border-b border-border/60 pb-3">
-        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">02 · Contacts</div>
+    <section class="space-y-6">
+      <div class="flex items-center gap-4 border-b border-border/40 pb-4">
+        <div class="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-[10px] font-bold text-primary">02</div>
+        <div class="text-xs font-bold uppercase tracking-[0.2em] text-foreground/70">联系人目录 / DIRECTORY</div>
       </div>
 
-      <Card class="border-border/60 bg-card/70 shadow-sm overflow-hidden">
-        <CardHeader class="sticky top-0 z-20 gap-4 border-b border-border/60 bg-[color:color-mix(in_oklab,var(--card)_88%,black_12%)]/95 pb-4 backdrop-blur supports-[backdrop-filter]:bg-[color:color-mix(in_oklab,var(--card)_82%,black_18%)]/85">
-          <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div class="space-y-3">
-              <div>
-                <CardTitle class="text-base">联系人筛选</CardTitle>
-                <CardDescription>搜索昵称、备注或微信 ID，并快速调整分页大小。</CardDescription>
+      <Card class="border-border/40 bg-card/40 shadow-none">
+        <CardHeader class="sticky -top-px z-30 border-b border-border/40 bg-card/80 p-0 backdrop-blur-md rounded-t-xl">
+          <div class="divide-y divide-border/40 ">
+            <!-- 标题与摘要状态 -->
+            <div class="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between rounded-t-xl">
+              <div class="space-y-1">
+                <CardTitle class="text-lg font-bold tracking-tight">联系人筛选</CardTitle>
+                <CardDescription class="text-xs">检索当前账号下的联系人、群聊及公众号数据</CardDescription>
               </div>
-              <div class="flex flex-wrap gap-2">
-                <Badge variant="outline">范围: {{ contactRangeText }}</Badge>
-                <Badge variant="outline">关键字: {{ contactKeyword.trim() ? '已过滤' : '全部' }}</Badge>
+              <div class="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary" class="h-6 rounded-md bg-muted/50 font-mono text-[10px] font-medium text-muted-foreground uppercase">
+                  RANGE: {{ contactRangeText }}
+                </Badge>
+                <Badge variant="secondary" class="h-6 rounded-md bg-muted/50 font-mono text-[10px] font-medium text-muted-foreground uppercase">
+                  {{ contactPageText }}
+                </Badge>
+                <Badge v-if="hasKeyword" variant="secondary" class="h-6 gap-2 rounded-md bg-primary/12 font-mono text-[10px] uppercase text-primary">
+                  <span class="opacity-60">FILTER:</span> {{ contactKeyword }}
+                </Badge>
               </div>
             </div>
 
-            <div class="flex w-full flex-col gap-2 xl:max-w-2xl xl:flex-row xl:items-center">
-              <Input v-model="contactKeyword" class="font-mono xl:flex-1" placeholder="搜索昵称 / 备注 / ID" />
-              <select
-                v-model.number="contactLimit"
-                class="flex h-9 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                title="每页数量"
-              >
-                <option :value="20">20/页</option>
-                <option :value="50">50/页</option>
-                <option :value="100">100/页</option>
-                <option :value="200">200/页</option>
-              </select>
-              <div class="flex flex-wrap gap-2">
-                <Button variant="outline" :disabled="contactsLoading" @click="loadContacts({ source: 'refresh' })">刷新</Button>
-                <Button variant="outline" :disabled="contactsLoading || contactOffset === 0" @click="prevContactsPage">
-                  {{ prevButtonText }}
+            <!-- 工具栏 -->
+            <div class="grid grid-cols-1 gap-4 p-5 md:grid-cols-[1fr_auto_auto]">
+              <div class="relative w-full">
+                <Input v-model="contactKeyword" class="h-10 pl-4 pr-10 font-mono text-sm" placeholder="搜索昵称、微信号、备注或 ID..." />
+                <div class="absolute right-3 top-1/2 -translate-y-1/2 opacity-30">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                </div>
+              </div>
+              <div class="flex items-center gap-3">
+                <select
+                  v-model.number="contactLimit"
+                  class="h-10 w-[120px] rounded-md border border-input bg-background/50 px-3 text-xs font-medium focus:ring-1 focus:ring-primary outline-none"
+                >
+                  <option :value="20">20 每页</option>
+                  <option :value="50">50 每页</option>
+                  <option :value="100">100 每页</option>
+                  <option :value="200">200 每页</option>
+                </select>
+                <Button variant="ghost" size="icon" :disabled="contactsLoading" class="h-10 w-10 shrink-0 border border-border/40" @click="loadContacts({ source: 'refresh' })">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="contactsLoading ? 'animate-spin' : ''"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
                 </Button>
-                <Button :disabled="contactsLoading || contactOffset + contactLimit >= contactsTotal" @click="nextContactsPage">
-                  {{ nextButtonText }}
+              </div>
+              <div class="flex items-center gap-2">
+                <Button variant="outline" size="sm" class="h-10 px-4 text-xs font-bold uppercase transition-all" :disabled="contactsLoading || contactOffset === 0" @click="prevContactsPage">
+                  {{ contactLoadingSource === 'prev' ? '...' : 'Prev' }}
+                </Button>
+                <Button size="sm" class="h-10 px-4 text-xs font-bold uppercase transition-all shadow-md shadow-primary/10" :disabled="contactsLoading || contactOffset + contactLimit >= contactsTotal" @click="nextContactsPage">
+                  {{ contactLoadingSource === 'next' ? '...' : 'Next' }}
                 </Button>
               </div>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent class="relative pt-6">
-          <div v-if="contactsLoading && hasContacts" class="pointer-events-none absolute inset-x-6 top-6 z-10 flex justify-center">
-            <Badge class="shadow-sm">正在更新联系人…</Badge>
+        <CardContent class="relative p-6">
+          <div v-if="contactsLoading && hasContacts" class="pointer-events-none absolute inset-x-0 top-0 z-50 flex justify-center">
+            <div class="mt-4 animate-pulse rounded-full bg-primary/90 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary-foreground shadow-lg">同步中 (Syncing...)</div>
           </div>
 
-          <div v-if="contactsLoading && !hasContacts" class="rounded-xl border border-dashed border-border/60 bg-background/20 p-8 text-center">
-            <div class="text-sm font-medium text-foreground">正在加载联系人…</div>
-            <div class="mt-2 text-sm text-muted-foreground">请稍候</div>
+          <div v-if="contactsLoading && !hasContacts" class="py-20 text-center">
+            <div class="mx-auto flex size-12 animate-spin items-center justify-center rounded-full border-2 border-primary border-t-transparent opacity-40"></div>
+            <div class="mt-6 text-sm font-bold tracking-tight text-foreground/80">正在检索联系人数据库</div>
+            <div class="mt-1 text-xs text-muted-foreground">请稍候，我们正在解析当前绑定的微信进程数据</div>
           </div>
 
-          <div v-else-if="!hasContacts" class="rounded-xl border border-dashed border-border/60 bg-background/20 p-8 text-center">
-            <div class="text-sm font-medium text-foreground">暂无联系人</div>
-            <div class="mt-2 text-sm text-muted-foreground">可尝试先解密数据或切换账号后刷新</div>
+          <div v-else-if="!hasContacts" class="py-20 text-center">
+            <div class="text-sm font-bold tracking-tight text-foreground/80">未找到匹配的结果</div>
+            <div class="mt-1 text-xs text-muted-foreground">尝试调整关键词或是重置筛选器，也可以检查当前登录账号</div>
           </div>
 
-          <div v-else class="grid gap-4 lg:grid-cols-2" :class="contactsLoading ? 'opacity-70' : ''">
+          <div v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3" :class="contactsLoading ? 'opacity-40 animate-pulse transition-opacity' : ''">
             <Card
               v-for="contact in contacts"
               :key="contact.userName"
-              class="border-border/60 bg-background/20 shadow-none"
+              class="group overflow-hidden border-border/30 bg-background/40 transition-shadow hover:shadow-md"
             >
-              <CardContent class="space-y-4 pt-6">
-                <div class="flex items-start gap-3">
+              <CardContent class="p-4">
+                <div class="flex items-center gap-4">
                   <img
                     v-if="getContactAvatar(contact)"
                     :src="getContactAvatar(contact)"
-                    :alt="`${getContactName(contact)} 头像`"
-                    class="size-10 rounded-xl border border-border/60 object-cover"
+                    class="size-10 rounded-xl border border-border/20 object-cover shadow-xs"
                   >
-                  <div
-                    v-else
-                    class="flex size-10 items-center justify-center rounded-xl border border-border/60 bg-muted/20 text-sm font-semibold text-foreground"
-                  >
+                  <div v-else class="flex size-10 items-center justify-center rounded-xl border border-border/20 bg-muted/40 text-sm font-bold opacity-60">
                     {{ getContactAvatarFallback(contact) }}
                   </div>
 
-                  <div class="min-w-0 flex-1 space-y-1">
-                    <div class="truncate text-sm font-medium text-foreground">{{ getContactName(contact) }}</div>
-                    <div class="truncate font-mono text-xs text-muted-foreground">
-                      {{ contact.userName }}<span v-if="contact.alias"> · {{ contact.alias }}</span>
+                  <div class="min-w-0 flex-1 space-y-0.5">
+                    <div class="truncate text-sm font-bold tracking-tight text-foreground/90">{{ getContactName(contact) }}</div>
+                    <div class="truncate font-mono text-[10px] text-muted-foreground/70">
+                      {{ contact.alias || contact.userName }}
                     </div>
                   </div>
                 </div>
 
-                <div class="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                  <Badge variant="outline">localType: {{ contact.localType }}</Badge>
-                  <Badge variant="outline">flag: {{ contact.flag }}</Badge>
-                  <Badge variant="outline">is_in_chat_room: {{ contact.isInChatRoom }}</Badge>
+                <div class="mt-4 flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" class="h-5 border-border/40 bg-muted/20 px-1.5 font-mono text-[9px] font-normal text-muted-foreground uppercase">
+                    ID: {{ contact.localType }}
+                  </Badge>
+                  <Badge variant="outline" class="h-5 border-border/40 bg-muted/20 px-1.5 font-mono text-[9px] font-normal text-muted-foreground uppercase">
+                    FLAG: {{ contact.flag }}
+                  </Badge>
+                  <Badge v-if="contact.isInChatRoom" variant="outline" class="h-5 border-primary/20 bg-primary/5 px-1.5 font-mono text-[9px] font-bold text-primary uppercase">
+                    ROOM
+                  </Badge>
                 </div>
               </CardContent>
             </Card>
