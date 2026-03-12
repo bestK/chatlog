@@ -59,7 +59,7 @@ function setPage(p: Page) {
 
 <template>
 	<div class="h-full w-full">
-		<Toaster  RICH-COLORS CLOSE-BUTTON POSITION="top-right" :EXPAND="false" :VISIBLE-TOASTS="5" />
+		<Toaster richColors closeButton position="top-right" :expand="false" :visibleToasts="5" />
 
 		<div class="grid h-full w-full min-h-0 lg:grid-cols-[280px_minmax(0,1fr)]">
 			<div class="h-full min-h-0 overflow-hidden">
@@ -81,7 +81,7 @@ function setPage(p: Page) {
 				@refresh="run(() => backend.Refresh(), '已刷新')"
 			/>
 
-			<div class="page min-h-0 min-w-0 flex-1 overflow-auto">
+			<div :class="['page min-h-0 min-w-0 flex-1 flex flex-col', (page !== '概览' && page !== '账号' && page !== '服务' && page !== 'Webhook' && page !== '设置') ? 'overflow-hidden' : 'overflow-auto']">
 				<PageOverview v-if="page === '概览'" />
 				<PageAccounts v-else-if="page === '账号'" />
 				<PageService v-else-if="page === '服务'" />
