@@ -62,7 +62,7 @@ function skip() {
 
 <template>
   <Dialog v-model:open="open">
-    <DialogContent class="sm:max-w-[500px] border-border/40 bg-card/95 backdrop-blur-xl">
+    <DialogContent  @interactOutside.prevent @pointerDownOutside.prevent class="sm:max-w-[500px] border-border/40 bg-card/95 backdrop-blur-xl">
       <DialogHeader>
         <div class="flex items-center gap-2 mb-2">
           <Badge variant="outline" class="bg-primary/10 text-primary border-primary/20 font-bold">首次使用引导</Badge>
