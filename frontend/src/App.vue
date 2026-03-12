@@ -22,6 +22,8 @@ import PageService from './pages/PageService.vue';
 import PageWebhook from './pages/PageWebhook.vue';
 import PageSettings from './pages/PageSettings.vue';
 import PageLogs from './pages/PageLogs.vue';
+import GuideWizard from './components/GuideWizard.vue';
+
 
 const feedback = createFeedbackService();
 const appState = createAppState(feedback);
@@ -60,6 +62,8 @@ function setPage(p: Page) {
 <template>
 	<div class="h-full w-full">
 		<Toaster richColors closeButton position="top-right" :expand="false" :visibleToasts="5" />
+		<GuideWizard />
+
 
 		<div class="grid h-full w-full min-h-0 lg:grid-cols-[280px_minmax(0,1fr)]">
 			<div class="h-full min-h-0 overflow-hidden">

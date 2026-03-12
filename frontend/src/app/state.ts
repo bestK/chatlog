@@ -38,6 +38,8 @@ type AppFeedback = Pick<ReturnType<typeof createFeedbackService>, 'toast'>
 export function createAppState(feedback: AppFeedback) {
   const page = ref<Page>('概览')
   const state = ref<State | null>(null)
+  const onboardingStep = ref(0) // 0: closed, 1: get key, 2: decrypt, 3: start http
+
   const instances = ref<Instance[]>([])
   const httpAddr = ref('')
   const workDir = ref('')
@@ -74,6 +76,11 @@ export function createAppState(feedback: AppFeedback) {
       dataKey.value = nextState.dataKey || ''
       imgKey.value = nextState.imgKey || ''
       instances.value = await backend.ListInstances()
+
+      // Auto-start onboarding if no data key and not already onboarding
+      if (!nextState.dataKey && onboardingStep.value === 0) {
+        onboardingStep.value = 1
+      }
     }
     catch (error) {
       feedback.toast('刷新失败', String(error))
@@ -134,6 +141,7 @@ export function createAppState(feedback: AppFeedback) {
     imgKey,
     statusPill,
     previewBanner,
+    onboardingStep,
     run,
     refreshAll,
   }
