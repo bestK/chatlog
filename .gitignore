@@ -48,3 +48,4 @@ frontend/dist/*
 # frontend build artifacts
 frontend/package.json.md5
 frontend/tsconfig.tsbuildinfo
+.sisyohus/
