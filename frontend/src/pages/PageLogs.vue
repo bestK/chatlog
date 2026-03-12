@@ -68,6 +68,7 @@ async function copyText(text: string) {
 
 onMounted(async () => {
   await refresh()
+  await ensureInitialScrollToBottom()
   if (backend.isWails) {
     try {
       await backend.EnableLogEvents(true)
@@ -93,6 +94,16 @@ function isNearBottom(el: HTMLElement) {
 
 function scrollToBottom(el: HTMLElement) {
   el.scrollTop = el.scrollHeight
+}
+
+async function ensureInitialScrollToBottom() {
+  await nextTick()
+  const el = logBox.value
+  if (!el) return
+  firstScroll = false
+  requestAnimationFrame(() => {
+    scrollToBottom(el)
+  })
 }
 
 watch(
