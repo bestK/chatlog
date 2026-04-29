@@ -1,4 +1,0 @@
-- 项目名称: chatlog
-- 主要用途: 管理和解密微信聊天数据库，提供 GUI 与相关服务能力。
-- 技术栈: Go 后端，Wails 前端桥接，前端使用 Vue + TypeScript。
-- 平台特征: 当前环境为 Windows，仓库中存在针对 Windows 的微信密钥提取实现。
