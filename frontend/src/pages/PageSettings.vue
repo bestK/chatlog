@@ -1,7 +1,4 @@
 <script setup lang="ts">
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { inject, onBeforeUnmount, onMounted, ref, type Ref } from 'vue';
 import { appContextKey } from '../app/context';
@@ -180,206 +177,116 @@ async function decryptNow() {
 
 <template>
     <div class="space-y-10">
-        <section class="space-y-6">
-            <div class="flex items-center gap-4 border-b border-border/40 pb-4">
-                <div
-                    class="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-[10px] font-bold text-primary"
-                >
-                    01
-                </div>
-                <div class="text-xs font-bold uppercase tracking-[0.2em] text-foreground/70">
-                    全局配置 / GLOBAL SETTINGS
-                </div>
-            </div>
+        <div
+            class="sticky -top-px z-30 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/30 ring-1 ring-border/40 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-muted/40"
+        >
+            <p class="text-sm text-muted-foreground">配置目录与密钥后，可进行数据库解密。</p>
+            <Button
+                :disabled="loadingDataKey || loadingImgKey || loadingDecrypt"
+                size="sm"
+                class="h-9 px-4 text-sm"
+                @click="decryptNow"
+            >
+                {{ loadingDecrypt ? '解密中…' : '开始解密' }}
+            </Button>
+        </div>
 
-            <div class="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))] xl:gap-8">
-                <!-- 目录配置 -->
-                <Card class="overflow-hidden border-border/40 bg-card/40 shadow-none">
-                    <CardHeader class="border-b border-border/40 bg-muted/5 pb-4">
-                        <div class="space-y-1">
-                            <CardTitle class="text-[15px] font-bold tracking-tight">目录配置 / Directories</CardTitle>
-                            <CardDescription class="text-[11px]"
-                                >配置微信数据读取路径与解密后的存储工作区。</CardDescription
+        <section class="space-y-4">
+            <header class="space-y-1">
+                <h3 class="font-serif text-xl font-medium tracking-tight text-foreground">目录与密钥</h3>
+                <p class="text-sm text-muted-foreground">配置数据路径与解密凭据，修改后需保存生效。</p>
+            </header>
+
+            <div class="grid gap-x-8 gap-y-6 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm text-foreground">数据目录</label>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            class="h-7 px-2 text-xs font-normal text-muted-foreground hover:text-foreground"
+                            @click="saveDataDir"
+                            >保存</Button
+                        >
+                    </div>
+                    <Input v-model="dataDir" class="h-9 font-mono text-xs" placeholder="微信数据存放路径" />
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm text-foreground">工作目录</label>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            class="h-7 px-2 text-xs font-normal text-muted-foreground hover:text-foreground"
+                            @click="saveWorkDir"
+                            >保存</Button
+                        >
+                    </div>
+                    <Input v-model="workDir" class="h-9 font-mono text-xs" placeholder="解密输出路径" />
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                        <label class="text-sm text-foreground">数据库密钥</label>
+                        <div class="flex items-center gap-1">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                class="h-7 px-2 text-xs font-normal text-muted-foreground hover:text-foreground"
+                                :disabled="loadingDataKey || loadingImgKey || loadingDecrypt"
+                                @click="autoDataKey"
+                            >
+                                {{ loadingDataKey ? '获取中…' : '自动获取' }}
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                class="h-7 px-2 text-xs font-normal text-muted-foreground hover:text-foreground"
+                                @click="saveDataKey"
+                                >保存</Button
                             >
                         </div>
-                    </CardHeader>
-                    <CardContent class="space-y-6 p-6">
-                        <div class="space-y-3">
-                            <div class="flex items-center justify-between">
-                                <label class="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60"
-                                    >数据目录 / Data Directory</label
-                                >
-                                <Button
-                                    variant="link"
-                                    class="h-auto p-0 text-[10px] font-bold uppercase text-primary"
-                                    @click="saveDataDir"
-                                    >Save</Button
-                                >
-                            </div>
-                            <Input
-                                v-model="dataDir"
-                                class="h-9 bg-background/30 font-mono text-[11px]"
-                                placeholder="微信数据存放路径"
-                            />
-                        </div>
+                    </div>
+                    <Input v-model="dataKey" class="h-9 font-mono text-xs" placeholder="请输入 64 位 Hex 密钥" />
+                </div>
 
-                        <div class="space-y-3">
-                            <div class="flex items-center justify-between">
-                                <label class="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60"
-                                    >工作目录 / Work Directory</label
-                                >
-                                <Button
-                                    variant="link"
-                                    class="h-auto p-0 text-[10px] font-bold uppercase text-primary"
-                                    @click="saveWorkDir"
-                                    >Save</Button
-                                >
-                            </div>
-                            <Input
-                                v-model="workDir"
-                                class="h-9 bg-background/30 font-mono text-[11px]"
-                                placeholder="解密输出路径"
-                            />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <!-- 密钥配置 -->
-                <Card class="overflow-hidden border-border/40 bg-card/40 shadow-none">
-                    <CardHeader class="border-b border-border/40 bg-muted/5 pb-4">
-                        <div class="space-y-1">
-                            <CardTitle class="text-[15px] font-bold tracking-tight">安全密钥 / Security Keys</CardTitle>
-                            <CardDescription class="text-[11px]"
-                                >解密所需的关键凭据，可从微信进程中自动探测获取。</CardDescription
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                        <label class="text-sm text-foreground">图片密钥</label>
+                        <div class="flex items-center gap-1">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                class="h-7 px-2 text-xs font-normal text-muted-foreground hover:text-foreground"
+                                :disabled="loadingDataKey || loadingImgKey || loadingDecrypt"
+                                @click="autoImgKey"
+                            >
+                                {{ loadingImgKey ? '获取中…' : '自动获取' }}
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                class="h-7 px-2 text-xs font-normal text-muted-foreground hover:text-foreground"
+                                @click="saveImgKey"
+                                >保存</Button
                             >
                         </div>
-                    </CardHeader>
-                    <CardContent class="space-y-6 p-6">
-                        <div class="space-y-3">
-                            <div class="flex items-center justify-between">
-                                <label class="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60"
-                                    >数据库密钥 / Database Key</label
-                                >
-                                <div class="flex gap-2">
-                                    <Button
-                                        variant="outline"
-                                        class="h-6 px-2 text-[9px] font-bold uppercase tracking-widest"
-                                        :disabled="loadingDataKey || loadingImgKey || loadingDecrypt"
-                                        @click="autoDataKey"
-                                    >
-                                        {{ loadingDataKey ? 'Fetching...' : 'Auto Fetch' }}
-                                    </Button>
-                                    <Button
-                                        variant="link"
-                                        class="h-auto p-0 text-[10px] font-bold uppercase text-primary"
-                                        @click="saveDataKey"
-                                        >Save</Button
-                                    >
-                                </div>
-                            </div>
-                            <Input
-                                v-model="dataKey"
-                                class="h-9 bg-background/30 font-mono text-[11px]"
-                                placeholder="请输入 64 位 Hex 密钥"
-                            />
-                        </div>
-
-                        <div class="space-y-3">
-                            <div class="flex items-center justify-between">
-                                <label class="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60"
-                                    >图片密钥 / Image Key</label
-                                >
-                                <div class="flex gap-2">
-                                    <Button
-                                        variant="outline"
-                                        class="h-6 px-2 text-[9px] font-bold uppercase tracking-widest"
-                                        :disabled="loadingDataKey || loadingImgKey || loadingDecrypt"
-                                        @click="autoImgKey"
-                                    >
-                                        {{ loadingImgKey ? 'Fetching...' : 'Auto Fetch' }}
-                                    </Button>
-                                    <Button
-                                        variant="link"
-                                        class="h-auto p-0 text-[10px] font-bold uppercase text-primary"
-                                        @click="saveImgKey"
-                                        >Save</Button
-                                    >
-                                </div>
-                            </div>
-                            <Input
-                                v-model="imgKey"
-                                class="h-9 bg-background/30 font-mono text-[11px]"
-                                placeholder="请输入图片解密密钥"
-                            />
-                        </div>
-                    </CardContent>
-                </Card>
+                    </div>
+                    <Input v-model="imgKey" class="h-9 font-mono text-xs" placeholder="请输入图片解密密钥" />
+                </div>
             </div>
         </section>
 
-        <section class="space-y-6">
-            <div class="flex items-center gap-4 border-b border-border/40 pb-4">
-                <div
-                    class="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-[10px] font-bold text-primary"
-                >
-                    02
-                </div>
-                <div class="text-xs font-bold uppercase tracking-[0.2em] text-foreground/70">
-                    数据维护 / MAINTENANCE
-                </div>
+        <section class="space-y-4">
+            <header class="space-y-1">
+                <h3 class="font-serif text-xl font-medium tracking-tight text-foreground">数据库解密</h3>
+                <p class="text-sm text-muted-foreground">开始前请确保目录与密钥已保存。该操作耗资较高，请耐心等待。</p>
+            </header>
+            <div class="rounded-xl bg-muted/30 ring-1 ring-border/40 px-5 py-4 text-sm text-muted-foreground">
+                解密后的数据将存放于 <span class="font-mono text-foreground/90">{{ workDir || '未定义' }}</span
+                >。
             </div>
-
-            <Card class="overflow-hidden border-border/40 bg-card/40 shadow-none">
-                <CardHeader class="border-b border-border/40 bg-muted/5 pb-6">
-                    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div class="space-y-1.5">
-                            <CardTitle class="text-[15px] font-bold tracking-tight">数据库解密</CardTitle>
-                            <CardDescription class="text-xs max-w-lg"
-                                >开始前请确保目录与密钥均已保存。此操作会占用较多 CPU 与 IO
-                                资源，请耐心等待。</CardDescription
-                            >
-                        </div>
-
-                        <div class="flex flex-wrap items-center gap-3">
-                            <Badge
-                                variant="outline"
-                                class="h-6 gap-2 border-amber-500/20 bg-amber-500/10 text-[10px] font-bold uppercase tracking-widest text-amber-500"
-                            >
-                                <span class="inline-block size-1.5 rounded-full bg-amber-500"></span>
-                                High Resource Usage
-                            </Badge>
-
-                            <Button
-                                :disabled="loadingDataKey || loadingImgKey || loadingDecrypt"
-                                class="h-10 px-5 text-sm font-semibold shadow-lg shadow-primary/20 transition-all"
-                                @click="decryptNow"
-                            >
-                                {{ loadingDecrypt ? '正在解密中…' : '开始解密' }}
-                            </Button>
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent class="bg-muted/5 p-4 py-3 flex items-center justify-between">
-                    <div class="flex items-center gap-2 text-[10px] text-muted-foreground/60 italic">
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        >
-                            <circle cx="12" cy="12" r="10" />
-                            <path d="M12 16v-4" />
-                            <path d="M12 8h.01" />
-                        </svg>
-                        解密后的数据将存放在 "{{ workDir || '未定义' }}" 目录中。
-                    </div>
-                </CardContent>
-            </Card>
         </section>
     </div>
 </template>
