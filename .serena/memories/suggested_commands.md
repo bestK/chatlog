@@ -1,5 +1,0 @@
-- Windows 查看代码片段: `Get-Content "路径" | Select-Object -Skip N -First M`
-- 内容搜索: `rg -n "pattern" "path"`
-- Go 格式化: `gofmt -w <files>`
-- Go 语法级校验: `go test -run ^$ ./package/path`
-- 查看差异: `git diff -- <files>`
