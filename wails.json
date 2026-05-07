@@ -1,15 +1,15 @@
 {
-	"name": "chatlog",
-	"outputfilename": "chatlog",
-	"frontend:dir": "frontend",
-	"frontend:install": "pnpm install",
-	"frontend:build": "pnpm run build",
-	"frontend:dev:build": "pnpm run build",
-	"frontend:dev:watcher": "pnpm run dev",
-	"frontend:dev:serverUrl": "http://localhost:5173",
-	"wailsjsdir": "./frontend/src/wailsjs",
-	"version": "2",
-	"info": {
-		"productName": "Chatlog"
-	}
+    "name": "chatlog",
+    "outputfilename": "chatlog",
+    "frontend:dir": "frontend",
+    "frontend:install": "pnpm install && pnpm --dir ../web install",
+    "frontend:build": "pnpm --dir ../web run build && pnpm run build",
+    "frontend:dev:build": "pnpm run build",
+    "frontend:dev:watcher": "pnpm run dev",
+    "frontend:dev:serverUrl": "http://localhost:5173",
+    "wailsjsdir": "./frontend/src/wailsjs",
+    "version": "2",
+    "info": {
+        "productName": "Chatlog"
+    }
 }

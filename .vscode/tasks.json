@@ -10,6 +10,22 @@
                 "cwd": "${workspaceFolder}/frontend"
             },
             "problemMatcher": []
+        },
+        {
+            "label": "wails:build:web",
+            "type": "shell",
+            "command": "pnpm",
+            "args": ["run", "build"],
+            "options": {
+                "cwd": "${workspaceFolder}/web"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "wails:build:all",
+            "dependsOrder": "sequence",
+            "dependsOn": ["wails:build:web", "wails:build:frontend"],
+            "problemMatcher": []
         }
     ]
 }

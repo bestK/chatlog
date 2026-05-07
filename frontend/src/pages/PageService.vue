@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { inject, reactive, ref } from 'vue';
+import { computed, inject, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { appContextKey } from '../app/context';
 import { backend } from '../wailsbridge';
 
@@ -11,15 +11,87 @@ const app = injected;
 
 const { httpAddr, state, run } = app;
 
+const listenIPs = ref<string[]>(['127.0.0.1', '0.0.0.0']);
+const listenIP = ref('127.0.0.1');
+const listenPort = ref('5030');
+const ipDropdownOpen = ref(false);
+const ipDropdownRef = ref<HTMLElement | null>(null);
+
+function toggleIpDropdown() {
+    ipDropdownOpen.value = !ipDropdownOpen.value;
+}
+
+function selectIp(ip: string) {
+    listenIP.value = ip;
+    ipDropdownOpen.value = false;
+}
+
+function ipLabel(ip: string): string {
+    if (ip === '127.0.0.1') return '仅本机';
+    if (ip === '0.0.0.0') return '所有网卡';
+    return '局域网';
+}
+
+function onClickOutside(e: MouseEvent) {
+    if (!ipDropdownOpen.value) return;
+    if (ipDropdownRef.value && !ipDropdownRef.value.contains(e.target as Node)) {
+        ipDropdownOpen.value = false;
+    }
+}
+
+onMounted(() => {
+    document.addEventListener('click', onClickOutside);
+});
+onUnmounted(() => {
+    document.removeEventListener('click', onClickOutside);
+});
+
+function parseAddr(addr: string): { ip: string; port: string } {
+    if (!addr) return { ip: '127.0.0.1', port: '5030' };
+    const idx = addr.lastIndexOf(':');
+    if (idx <= 0) return { ip: addr, port: '5030' };
+    return { ip: addr.slice(0, idx) || '127.0.0.1', port: addr.slice(idx + 1) || '5030' };
+}
+
+watch(
+    httpAddr,
+    val => {
+        const { ip, port } = parseAddr(val);
+        listenIP.value = ip;
+        listenPort.value = port;
+    },
+    { immediate: true }
+);
+
+async function loadListenIPs() {
+    try {
+        const ips = await backend.ListListenIPs();
+        if (ips && ips.length) {
+            listenIPs.value = ips;
+            if (!ips.includes(listenIP.value)) listenIPs.value = [...ips, listenIP.value];
+        }
+    } catch {
+        // keep defaults
+    }
+}
+onMounted(loadListenIPs);
+
+const composedAddr = computed(() => `${listenIP.value}:${listenPort.value}`);
+
 function saveAddr() {
+    const port = listenPort.value.trim();
+    if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
+        app.feedback.toast('端口无效', '请输入 1 - 65535 范围内的端口号。');
+        return;
+    }
     return app.feedback
         .confirm({
             title: '保存 HTTP 地址',
-            message: '确认保存并写入配置？',
+            message: `确认将监听地址保存为 ${composedAddr.value} 并写入配置？`,
             confirmText: '保存',
             cancelText: '取消'
         })
-        .then(ok => (ok ? run(() => backend.SetHTTPAddr(httpAddr.value), '已保存') : undefined));
+        .then(ok => (ok ? run(() => backend.SetHTTPAddr(composedAddr.value), '已保存') : undefined));
 }
 
 async function toggleHTTP() {
@@ -196,14 +268,25 @@ async function tryApi(ep: Endpoint) {
                     {{ state?.httpEnabled ? 'HTTP 服务运行中' : 'HTTP 服务未启动' }}
                 </span>
             </div>
-            <Button
-                :variant="state?.httpEnabled ? 'outline' : 'default'"
-                size="sm"
-                class="h-9 px-4 text-sm"
-                @click="toggleHTTP"
-            >
-                {{ state?.httpEnabled ? '停止服务' : '启动服务' }}
-            </Button>
+            <div class="flex items-center gap-2">
+                <Button
+                    v-if="state?.httpEnabled"
+                    variant="ghost"
+                    size="sm"
+                    class="h-9 px-3 text-sm font-normal text-muted-foreground hover:text-foreground"
+                    @click="backend.OpenURL(baseUrl() || endpointUrl('/'))"
+                >
+                    打开 Web UI
+                </Button>
+                <Button
+                    :variant="state?.httpEnabled ? 'outline' : 'default'"
+                    size="sm"
+                    class="h-9 px-4 text-sm"
+                    @click="toggleHTTP"
+                >
+                    {{ state?.httpEnabled ? '停止服务' : '启动服务' }}
+                </Button>
+            </div>
         </div>
 
         <section class="space-y-4">
@@ -219,10 +302,85 @@ async function tryApi(ep: Endpoint) {
                         <div class="text-xs text-muted-foreground">保存后需重启服务生效。</div>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
+                        <div ref="ipDropdownRef" class="relative min-w-[200px] flex-1">
+                            <button
+                                type="button"
+                                :class="[
+                                    'group flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background/40 px-3 font-mono text-sm transition-colors hover:bg-background/60 focus:outline-none focus:ring-1 focus:ring-ring',
+                                    ipDropdownOpen && 'ring-1 ring-ring'
+                                ]"
+                                @click.stop="toggleIpDropdown"
+                            >
+                                <span class="flex items-baseline gap-2 truncate">
+                                    <span>{{ listenIP }}</span>
+                                    <span class="font-sans text-xs text-muted-foreground">{{ ipLabel(listenIP) }}</span>
+                                </span>
+                                <svg
+                                    :class="[
+                                        'size-3.5 text-muted-foreground transition-transform',
+                                        ipDropdownOpen && 'rotate-180'
+                                    ]"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path d="m6 9 6 6 6-6" />
+                                </svg>
+                            </button>
+                            <Transition
+                                enter-from-class="opacity-0 -translate-y-1"
+                                enter-active-class="transition duration-150"
+                                leave-active-class="transition duration-100"
+                                leave-to-class="opacity-0 -translate-y-1"
+                            >
+                                <div
+                                    v-if="ipDropdownOpen"
+                                    class="absolute left-0 right-0 top-full z-30 mt-1.5 max-h-60 overflow-auto rounded-md border border-border/60 bg-popover/95 p-1 shadow-lg backdrop-blur"
+                                >
+                                    <button
+                                        v-for="ip in listenIPs"
+                                        :key="ip"
+                                        type="button"
+                                        :class="[
+                                            'flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors',
+                                            ip === listenIP
+                                                ? 'bg-accent text-foreground'
+                                                : 'text-foreground/85 hover:bg-accent/60'
+                                        ]"
+                                        @click="selectIp(ip)"
+                                    >
+                                        <span class="flex items-baseline gap-2">
+                                            <span class="font-mono">{{ ip }}</span>
+                                            <span class="text-xs text-muted-foreground">{{ ipLabel(ip) }}</span>
+                                        </span>
+                                        <svg
+                                            v-if="ip === listenIP"
+                                            class="size-3.5 text-foreground/70"
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        >
+                                            <path d="M20 6 9 17l-5-5" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </Transition>
+                        </div>
+                        <span class="font-mono text-sm text-muted-foreground">:</span>
                         <Input
-                            v-model="httpAddr"
-                            class="h-10 min-w-[180px] flex-1 bg-background/40 font-mono text-sm"
-                            placeholder="127.0.0.1:5030"
+                            v-model="listenPort"
+                            inputmode="numeric"
+                            maxlength="5"
+                            class="h-10 w-24 bg-background/40 font-mono text-sm"
+                            placeholder="5030"
                         />
                         <Button
                             variant="ghost"

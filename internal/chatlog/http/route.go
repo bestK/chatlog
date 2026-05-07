@@ -33,15 +33,28 @@ func (s *Service) initRouter() {
 func (s *Service) initBaseRouter() {
 	staticDir, _ := fs.Sub(EFS, "static")
 
-	s.router.StaticFS("/static", http.FS(staticDir))
-	s.router.StaticFileFS("/favicon.ico", "./favicon.ico", http.FS(staticDir))
-	s.router.StaticFileFS("/", "./index.htm", http.FS(staticDir))
+	s.router.StaticFS("/assets", http.FS(mustSub(staticDir, "assets")))
+
+	indexHTML, _ := fs.ReadFile(staticDir, "index.html")
+	serveIndex := func(c *gin.Context) {
+		c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
+	}
+	s.router.GET("/", serveIndex)
+	s.router.GET("/index.html", serveIndex)
 
 	s.router.GET("/health", func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
 	s.router.NoRoute(s.NoRoute)
+}
+
+func mustSub(fsys fs.FS, dir string) fs.FS {
+	sub, err := fs.Sub(fsys, dir)
+	if err != nil {
+		return fsys
+	}
+	return sub
 }
 
 func (s *Service) initMediaRouter() {

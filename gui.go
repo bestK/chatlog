@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -514,6 +515,49 @@ func (a *App) Decrypt() error {
 	}
 	_ = a.emitState()
 	return nil
+}
+
+// ListListenIPs 返回当前可用于监听的 IP 候选列表（不含端口）。
+// 默认包含 127.0.0.1 与 0.0.0.0，并追加所有处于 UP 且非环回的 IPv4 地址。
+func (a *App) ListListenIPs() ([]string, error) {
+	ips := []string{"127.0.0.1", "0.0.0.0"}
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return ips, nil
+	}
+	seen := map[string]struct{}{ips[0]: {}, ips[1]: {}}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		ipAddrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, raw := range ipAddrs {
+			var ip net.IP
+			switch v := raw.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+				continue
+			}
+			ip4 := ip.To4()
+			if ip4 == nil {
+				continue
+			}
+			s := ip4.String()
+			if _, ok := seen[s]; ok {
+				continue
+			}
+			seen[s] = struct{}{}
+			ips = append(ips, s)
+		}
+	}
+	return ips, nil
 }
 
 func (a *App) SetHTTPAddr(addr string) (State, error) {

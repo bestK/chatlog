@@ -46,6 +46,10 @@ export function ListInstances() {
   return window['go']['main']['App']['ListInstances']();
 }
 
+export function ListListenIPs() {
+  return window['go']['main']['App']['ListListenIPs']();
+}
+
 export function ReadLogTail(arg1) {
   return window['go']['main']['App']['ReadLogTail'](arg1);
 }

@@ -1,0 +1,113 @@
+@import 'tailwindcss';
+
+:root {
+    --radius: 0.75rem;
+    --background: oklch(0.985 0 0);
+    --foreground: oklch(0.18 0 0);
+    --card: oklch(1 0 0);
+    --muted: oklch(0.96 0 0);
+    --muted-foreground: oklch(0.5 0 0);
+    --border: oklch(0.18 0 0 / 10%);
+    --input: oklch(0.18 0 0 / 14%);
+    --primary: oklch(0.18 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+    --ring: oklch(0.55 0 0);
+    --accent: oklch(0.94 0 0);
+    --destructive: oklch(0.6 0.18 25);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --background: oklch(0.145 0 0);
+        --foreground: oklch(0.985 0 0);
+        --card: oklch(0.205 0 0);
+        --muted: oklch(0.269 0 0);
+        --muted-foreground: oklch(0.708 0 0);
+        --border: oklch(1 0 0 / 10%);
+        --input: oklch(1 0 0 / 15%);
+        --primary: oklch(0.922 0 0);
+        --primary-foreground: oklch(0.205 0 0);
+        --ring: oklch(0.556 0 0);
+        --accent: oklch(0.269 0 0);
+        --destructive: oklch(0.704 0.191 22.216);
+    }
+}
+
+@theme inline {
+    --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-serif: 'Playfair Display', 'Iowan Old Style', 'Apple Garamond', Georgia, ui-serif, serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-ring: var(--ring);
+    --color-accent: var(--accent);
+    --color-destructive: var(--destructive);
+}
+
+html,
+body,
+#app {
+    width: 100%;
+    min-height: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01';
+    font-size: 14px;
+    line-height: 1.55;
+    letter-spacing: -0.005em;
+    color: var(--foreground);
+    background: var(--background);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.font-serif {
+    font-family: var(--font-serif);
+    font-feature-settings: 'liga', 'kern';
+}
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.55 0 0 / 0.5) transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: oklch(0.55 0 0 / 0.45);
+    background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.55 0 0 / 0.7);
+    background-clip: padding-box;
+}
+
+@layer base {
+    input,
+    textarea,
+    select,
+    button {
+        font-family: inherit;
+    }
+}
