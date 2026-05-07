@@ -56,6 +56,26 @@ export type WebhookItem = {
     disabled: boolean;
 };
 
+export type AIProvider = {
+    id: string;
+    name: string;
+    type: string;
+    baseUrl: string;
+    apiKey: string;
+    model: string;
+    disabled: boolean;
+    createdAt: number;
+    updatedAt: number;
+};
+
+export type AITestResult = {
+    ok: boolean;
+    latencyMs: number;
+    endpoint: string;
+    status: number;
+    message: string;
+};
+
 export type WebhookConfig = {
     host: string;
     delayMs: number;
@@ -93,6 +113,11 @@ type Backend = {
     EnableLogEvents(enabled: boolean): Promise<void>;
     GetWebhookConfig(): Promise<WebhookConfig>;
     SetWebhookConfig(cfg: WebhookConfig): Promise<void>;
+    ListAIProviders(): Promise<AIProvider[]>;
+    SaveAIProvider(p: AIProvider): Promise<AIProvider>;
+    DeleteAIProvider(id: string): Promise<void>;
+    TestAIProvider(p: AIProvider): Promise<AITestResult>;
+    ListAIModels(p: AIProvider): Promise<string[]>;
 };
 
 type Runtime = {
@@ -139,6 +164,11 @@ export const backend = {
     EnableLogEvents: (enabled: boolean) => window.go.main.App.EnableLogEvents(enabled),
     GetWebhookConfig: () => window.go.main.App.GetWebhookConfig(),
     SetWebhookConfig: (cfg: WebhookConfig) => window.go.main.App.SetWebhookConfig(cfg),
+    ListAIProviders: () => window.go.main.App.ListAIProviders(),
+    SaveAIProvider: (p: AIProvider) => window.go.main.App.SaveAIProvider(p),
+    DeleteAIProvider: (id: string) => window.go.main.App.DeleteAIProvider(id),
+    TestAIProvider: (p: AIProvider) => window.go.main.App.TestAIProvider(p),
+    ListAIModels: (p: AIProvider) => window.go.main.App.ListAIModels(p),
     EventsOn: (name: string, callback: (data: unknown) => void) => {
         if (!window.runtime || !window.runtime.EventsOn) return;
         return window.runtime.EventsOn(name, callback);

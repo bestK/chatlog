@@ -5,6 +5,8 @@ import {main} from '../models';
 
 export function Decrypt():Promise<void>;
 
+export function DeleteAIProvider(arg1:string):Promise<void>;
+
 export function EnableLogEvents(arg1:boolean):Promise<void>;
 
 export function EnableStateEvents(arg1:boolean):Promise<void>;
@@ -23,6 +25,10 @@ export function GetState():Promise<main.State>;
 
 export function GetWebhookConfig():Promise<main.WebhookConfig>;
 
+export function ListAIModels(arg1:main.AIProvider):Promise<Array<string>>;
+
+export function ListAIProviders():Promise<Array<main.AIProvider>>;
+
 export function ListInstances():Promise<Array<main.Instance>>;
 
 export function ListListenIPs():Promise<Array<string>>;
@@ -30,6 +36,8 @@ export function ListListenIPs():Promise<Array<string>>;
 export function ReadLogTail(arg1:number):Promise<string>;
 
 export function Refresh():Promise<main.State>;
+
+export function SaveAIProvider(arg1:main.AIProvider):Promise<main.AIProvider>;
 
 export function SetAutoDecrypt(arg1:boolean):Promise<void>;
 
@@ -52,3 +60,5 @@ export function StopHTTP():Promise<void>;
 export function SwitchToHistory(arg1:string):Promise<main.State>;
 
 export function SwitchToPID(arg1:number):Promise<main.State>;
+
+export function TestAIProvider(arg1:main.AIProvider):Promise<main.AITestResult>;

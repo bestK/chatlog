@@ -283,6 +283,31 @@ func (c *Context) SetWebhook(hook *conf.Webhook) error {
 	return nil
 }
 
+func (c *Context) GetAIProviders() []*conf.AIProvider {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	out := make([]*conf.AIProvider, 0, len(c.conf.AIProviders))
+	for _, p := range c.conf.AIProviders {
+		if p == nil {
+			continue
+		}
+		clone := *p
+		out = append(out, &clone)
+	}
+	return out
+}
+
+func (c *Context) SetAIProviders(providers []*conf.AIProvider) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.conf.AIProviders = providers
+	if err := c.cm.SetConfig("ai_providers", providers); err != nil {
+		log.Error().Err(err).Msg("set ai providers failed")
+		return err
+	}
+	return nil
+}
+
 func (c *Context) GetDebug() bool {
 	return c.conf.Debug
 }

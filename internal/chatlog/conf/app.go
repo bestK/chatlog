@@ -7,6 +7,7 @@ type AppConfig struct {
 	Debug          bool            `mapstructure:"debug" json:"debug"`
 	History        []ProcessConfig `mapstructure:"history" json:"history"`
 	Webhook        *Webhook        `mapstructure:"webhook" json:"webhook"`
+	AIProviders    []*AIProvider   `mapstructure:"ai_providers" json:"ai_providers"`
 }
 
 var AppDefaults = map[string]any{}

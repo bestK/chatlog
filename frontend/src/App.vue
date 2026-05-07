@@ -1,10 +1,5 @@
 <script setup lang="ts">
-import { computed, provide } from 'vue';
-import { backend } from './wailsbridge';
-import { appContextKey } from './app/context';
-import { createAppState, type Page } from './app/state';
-import { createFeedbackService } from './app/feedback';
-import { Toaster } from '@/components/ui/sonner';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -13,16 +8,22 @@ import {
     DialogHeader,
     DialogTitle
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { Toaster } from '@/components/ui/sonner';
+import { computed, provide } from 'vue';
+import { appContextKey } from './app/context';
+import { createFeedbackService } from './app/feedback';
+import { createAppState, type Page } from './app/state';
+import GuideWizard from './components/GuideWizard.vue';
 import SidebarNav from './components/SidebarNav.vue';
 import Topbar from './components/Topbar.vue';
-import PageOverview from './pages/PageOverview.vue';
 import PageAccounts from './pages/PageAccounts.vue';
-import PageService from './pages/PageService.vue';
-import PageWebhook from './pages/PageWebhook.vue';
-import PageSettings from './pages/PageSettings.vue';
+import PageAI from './pages/PageAI.vue';
 import PageLogs from './pages/PageLogs.vue';
-import GuideWizard from './components/GuideWizard.vue';
+import PageOverview from './pages/PageOverview.vue';
+import PageService from './pages/PageService.vue';
+import PageSettings from './pages/PageSettings.vue';
+import PageWebhook from './pages/PageWebhook.vue';
+import { backend } from './wailsbridge';
 
 const feedback = createFeedbackService();
 const appState = createAppState(feedback);
@@ -87,7 +88,12 @@ function setPage(p: Page) {
                 <div
                     :class="[
                         'page min-h-0 min-w-0 flex-1 flex flex-col',
-                        page !== '概览' && page !== '账号' && page !== '服务' && page !== 'Webhook' && page !== '设置'
+                        page !== '概览' &&
+                        page !== '账号' &&
+                        page !== '服务' &&
+                        page !== 'Webhook' &&
+                        page !== 'AI' &&
+                        page !== '设置'
                             ? 'overflow-hidden'
                             : 'overflow-auto'
                     ]"
@@ -96,6 +102,7 @@ function setPage(p: Page) {
                     <PageAccounts v-else-if="page === '账号'" />
                     <PageService v-else-if="page === '服务'" />
                     <PageWebhook v-else-if="page === 'Webhook'" />
+                    <PageAI v-else-if="page === 'AI'" />
                     <PageSettings v-else-if="page === '设置'" />
                     <PageLogs v-else />
                 </div>

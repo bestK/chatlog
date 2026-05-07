@@ -6,6 +6,10 @@ export function Decrypt() {
   return window['go']['main']['App']['Decrypt']();
 }
 
+export function DeleteAIProvider(arg1) {
+  return window['go']['main']['App']['DeleteAIProvider'](arg1);
+}
+
 export function EnableLogEvents(arg1) {
   return window['go']['main']['App']['EnableLogEvents'](arg1);
 }
@@ -42,6 +46,14 @@ export function GetWebhookConfig() {
   return window['go']['main']['App']['GetWebhookConfig']();
 }
 
+export function ListAIModels(arg1) {
+  return window['go']['main']['App']['ListAIModels'](arg1);
+}
+
+export function ListAIProviders() {
+  return window['go']['main']['App']['ListAIProviders']();
+}
+
 export function ListInstances() {
   return window['go']['main']['App']['ListInstances']();
 }
@@ -56,6 +68,10 @@ export function ReadLogTail(arg1) {
 
 export function Refresh() {
   return window['go']['main']['App']['Refresh']();
+}
+
+export function SaveAIProvider(arg1) {
+  return window['go']['main']['App']['SaveAIProvider'](arg1);
 }
 
 export function SetAutoDecrypt(arg1) {
@@ -100,4 +116,8 @@ export function SwitchToHistory(arg1) {
 
 export function SwitchToPID(arg1) {
   return window['go']['main']['App']['SwitchToPID'](arg1);
+}
+
+export function TestAIProvider(arg1) {
+  return window['go']['main']['App']['TestAIProvider'](arg1);
 }
