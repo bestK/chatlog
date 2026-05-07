@@ -1,5 +1,53 @@
 export namespace main {
 	
+	export class AIProvider {
+	    id: string;
+	    name: string;
+	    type: string;
+	    baseUrl: string;
+	    apiKey: string;
+	    model: string;
+	    disabled: boolean;
+	    createdAt: number;
+	    updatedAt: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIProvider(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.type = source["type"];
+	        this.baseUrl = source["baseUrl"];
+	        this.apiKey = source["apiKey"];
+	        this.model = source["model"];
+	        this.disabled = source["disabled"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+	export class AITestResult {
+	    ok: boolean;
+	    latencyMs: number;
+	    endpoint: string;
+	    status: number;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AITestResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.latencyMs = source["latencyMs"];
+	        this.endpoint = source["endpoint"];
+	        this.status = source["status"];
+	        this.message = source["message"];
+	    }
+	}
 	export class Instance {
 	    name: string;
 	    pid: number;

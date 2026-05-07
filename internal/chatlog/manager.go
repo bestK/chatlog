@@ -119,6 +119,20 @@ func (m *Manager) SetWebhook(hook *conf.Webhook) error {
 	return m.ReloadWebhook()
 }
 
+func (m *Manager) GetAIProviders() []*conf.AIProvider {
+	if m == nil || m.ctx == nil {
+		return nil
+	}
+	return m.ctx.GetAIProviders()
+}
+
+func (m *Manager) SetAIProviders(providers []*conf.AIProvider) error {
+	if m == nil || m.ctx == nil {
+		return fmt.Errorf("未初始化")
+	}
+	return m.ctx.SetAIProviders(providers)
+}
+
 func (m *Manager) ReloadWeChatInstances() {
 	if m == nil || m.ctx == nil || m.wechat == nil {
 		return

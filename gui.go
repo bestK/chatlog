@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sjzar/chatlog/internal/chatlog"
+	"github.com/sjzar/chatlog/internal/chatlog/ai"
 	"github.com/sjzar/chatlog/internal/chatlog/conf"
 	"github.com/sjzar/chatlog/internal/wechatdb"
 	"github.com/sjzar/chatlog/pkg/util"
@@ -383,6 +384,165 @@ func (a *App) SetWebhookConfig(cfg WebhookConfig) error {
 		return err
 	}
 	return nil
+}
+
+// AI Providers ----------------------------------------------------------------
+
+type AIProvider struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Type      string `json:"type"`
+	BaseURL   string `json:"baseUrl"`
+	APIKey    string `json:"apiKey"`
+	Model     string `json:"model"`
+	Disabled  bool   `json:"disabled"`
+	CreatedAt int64  `json:"createdAt"`
+	UpdatedAt int64  `json:"updatedAt"`
+}
+
+type AITestResult struct {
+	OK       bool   `json:"ok"`
+	Latency  int64  `json:"latencyMs"`
+	Endpoint string `json:"endpoint"`
+	Status   int    `json:"status"`
+	Message  string `json:"message"`
+}
+
+func toAIProvider(p *conf.AIProvider) AIProvider {
+	if p == nil {
+		return AIProvider{}
+	}
+	return AIProvider{
+		ID:        p.ID,
+		Name:      p.Name,
+		Type:      p.Type,
+		BaseURL:   p.BaseURL,
+		APIKey:    p.APIKey,
+		Model:     p.Model,
+		Disabled:  p.Disabled,
+		CreatedAt: p.CreatedAt,
+		UpdatedAt: p.UpdatedAt,
+	}
+}
+
+func fromAIProvider(p AIProvider) *conf.AIProvider {
+	return &conf.AIProvider{
+		ID:        strings.TrimSpace(p.ID),
+		Name:      strings.TrimSpace(p.Name),
+		Type:      strings.TrimSpace(p.Type),
+		BaseURL:   strings.TrimSpace(p.BaseURL),
+		APIKey:    strings.TrimSpace(p.APIKey),
+		Model:     strings.TrimSpace(p.Model),
+		Disabled:  p.Disabled,
+		CreatedAt: p.CreatedAt,
+		UpdatedAt: p.UpdatedAt,
+	}
+}
+
+func (a *App) ListAIProviders() ([]AIProvider, error) {
+	if a.mgr.Context() == nil {
+		return []AIProvider{}, errors.New("未初始化")
+	}
+	src := a.mgr.GetAIProviders()
+	out := make([]AIProvider, 0, len(src))
+	for _, p := range src {
+		if p == nil {
+			continue
+		}
+		out = append(out, toAIProvider(p))
+	}
+	return out, nil
+}
+
+func (a *App) SaveAIProvider(p AIProvider) (AIProvider, error) {
+	if a.mgr.Context() == nil {
+		return AIProvider{}, errors.New("未初始化")
+	}
+	if strings.TrimSpace(p.Name) == "" {
+		return AIProvider{}, errors.New("名称不能为空")
+	}
+	if strings.TrimSpace(p.Type) == "" {
+		return AIProvider{}, errors.New("提供商类型不能为空")
+	}
+	now := time.Now().UnixMilli()
+
+	current := a.mgr.GetAIProviders()
+	target := fromAIProvider(p)
+
+	if target.ID == "" {
+		target.ID = generateAIID()
+		target.CreatedAt = now
+		target.UpdatedAt = now
+		current = append(current, target)
+	} else {
+		found := false
+		for i, item := range current {
+			if item != nil && item.ID == target.ID {
+				if target.CreatedAt == 0 {
+					target.CreatedAt = item.CreatedAt
+				}
+				target.UpdatedAt = now
+				current[i] = target
+				found = true
+				break
+			}
+		}
+		if !found {
+			target.CreatedAt = now
+			target.UpdatedAt = now
+			current = append(current, target)
+		}
+	}
+	if err := a.mgr.SetAIProviders(current); err != nil {
+		return AIProvider{}, err
+	}
+	return toAIProvider(target), nil
+}
+
+func (a *App) DeleteAIProvider(id string) error {
+	if a.mgr.Context() == nil {
+		return errors.New("未初始化")
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return errors.New("id 不能为空")
+	}
+	current := a.mgr.GetAIProviders()
+	next := make([]*conf.AIProvider, 0, len(current))
+	for _, p := range current {
+		if p == nil || p.ID == id {
+			continue
+		}
+		next = append(next, p)
+	}
+	return a.mgr.SetAIProviders(next)
+}
+
+func (a *App) TestAIProvider(p AIProvider) AITestResult {
+	provider := fromAIProvider(p)
+	svc := ai.New()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	r := svc.TestProvider(ctx, provider)
+	return AITestResult{
+		OK:       r.OK,
+		Latency:  r.Latency,
+		Endpoint: r.Endpoint,
+		Status:   r.Status,
+		Message:  r.Message,
+	}
+}
+
+func (a *App) ListAIModels(p AIProvider) ([]string, error) {
+	provider := fromAIProvider(p)
+	svc := ai.New()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return svc.ListModels(ctx, provider)
+}
+
+func generateAIID() string {
+	return fmt.Sprintf("ai-%d", time.Now().UnixNano())
 }
 
 func (a *App) GetState() (State, error) {
