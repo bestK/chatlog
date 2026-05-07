@@ -25,6 +25,8 @@ export function GetWebhookConfig():Promise<main.WebhookConfig>;
 
 export function ListInstances():Promise<Array<main.Instance>>;
 
+export function ListListenIPs():Promise<Array<string>>;
+
 export function ReadLogTail(arg1:number):Promise<string>;
 
 export function Refresh():Promise<main.State>;

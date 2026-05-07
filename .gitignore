@@ -49,3 +49,7 @@ frontend/dist/*
 frontend/package.json.md5
 frontend/tsconfig.tsbuildinfo
 .sisyohus/
+
+# server web
+web/node_modules/
+web/dist/
