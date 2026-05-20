@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"embed"
 	"encoding/csv"
 	"fmt"
@@ -9,9 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/sjzar/chatlog/internal/chatlog/conf"
 	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/pkg/util"
 	"github.com/sjzar/chatlog/pkg/util/dat2img"
@@ -72,7 +75,12 @@ func (s *Service) initAPIRouter() {
 		api.GET("/contact", s.handleContacts)
 		api.GET("/chatroom", s.handleChatRooms)
 		api.GET("/session", s.handleSessions)
+		api.POST("/ai/summary", s.handleAISummary)
+		api.POST("/ai/summary/stream", s.handleAISummaryStream)
 	}
+
+	// AI 提供商列表（无需数据库）
+	s.router.GET("/api/v1/ai/providers", s.handleAIProviders)
 }
 
 func (s *Service) initMCPRouter() {
@@ -473,4 +481,135 @@ func (s *Service) HandleVoice(c *gin.Context, data []byte) {
 		return
 	}
 	c.Data(http.StatusOK, "audio/mp3", out)
+}
+
+// handleAIProviders 返回已配置的 AI 提供商列表（脱敏）
+func (s *Service) handleAIProviders(c *gin.Context) {
+	if s.ctx == nil {
+		c.JSON(http.StatusOK, gin.H{"providers": []any{}})
+		return
+	}
+	providers := s.ctx.GetAIProviders()
+	var result []gin.H
+	for _, p := range providers {
+		if p == nil || p.Disabled {
+			continue
+		}
+		result = append(result, gin.H{
+			"id":      p.ID,
+			"name":    p.Name,
+			"type":    p.Type,
+			"baseUrl": p.BaseURL,
+			"model":   p.Model,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"providers": result})
+}
+
+// handleAISummary 处理 AI 总结请求
+func (s *Service) handleAISummary(c *gin.Context) {
+	if s.ai == nil || s.ctx == nil {
+		errors.Err(c, errors.New(nil, http.StatusInternalServerError, "AI 服务未初始化"))
+		return
+	}
+
+	type requestBody struct {
+		ProviderID string   `json:"providerId" binding:"required"`
+		Messages   []string `json:"messages" binding:"required,min=1"`
+		Prompt     string   `json:"prompt"`
+	}
+
+	var req requestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.Err(c, errors.New(err, http.StatusBadRequest, "请求格式错误"))
+		return
+	}
+
+	// 查找提供商
+	var provider *conf.AIProvider
+	for _, p := range s.ctx.GetAIProviders() {
+		if p != nil && p.ID == req.ProviderID && !p.Disabled {
+			provider = p
+			break
+		}
+	}
+	if provider == nil {
+		errors.Err(c, errors.New(nil, http.StatusBadRequest, "未找到指定的 AI 提供商"))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
+	defer cancel()
+
+	result, err := s.ai.GenerateSummary(ctx, provider, req.Messages, req.Prompt)
+	if err != nil {
+		errors.Err(c, errors.New(err, http.StatusInternalServerError, "AI 生成失败"))
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// handleAISummaryStream 处理 AI 总结流式请求
+func (s *Service) handleAISummaryStream(c *gin.Context) {
+	if s.ai == nil || s.ctx == nil {
+		errors.Err(c, errors.New(nil, http.StatusInternalServerError, "AI 服务未初始化"))
+		return
+	}
+
+	type requestBody struct {
+		ProviderID string   `json:"providerId" binding:"required"`
+		Messages   []string `json:"messages" binding:"required,min=1"`
+		Prompt     string   `json:"prompt"`
+	}
+
+	var req requestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.Err(c, errors.New(err, http.StatusBadRequest, "请求格式错误"))
+		return
+	}
+
+	// 查找提供商
+	var provider *conf.AIProvider
+	for _, p := range s.ctx.GetAIProviders() {
+		if p != nil && p.ID == req.ProviderID && !p.Disabled {
+			provider = p
+			break
+		}
+	}
+	if provider == nil {
+		errors.Err(c, errors.New(nil, http.StatusBadRequest, "未找到指定的 AI 提供商"))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
+	defer cancel()
+
+	ch, err := s.ai.GenerateSummaryStream(ctx, provider, req.Messages, req.Prompt)
+	if err != nil {
+		errors.Err(c, errors.New(err, http.StatusInternalServerError, "AI 流式生成失败"))
+		return
+	}
+
+	// 设置 SSE 响应头
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("Access-Control-Allow-Origin", "*")
+
+	// 发送流式数据
+	for chunk := range ch {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			// SSE 格式：data: 内容\n\n
+			c.SSEvent("", chunk)
+			c.Writer.Flush()
+		}
+	}
+
+	// 发送结束标记
+	c.SSEvent("", "[DONE]")
+	c.Writer.Flush()
 }

@@ -16,6 +16,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/rs/zerolog v1.34.0
+	github.com/sashabaranov/go-openai v1.41.2
 	github.com/shirou/gopsutil/v4 v4.25.7
 	github.com/sjzar/go-lame v0.0.9
 	github.com/sjzar/go-silk v0.0.1

@@ -10,6 +10,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/sjzar/chatlog/internal/chatlog/ai"
 	"github.com/sjzar/chatlog/internal/chatlog/conf"
 	"github.com/sjzar/chatlog/internal/chatlog/ctx"
 	"github.com/sjzar/chatlog/internal/chatlog/database"
@@ -35,6 +36,7 @@ type Manager struct {
 	db     *database.Service
 	http   *http.Service
 	wechat *wechat.Service
+	ai     *ai.Service
 }
 
 func New() *Manager {
@@ -54,7 +56,8 @@ func (m *Manager) Init(configPath string) error {
 
 	m.wechat = wechat.NewService(m.ctx)
 	m.db = database.NewService(m.ctx)
-	m.http = http.NewService(m.ctx, m.db)
+	m.ai = ai.New()
+	m.http = http.NewService(m.ctx, m.db, m.ai, m.ctx)
 
 	m.ctx.WeChatInstances = m.wechat.GetWeChatInstances()
 	if len(m.ctx.WeChatInstances) >= 1 {
@@ -604,7 +607,10 @@ func (m *Manager) CommandHTTPServer(configPath string, cmdConf map[string]any) e
 	// 注入 DBController，用于在解密替换文件时控制连接（锁定、关闭、解锁）
 	m.wechat.SetDBController(m.db)
 
-	m.http = http.NewService(m.sc, m.db)
+	if m.ai == nil {
+		m.ai = ai.New()
+	}
+	m.http = http.NewService(m.sc, m.db, m.ai, m.ctx)
 
 	if m.sc.GetAutoDecrypt() {
 		if err := m.wechat.StartAutoDecrypt(); err != nil {

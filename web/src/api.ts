@@ -17,20 +17,22 @@ export interface ParamSpec {
     hint?: string;
     options?: { value: string; label: string }[];
     source?: (keyword: string) => Promise<AutocompleteOption[]>;
+    minFromKey?: string;
+    maxFromKey?: string;
     default?: string;
 }
 
 interface ContactItem {
-    UserName: string;
-    Alias?: string;
-    Remark?: string;
-    NickName?: string;
+    userName: string;
+    alias?: string;
+    remark?: string;
+    nickName?: string;
 }
 
 interface ChatRoomItem {
-    Name: string;
-    Remark?: string;
-    NickName?: string;
+    name: string;
+    remark?: string;
+    nickName?: string;
 }
 
 async function fetchContacts(keyword: string): Promise<AutocompleteOption[]> {
@@ -40,11 +42,15 @@ async function fetchContacts(keyword: string): Promise<AutocompleteOption[]> {
     if (!resp.ok) return [];
     const data = await resp.json();
     const items: ContactItem[] = data?.Items || data?.items || [];
-    return items.map(c => ({
-        value: c.UserName,
-        label: c.Remark || c.NickName || c.Alias || c.UserName,
-        sub: c.UserName
-    }));
+    return items
+        .map(c => {
+            return {
+                value: c.userName,
+                label: c.remark || c.nickName || c.alias || c.userName,
+                sub: c.userName
+            };
+        })
+        .filter(c => c.value);
 }
 
 async function fetchChatRooms(keyword: string): Promise<AutocompleteOption[]> {
@@ -54,11 +60,15 @@ async function fetchChatRooms(keyword: string): Promise<AutocompleteOption[]> {
     if (!resp.ok) return [];
     const data = await resp.json();
     const items: ChatRoomItem[] = data?.Items || data?.items || [];
-    return items.map(r => ({
-        value: r.Name,
-        label: r.Remark || r.NickName || r.Name,
-        sub: r.Name
-    }));
+    return items
+        .map(r => {
+            return {
+                value: r.name,
+                label: r.remark || r.nickName || r.name,
+                sub: r.name
+            };
+        })
+        .filter(r => r.value);
 }
 
 async function searchTalker(keyword: string): Promise<AutocompleteOption[]> {
@@ -196,4 +206,51 @@ export function buildUrl(
     const apiUrl = `${ep.path}?${params.toString()}`;
     const fullUrl = (typeof window !== 'undefined' ? window.location.origin : '') + apiUrl;
     return { apiUrl, fullUrl };
+}
+
+// AI 总结相关接口
+export interface AISummaryRequest {
+    providerId: string;
+    messages: string[];
+    prompt?: string;
+}
+
+export interface AISummaryResponse {
+    summary: string;
+    model: string;
+    tokens?: number;
+}
+
+// AI 总结
+export async function requestAISummary(req: AISummaryRequest): Promise<AISummaryResponse> {
+    const response = await fetch('/api/v1/ai/summary', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(req)
+    });
+
+    if (!response.ok) {
+        throw new Error(`AI 总结请求失败: ${response.statusText}`);
+    }
+
+    return response.json();
+}
+
+// 流式 AI 总结
+export async function requestAISummaryStream(req: AISummaryRequest): Promise<ReadableStream<Uint8Array>> {
+    const response = await fetch('/api/v1/ai/summary/stream', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(req)
+    });
+
+    if (!response.ok) {
+        throw new Error(`AI 流式总结请求失败: ${response.statusText}`);
+    }
+
+    return response.body!;
 }

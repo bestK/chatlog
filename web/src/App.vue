@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
-import { buildUrl, endpoints, getEndpoint, type EndpointKey, type ParamSpec } from './api';
+import { buildUrl, endpoints, getEndpoint, requestAISummaryStream, type EndpointKey, type ParamSpec } from './api';
+import DatePicker from './components/DatePicker.vue';
 import SearchableSelect from './components/SearchableSelect.vue';
 
 const activeKey = ref<EndpointKey>('session');
@@ -23,6 +24,18 @@ const responseTime = ref(0);
 const total = ref<number | null>(null);
 const errorMsg = ref('');
 const copyHint = ref('');
+
+// AI 总结相关状态
+const showAISummaryModal = ref(false);
+const aiProviders = ref<{ id: string; name: string; type: string; baseUrl: string; model: string }[]>([]);
+const selectedProvider = ref('');
+const summaryPrompt = ref(
+    '请总结以下聊天记录的主要内容，包括：\n1. 聊天主题\n2. 关键讨论点\n3. 重要结论或待办事项\n\n聊天记录：'
+);
+const aiSummaryResult = ref('');
+const aiSummaryLoading = ref(false);
+const aiSummaryError = ref('');
+const aiSummaryStream = ref('');
 
 const currentValues = computed({
     get: () => formValues[activeKey.value] || {},
@@ -98,6 +111,24 @@ const totalPages = computed(() => {
 });
 const currentPage = computed(() => Math.floor(offset.value / limit.value) + 1);
 
+type RangePreset = '7d' | '30d' | '180d';
+
+function formatDate(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function applyDateRangePreset(value: RangePreset) {
+    const days = value === '7d' ? 7 : value === '30d' ? 30 : 180;
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - days + 1);
+    currentValues.value.startDate = formatDate(start);
+    currentValues.value.endDate = formatDate(end);
+}
+
 const visiblePages = computed(() => {
     const pages: (number | '...')[] = [];
     const total = totalPages.value;
@@ -153,6 +184,120 @@ function buildCurl(): string {
 function isParamFilled(p: ParamSpec): boolean {
     const v = currentValues.value[p.key];
     return typeof v === 'string' && v.length > 0;
+}
+
+// AI 总结相关方法
+async function fetchAIProviders() {
+    try {
+        const resp = await fetch('/api/v1/ai/providers');
+        const data = await resp.json();
+        aiProviders.value = data.providers || [];
+        if (aiProviders.value.length > 0 && !selectedProvider.value) {
+            selectedProvider.value = aiProviders.value[0].id;
+        }
+    } catch (e) {
+        console.error('获取 AI 提供商失败:', e);
+    }
+}
+
+function openAISummaryModal() {
+    aiSummaryResult.value = '';
+    aiSummaryError.value = '';
+    void fetchAIProviders();
+    showAISummaryModal.value = true;
+}
+
+function closeAISummaryModal() {
+    showAISummaryModal.value = false;
+}
+
+function extractMessagesFromResponse(): string[] {
+    try {
+        const data = JSON.parse(responseBody.value);
+        // 如果是数组，直接返回
+        if (Array.isArray(data)) {
+            return data
+                .map((item: any) => {
+                    if (typeof item === 'string') return item;
+                    if (item.content) return String(item.content);
+                    if (item.message) return String(item.message);
+                    return JSON.stringify(item);
+                })
+                .filter((m: string) => m.trim().length > 0);
+        }
+        // 如果是对象且有 data 字段
+        if (data.data && Array.isArray(data.data)) {
+            return data.data
+                .map((item: any) => {
+                    if (typeof item === 'string') return item;
+                    if (item.content) return String(item.content);
+                    if (item.message) return String(item.message);
+                    return JSON.stringify(item);
+                })
+                .filter((m: string) => m.trim().length > 0);
+        }
+        return [];
+    } catch {
+        // 如果不是 JSON，尝试按行分割
+        return responseBody.value.split('\n').filter(l => l.trim().length > 0);
+    }
+}
+
+async function generateAISummary() {
+    if (!selectedProvider.value) {
+        aiSummaryError.value = '请先选择一个 AI 提供商';
+        return;
+    }
+    const messages = extractMessagesFromResponse();
+    if (messages.length === 0) {
+        aiSummaryError.value = '没有可总结的聊天内容';
+        return;
+    }
+    aiSummaryLoading.value = true;
+    aiSummaryError.value = '';
+    aiSummaryResult.value = '';
+    aiSummaryStream.value = '';
+    try {
+        const stream = await requestAISummaryStream({
+            providerId: selectedProvider.value,
+            messages: messages.slice(0, 50), // 限制消息数量，避免超出 token 限制
+            prompt: summaryPrompt.value
+        });
+
+        const reader = stream.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const data = line.slice(6);
+                    if (data === '[DONE]') {
+                        aiSummaryResult.value = aiSummaryStream.value;
+                        return;
+                    }
+                    if (data) {
+                        aiSummaryStream.value += data;
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        aiSummaryError.value = `生成失败：${(e as Error).message}`;
+    } finally {
+        aiSummaryLoading.value = false;
+    }
+}
+
+function copyAISummary() {
+    if (aiSummaryResult.value) {
+        void copyText(aiSummaryResult.value, '总结已复制');
+    }
 }
 </script>
 
@@ -228,11 +373,12 @@ function isParamFilled(p: ParamSpec): boolean {
                                 :placeholder="p.placeholder"
                                 class="h-9 w-full rounded-md border border-input bg-background/40 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                             />
-                            <input
+                            <DatePicker
                                 v-else-if="p.type === 'date'"
-                                v-model="currentValues[p.key]"
-                                type="date"
-                                class="h-9 w-full rounded-md border border-input bg-background/40 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                                :model-value="currentValues[p.key] ?? ''"
+                                :placeholder="p.placeholder || '选择日期'"
+                                @update:model-value="(v: string) => (currentValues[p.key] = v)"
+                                @range-preset="applyDateRangePreset"
                             />
                             <select
                                 v-else-if="p.type === 'select'"
@@ -353,12 +499,18 @@ function isParamFilled(p: ParamSpec): boolean {
                         <div v-else class="text-sm text-muted-foreground">暂无响应数据。</div>
                     </div>
 
-                    <div v-if="responseBody" class="flex justify-end">
+                    <div v-if="responseBody" class="flex justify-end gap-2">
                         <button
                             class="h-8 rounded-md px-2.5 text-xs font-normal text-muted-foreground hover:text-foreground"
                             @click="copyText(responseBody, '已复制响应')"
                         >
                             复制响应
+                        </button>
+                        <button
+                            class="h-8 rounded-md bg-primary px-2.5 text-xs font-normal text-primary-foreground hover:opacity-90"
+                            @click="openAISummaryModal"
+                        >
+                            AI 总结
                         </button>
                     </div>
 
@@ -445,6 +597,127 @@ function isParamFilled(p: ParamSpec): boolean {
                 class="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-foreground px-4 py-1.5 text-xs text-background shadow-lg"
             >
                 {{ copyHint }}
+            </div>
+        </Transition>
+
+        <!-- AI 总结对话框 -->
+        <Transition
+            enter-from-class="opacity-0"
+            enter-active-class="transition duration-200"
+            leave-active-class="transition duration-150"
+            leave-to-class="opacity-0"
+        >
+            <div
+                v-if="showAISummaryModal"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+                @click.self="closeAISummaryModal"
+            >
+                <div
+                    class="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-background shadow-2xl ring-1 ring-border/60"
+                >
+                    <div
+                        class="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border/60 bg-background/95 px-5 py-4 backdrop-blur"
+                    >
+                        <h3 class="font-serif text-lg font-medium tracking-tight">AI 总结</h3>
+                        <button
+                            class="h-8 w-8 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                            @click="closeAISummaryModal"
+                        >
+                            <svg
+                                class="size-4"
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path d="M18 6 6 18" />
+                                <path d="m6 6 12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="space-y-5 p-5">
+                        <!-- 提供商选择 -->
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-foreground">选择 AI 提供商</label>
+                            <select
+                                v-model="selectedProvider"
+                                class="h-9 w-full rounded-md border border-input bg-background/50 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                            >
+                                <option value="" disabled>请选择提供商</option>
+                                <option v-for="p in aiProviders" :key="p.id" :value="p.id">
+                                    {{ p.name }} ({{ p.model || p.type }})
+                                </option>
+                            </select>
+                            <p v-if="aiProviders.length === 0" class="text-xs text-muted-foreground">
+                                暂无可用提供商，请先在配置中添加 AI 提供商。
+                            </p>
+                        </div>
+
+                        <!-- 提示词编辑 -->
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-foreground">提示词</label>
+                            <textarea
+                                v-model="summaryPrompt"
+                                rows="4"
+                                class="w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                                placeholder="请输入提示词..."
+                            ></textarea>
+                            <p class="text-xs text-muted-foreground">可修改提示词以自定义总结风格和内容。</p>
+                        </div>
+
+                        <!-- 生成按钮 -->
+                        <div class="flex items-center justify-between gap-3">
+                            <div v-if="aiSummaryError" class="text-xs text-destructive">{{ aiSummaryError }}</div>
+                            <div v-else class="text-xs text-muted-foreground">
+                                将分析当前响应中的聊天记录（最多 50 条）
+                            </div>
+                            <button
+                                class="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                                :disabled="aiSummaryLoading || !selectedProvider"
+                                @click="generateAISummary"
+                            >
+                                {{ aiSummaryLoading ? '生成中…' : '生成总结' }}
+                            </button>
+                        </div>
+
+                        <!-- 加载状态 -->
+                        <div v-if="aiSummaryLoading" class="flex items-center justify-center gap-2 py-8">
+                            <span
+                                class="size-4 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"
+                            ></span>
+                            <span class="text-sm text-muted-foreground">AI 正在分析聊天记录…</span>
+                        </div>
+
+                        <!-- 总结结果 -->
+                        <div v-if="aiSummaryResult || aiSummaryStream" class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <label class="text-sm font-medium text-foreground">总结结果</label>
+                                <button
+                                    class="h-7 rounded-md px-2.5 text-xs font-normal text-muted-foreground hover:text-foreground"
+                                    @click="copyAISummary"
+                                >
+                                    复制
+                                </button>
+                            </div>
+                            <div
+                                class="relative max-h-[300px] overflow-auto rounded-md bg-muted/30 ring-1 ring-border/40 p-4"
+                            >
+                                <VueStreamMarkdown
+                                    :content="aiSummaryStream || aiSummaryResult"
+                                    :mode="aiSummaryStream ? 'streaming' : 'static'"
+                                    :enable-animate="true"
+                                    :animation="'typewriter'"
+                                    :controls="{ copy: true, zoom: false }"
+                                    class="whitespace-pre-wrap break-all text-sm leading-relaxed text-foreground/90"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </Transition>
     </div>
