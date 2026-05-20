@@ -5,7 +5,8 @@ import { Pagination } from '@/components/ui/pagination';
 import {
     Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription
 } from '@/components/ui/sheet';
-import { RefreshCw, Search, Sparkles, Copy, ChevronDown, Check } from 'lucide-vue-next';
+import { CustomSelect } from '@/components/ui/custom-select';
+import { RefreshCw, Search, Sparkles, Copy } from 'lucide-vue-next';
 import MarkdownRender from 'markstream-vue';
 import 'markstream-vue/index.css';
 import { computed, inject, nextTick, onMounted, ref, watch } from 'vue';
@@ -141,16 +142,8 @@ watch(summaryProvider, (v) => {
     if (v) localStorage.setItem('chatlog_ai_provider', v);
 });
 
-const timeDropdownOpen = ref(false);
-const timeDropdownRef = ref<HTMLElement | null>(null);
-const providerDropdownOpen = ref(false);
-const providerDropdownRef = ref<HTMLElement | null>(null);
-
-const selectedTimeLabel = computed(() =>
-    timeRangeOptions.find(o => o.value === summaryTimeRange.value)?.label || '今天'
-);
-const selectedProviderLabel = computed(() =>
-    summaryProviders.value.find(p => p.id === summaryProvider.value)?.name || '选择提供商'
+const providerOptions = computed(() =>
+    summaryProviders.value.map(p => ({ value: p.id, label: p.name }))
 );
 const summaryStream = ref('');
 const summaryResult = ref('');
@@ -412,25 +405,10 @@ async function fetchProviders() {
 
 function selectTimeRange(val: string) {
     summaryTimeRange.value = val;
-    timeDropdownOpen.value = false;
     if (val !== 'custom' && summaryContact.value) {
         chatOffset.value = 0;
         chatHasMore.value = true;
         void loadChatMessages(summaryContact.value, val, false);
-    }
-}
-
-function selectProvider(id: string) {
-    summaryProvider.value = id;
-    providerDropdownOpen.value = false;
-}
-
-function onSheetClick(e: MouseEvent) {
-    if (timeDropdownOpen.value && timeDropdownRef.value && !timeDropdownRef.value.contains(e.target as Node)) {
-        timeDropdownOpen.value = false;
-    }
-    if (providerDropdownOpen.value && providerDropdownRef.value && !providerDropdownRef.value.contains(e.target as Node)) {
-        providerDropdownOpen.value = false;
     }
 }
 </script>
@@ -661,93 +639,39 @@ function onSheetClick(e: MouseEvent) {
                     </div>
 
                     <!-- Summary section -->
-                    <div class="shrink-0 space-y-3 border-t border-border/40 pt-3 pb-2 px-1" @click="onSheetClick">
+                    <div class="shrink-0 space-y-3 border-t border-border/40 pt-3 pb-2 px-1">
                         <div class="flex flex-wrap items-center gap-2">
-                            <!-- Time range dropdown -->
-                            <div ref="timeDropdownRef" class="relative">
-                                <button
-                                    type="button"
-                                    :class="[
-                                        'flex h-8 items-center gap-1 rounded-md border border-input bg-background/40 px-2 text-xs transition-colors hover:bg-background/60 focus:outline-none focus:ring-1 focus:ring-ring',
-                                        timeDropdownOpen && 'ring-1 ring-ring'
-                                    ]"
-                                    @click.stop="timeDropdownOpen = !timeDropdownOpen; providerDropdownOpen = false; fetchProviders()"
-                                >
-                                    <span>{{ selectedTimeLabel }}</span>
-                                    <ChevronDown :class="['size-3 text-muted-foreground transition-transform', timeDropdownOpen && 'rotate-180']" />
-                                </button>
-                                <Transition
-                                    enter-from-class="opacity-0 -translate-y-1"
-                                    enter-active-class="transition duration-150"
-                                    leave-active-class="transition duration-100"
-                                    leave-to-class="opacity-0 -translate-y-1"
-                                >
-                                    <div
-                                        v-if="timeDropdownOpen"
-                                        class="absolute bottom-full left-0 z-30 mb-1.5 min-w-max overflow-auto rounded-md border border-border/60 bg-popover/95 p-1 shadow-lg backdrop-blur"
-                                    >
-                                        <button
-                                            v-for="opt in timeRangeOptions"
-                                            :key="opt.value"
-                                            type="button"
-                                            :class="[
-                                                'flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors',
-                                                opt.value === summaryTimeRange
-                                                    ? 'bg-accent text-foreground'
-                                                    : 'text-foreground/85 hover:bg-accent/60'
-                                            ]"
-                                            @click="selectTimeRange(opt.value)"
-                                        >
-                                            <span>{{ opt.label }}</span>
-                                            <Check v-if="opt.value === summaryTimeRange" class="size-3 text-foreground/70" />
-                                        </button>
-                                    </div>
-                                </Transition>
-                            </div>
+                            <CustomSelect
+                                :model-value="summaryTimeRange"
+                                :options="timeRangeOptions"
+                                direction="up"
+                                @update:model-value="selectTimeRange"
+                            />
 
-                            <!-- Provider dropdown -->
-                            <div ref="providerDropdownRef" class="relative flex-1 min-w-[120px]">
-                                <button
-                                    type="button"
-                                    :class="[
-                                        'flex h-8 w-full items-center justify-between gap-1 rounded-md border border-input bg-background/40 px-2 text-xs transition-colors hover:bg-background/60 focus:outline-none focus:ring-1 focus:ring-ring',
-                                        providerDropdownOpen && 'ring-1 ring-ring'
-                                    ]"
-                                    @click.stop="providerDropdownOpen = !providerDropdownOpen; timeDropdownOpen = false; fetchProviders()"
-                                >
-                                    <span class="truncate">{{ selectedProviderLabel }}</span>
-                                    <ChevronDown :class="['size-3 shrink-0 text-muted-foreground transition-transform', providerDropdownOpen && 'rotate-180']" />
-                                </button>
-                                <Transition
-                                    enter-from-class="opacity-0 -translate-y-1"
-                                    enter-active-class="transition duration-150"
-                                    leave-active-class="transition duration-100"
-                                    leave-to-class="opacity-0 -translate-y-1"
-                                >
-                                    <div
-                                        v-if="providerDropdownOpen"
-                                        class="absolute bottom-full left-0 right-0 z-30 mb-1.5 overflow-auto rounded-md border border-border/60 bg-popover/95 p-1 shadow-lg backdrop-blur"
-                                    >
-                                        <div v-if="summaryProviders.length === 0" class="px-2.5 py-2 text-xs text-muted-foreground">
-                                            暂无提供商
-                                        </div>
-                                        <button
-                                            v-for="p in summaryProviders"
-                                            :key="p.id"
-                                            type="button"
-                                            :class="[
-                                                'flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors',
-                                                p.id === summaryProvider
-                                                    ? 'bg-accent text-foreground'
-                                                    : 'text-foreground/85 hover:bg-accent/60'
-                                            ]"
-                                            @click="selectProvider(p.id)"
-                                        >
-                                            <span>{{ p.name }}</span>
-                                            <Check v-if="p.id === summaryProvider" class="size-3 text-foreground/70" />
-                                        </button>
-                                    </div>
-                                </Transition>
+                            <!-- Custom date range -->
+                            <template v-if="summaryTimeRange === 'custom'">
+                                <input
+                                    v-model="customStartDate"
+                                    type="datetime-local"
+                                    class="h-8 flex-1 min-w-[130px] rounded-md border border-input bg-background/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring [color-scheme:dark]"
+                                />
+                                <span class="text-xs text-muted-foreground">~</span>
+                                <input
+                                    v-model="customEndDate"
+                                    type="datetime-local"
+                                    class="h-8 flex-1 min-w-[130px] rounded-md border border-input bg-background/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring [color-scheme:dark]"
+                                />
+                            </template>
+
+                            <div class="flex-1 min-w-[120px]">
+                                <CustomSelect
+                                    :model-value="summaryProvider"
+                                    :options="providerOptions"
+                                    placeholder="选择提供商"
+                                    direction="up"
+                                    @update:model-value="(v: string) => { summaryProvider = v; }"
+                                    @click="fetchProviders"
+                                />
                             </div>
 
                             <Button

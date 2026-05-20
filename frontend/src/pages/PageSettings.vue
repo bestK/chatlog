@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Input } from '@/components/ui/input';
-import { inject, onBeforeUnmount, onMounted, ref, type Ref } from 'vue';
+import { inject, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue';
 import { appContextKey } from '../app/context';
 import { backend, type KeyProgressEvent } from '../wailsbridge';
 
@@ -8,7 +8,15 @@ const injected = inject(appContextKey);
 if (!injected) throw new Error('chatlog not provided');
 const app = injected;
 
-const { dataDir, workDir, dataKey, imgKey, run, feedback } = app;
+const { state, dataDir, workDir, dataKey, imgKey, run, feedback } = app;
+
+watch(() => state.value?.account, () => {
+    if (!state.value) return;
+    dataDir.value = state.value.dataDir || '';
+    workDir.value = state.value.workDir || '';
+    dataKey.value = state.value.dataKey || '';
+    imgKey.value = state.value.imgKey || '';
+});
 
 type ActionDialogOptions<T> = {
     loadingRef: Ref<boolean>;
