@@ -80,11 +80,11 @@ type GetMessagesResp struct {
 	Items []*model.Message `json:"items"`
 }
 
-func (w *DB) GetMessages(start, end time.Time, talker string, sender string, keyword string, limit, offset int) (*GetMessagesResp, error) {
+func (w *DB) GetMessages(start, end time.Time, talker string, sender string, keyword string, limit, offset int, order string) (*GetMessagesResp, error) {
 	ctx := context.Background()
 
 	// 使用 repository 获取消息
-	total, messages, err := w.repo.GetMessages(ctx, start, end, talker, sender, keyword, limit, offset)
+	total, messages, err := w.repo.GetMessages(ctx, start, end, talker, sender, keyword, limit, offset, order)
 	if err != nil {
 		return nil, err
 	}

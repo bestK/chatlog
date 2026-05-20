@@ -236,7 +236,7 @@ func (ds *DataSource) getDBInfosForTimeRange(startTime, endTime time.Time) []Mes
 	return dbs
 }
 
-func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.Time, selfID string, talker string, sender string, keyword string, limit, offset int) ([]*model.Message, error) {
+func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.Time, selfID string, talker string, sender string, keyword string, limit, offset int, order string) ([]*model.Message, error) {
 	if talker == "" {
 		return nil, errors.ErrTalkerEmpty
 	}
@@ -401,9 +401,15 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 	}
 
 	// 对所有消息按时间排序
-	sort.Slice(filteredMessages, func(i, j int) bool {
-		return filteredMessages[i].Seq < filteredMessages[j].Seq
-	})
+	if order == "asc" {
+		sort.Slice(filteredMessages, func(i, j int) bool {
+			return filteredMessages[i].Seq < filteredMessages[j].Seq
+		})
+	} else {
+		sort.Slice(filteredMessages, func(i, j int) bool {
+			return filteredMessages[i].Seq > filteredMessages[j].Seq
+		})
+	}
 
 	// 处理分页
 	if limit > 0 {
@@ -421,7 +427,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 }
 
 func (ds *DataSource) GetMessagesCount(ctx context.Context, startTime, endTime time.Time, speakerto string, talker string, sender string, keyword string) (int, error) {
-	messages, err := ds.GetMessages(ctx, startTime, endTime, speakerto, talker, sender, keyword, 0, 0)
+	messages, err := ds.GetMessages(ctx, startTime, endTime, speakerto, talker, sender, keyword, 0, 0, "")
 	if err != nil {
 		return 0, err
 	}

@@ -54,5 +54,8 @@ frontend/tsconfig.tsbuildinfo
 web/node_modules/
 web/dist/
 
+# server web build output (embedded at build time)
+internal/chatlog/http/static/
+
 # local reference projects
 wechat-decrypt/

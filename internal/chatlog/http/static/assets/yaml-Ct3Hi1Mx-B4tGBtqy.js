@@ -1,1 +1,0 @@
-import{m as o,o as n,c as r,a as t}from"./index-B8lryg8k.js";const a={viewBox:"0 0 16 16",width:"1.2em",height:"1.2em"};function l(c,e){return n(),r("svg",a,[...e[0]||(e[0]=[t("path",{fill:"none",stroke:"#ed8796","stroke-linecap":"round","stroke-linejoin":"round",d:"M2.5 1.5h3l3 4l3-4h3l-9 13h-3L7 8z"},null,-1)])])}var s=o({name:"catppuccin-yaml",render:l});export{s as default};
