@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CustomSelect } from '@/components/ui/custom-select';
 import { computed, inject, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { appContextKey } from '../app/context';
 import { backend, type AIProvider, type AITestResult } from '../wailsbridge';
@@ -397,13 +398,12 @@ async function testFormProvider() {
                     </div>
                     <div class="space-y-2">
                         <label class="text-sm text-foreground">类型</label>
-                        <select
-                            v-model="editing.type"
-                            class="h-9 w-full rounded-md border border-input bg-background/40 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                            @change="editing && applyTypeDefaults(editing)"
-                        >
-                            <option v-for="t in PROVIDER_TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
-                        </select>
+                        <CustomSelect
+                            :model-value="editing.type"
+                            :options="PROVIDER_TYPES.map(t => ({ value: t.value, label: t.label }))"
+                            direction="down"
+                            @update:model-value="(v: string) => { if (editing) { editing.type = v; applyTypeDefaults(editing); } }"
+                        />
                     </div>
                     <div class="space-y-2 md:col-span-2">
                         <label class="text-sm text-foreground">Base URL</label>
