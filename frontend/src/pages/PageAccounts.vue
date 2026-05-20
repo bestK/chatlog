@@ -2,7 +2,12 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
-import { RefreshCw, Search } from 'lucide-vue-next';
+import {
+    Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription
+} from '@/components/ui/sheet';
+import { RefreshCw, Search, Sparkles, Copy, ChevronDown, Check } from 'lucide-vue-next';
+import MarkdownRender from 'markstream-vue';
+import 'markstream-vue/index.css';
 import { computed, inject, nextTick, onMounted, ref, watch } from 'vue';
 import { appContextKey } from '../app/context';
 import { backend, type Contact, type Instance } from '../wailsbridge';
@@ -120,6 +125,314 @@ watch(contactLimit, () => {
     contactOffset.value = 0;
     void loadContacts('limit');
 });
+
+// --- AI Summary ---
+
+type AIProvider = { id: string; name: string; type: string; baseUrl: string; model: string };
+type ChatMessage = { time: string; senderName: string; sender: string; content: string; isSelf: boolean };
+
+const summaryOpen = ref(false);
+const summaryContact = ref<Contact | null>(null);
+const summaryProviders = ref<AIProvider[]>([]);
+const summaryProvider = ref(localStorage.getItem('chatlog_ai_provider') || '');
+const summaryTimeRange = ref('today');
+
+watch(summaryProvider, (v) => {
+    if (v) localStorage.setItem('chatlog_ai_provider', v);
+});
+
+const timeDropdownOpen = ref(false);
+const timeDropdownRef = ref<HTMLElement | null>(null);
+const providerDropdownOpen = ref(false);
+const providerDropdownRef = ref<HTMLElement | null>(null);
+
+const selectedTimeLabel = computed(() =>
+    timeRangeOptions.find(o => o.value === summaryTimeRange.value)?.label || '今天'
+);
+const selectedProviderLabel = computed(() =>
+    summaryProviders.value.find(p => p.id === summaryProvider.value)?.name || '选择提供商'
+);
+const summaryStream = ref('');
+const summaryResult = ref('');
+const summaryFinal = ref(false);
+const summaryLoading = ref(false);
+const summaryError = ref('');
+const summaryScrollRef = ref<HTMLElement | null>(null);
+
+const chatMessages = ref<ChatMessage[]>([]);
+const chatLoading = ref(false);
+const chatLoadingMore = ref(false);
+const chatHasMore = ref(true);
+const chatOffset = ref(0);
+const chatPageSize = 50;
+const chatScrollRef = ref<HTMLElement | null>(null);
+
+const summaryContent = computed(() => summaryStream.value || summaryResult.value);
+
+const timeRangeOptions = [
+    { value: 'today', label: '今天' },
+    { value: 'yesterday', label: '昨天' },
+    { value: 'last-3d', label: '最近 3 天' },
+    { value: 'last-7d', label: '最近 7 天' },
+    { value: 'last-30d', label: '最近 30 天' },
+    { value: 'custom', label: '自定义' },
+];
+
+const customStartDate = ref('');
+const customEndDate = ref('');
+
+const effectiveTimeRange = computed(() => {
+    if (summaryTimeRange.value === 'custom' && customStartDate.value && customEndDate.value) {
+        const start = customStartDate.value.replace('T', '/');
+        const end = customEndDate.value.replace('T', '/');
+        return `${start}~${end}`;
+    }
+    return summaryTimeRange.value;
+});
+
+watch([customStartDate, customEndDate], () => {
+    if (summaryTimeRange.value === 'custom' && customStartDate.value && customEndDate.value && summaryContact.value) {
+        chatOffset.value = 0;
+        chatHasMore.value = true;
+        void loadChatMessages(summaryContact.value, effectiveTimeRange.value, false);
+    }
+});
+
+watch(summaryStream, () => {
+    nextTick(() => {
+        if (summaryScrollRef.value) {
+            summaryScrollRef.value.scrollTop = summaryScrollRef.value.scrollHeight;
+        }
+    });
+});
+
+function baseUrl() {
+    const addr = state.value?.httpAddr || '127.0.0.1:5030';
+    return `http://${addr}`;
+}
+
+async function openContact(contact: Contact) {
+    summaryContact.value = contact;
+    summaryStream.value = '';
+    summaryResult.value = '';
+    summaryFinal.value = false;
+    summaryError.value = '';
+    summaryTimeRange.value = 'today';
+    summaryOpen.value = true;
+    chatMessages.value = [];
+    chatOffset.value = 0;
+    chatHasMore.value = true;
+
+    await loadChatMessages(contact, 'today', false);
+}
+
+async function loadChatMessages(contact: Contact, time: string, prepend: boolean) {
+    if (prepend) {
+        chatLoadingMore.value = true;
+    } else {
+        chatLoading.value = true;
+        chatOffset.value = 0;
+        chatHasMore.value = true;
+    }
+    try {
+        const params = new URLSearchParams({
+            talker: contact.userName,
+            time,
+            format: 'json',
+            limit: String(chatPageSize),
+            offset: String(chatOffset.value),
+            sort: 'desc',
+        });
+        const resp = await fetch(`${baseUrl()}/api/v1/chatlog?${params}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        const items = data.items || data.Items || [];
+        const mapped: ChatMessage[] = items.map((m: any) => ({
+            time: m.time || '',
+            senderName: m.senderName || m.sender || '',
+            sender: m.sender || '',
+            content: m.content || '',
+            isSelf: !!m.isSelf,
+        })).reverse();
+
+        if (items.length < chatPageSize) {
+            chatHasMore.value = false;
+        }
+        chatOffset.value += items.length;
+
+        if (prepend) {
+            const el = chatScrollRef.value;
+            const prevHeight = el?.scrollHeight || 0;
+            chatMessages.value = [...mapped, ...chatMessages.value];
+            nextTick(() => {
+                if (el) {
+                    el.scrollTop = el.scrollHeight - prevHeight;
+                }
+            });
+        } else {
+            chatMessages.value = mapped;
+            nextTick(() => {
+                if (chatScrollRef.value) {
+                    chatScrollRef.value.scrollTop = chatScrollRef.value.scrollHeight;
+                }
+            });
+        }
+    } catch (e) {
+        app.feedback.toast('加载聊天记录失败', String(e));
+    } finally {
+        chatLoading.value = false;
+        chatLoadingMore.value = false;
+    }
+}
+
+function onChatScroll() {
+    const el = chatScrollRef.value;
+    if (!el || chatLoadingMore.value || !chatHasMore.value || !summaryContact.value) return;
+    if (el.scrollTop < 60) {
+        void loadChatMessages(summaryContact.value, effectiveTimeRange.value, true);
+    }
+}
+
+async function generateSummary() {
+    if (!summaryContact.value || !summaryProvider.value) return;
+
+    summaryLoading.value = true;
+    summaryError.value = '';
+    summaryStream.value = '';
+    summaryResult.value = '';
+    summaryFinal.value = false;
+
+    try {
+        const params = new URLSearchParams({
+            talker: summaryContact.value.userName,
+            time: effectiveTimeRange.value,
+            format: 'json',
+            limit: '500',
+            sort: 'asc',
+        });
+        const msgResp = await fetch(`${baseUrl()}/api/v1/chatlog?${params}`);
+        if (!msgResp.ok) throw new Error(`获取聊天记录失败: HTTP ${msgResp.status}`);
+        const msgData = await msgResp.json();
+        const items = msgData.items || msgData.Items || [];
+        if (items.length === 0) {
+            summaryError.value = '该时间范围内没有聊天记录';
+            return;
+        }
+
+        const messages: string[] = items.map((m: any) => {
+            const name = m.senderName || m.sender || '';
+            const content = m.content || '';
+            const time = m.time || '';
+            return `${time} ${name}: ${content}`;
+        });
+
+        if (!summaryProvider.value) {
+            try {
+                const resp = await fetch(`${baseUrl()}/api/v1/ai/providers`);
+                const data = await resp.json();
+                summaryProviders.value = data.providers || [];
+                if (summaryProviders.value.length > 0) {
+                    summaryProvider.value = summaryProviders.value[0].id;
+                }
+            } catch {
+                summaryError.value = '无法获取 AI 提供商';
+                return;
+            }
+        }
+
+        const streamResp = await fetch(`${baseUrl()}/api/v1/ai/summary/stream`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                providerId: summaryProvider.value,
+                messages,
+            }),
+        });
+        if (!streamResp.ok) throw new Error(`AI 请求失败: HTTP ${streamResp.status}`);
+
+        const reader = streamResp.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const parts = buffer.split('\n\n');
+            buffer = parts.pop() || '';
+            for (const part of parts) {
+                const lines = part.split('\n');
+                const dataLines: string[] = [];
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) dataLines.push(line.slice(6));
+                    else if (line.startsWith('data:')) dataLines.push(line.slice(5));
+                }
+                const data = dataLines.join('\n');
+                if (data === '[DONE]') {
+                    summaryResult.value = summaryStream.value;
+                    summaryFinal.value = true;
+                    return;
+                }
+                if (data) summaryStream.value += data;
+            }
+        }
+
+        if (!summaryResult.value && summaryStream.value) {
+            summaryResult.value = summaryStream.value;
+        }
+        summaryFinal.value = true;
+    } catch (e) {
+        summaryError.value = String((e as Error).message || e);
+    } finally {
+        summaryLoading.value = false;
+    }
+}
+
+function copySummary() {
+    const text = summaryStream.value || summaryResult.value;
+    if (text) {
+        navigator.clipboard.writeText(text);
+        app.feedback.toast('已复制', '总结内容已复制到剪贴板');
+    }
+}
+
+async function fetchProviders() {
+    try {
+        const resp = await fetch(`${baseUrl()}/api/v1/ai/providers`);
+        const data = await resp.json();
+        summaryProviders.value = data.providers || [];
+        if (summaryProviders.value.length > 0) {
+            const exists = summaryProviders.value.some(p => p.id === summaryProvider.value);
+            if (!exists) {
+                summaryProvider.value = summaryProviders.value[0].id;
+            }
+        }
+    } catch { /* ignore */ }
+}
+
+function selectTimeRange(val: string) {
+    summaryTimeRange.value = val;
+    timeDropdownOpen.value = false;
+    if (val !== 'custom' && summaryContact.value) {
+        chatOffset.value = 0;
+        chatHasMore.value = true;
+        void loadChatMessages(summaryContact.value, val, false);
+    }
+}
+
+function selectProvider(id: string) {
+    summaryProvider.value = id;
+    providerDropdownOpen.value = false;
+}
+
+function onSheetClick(e: MouseEvent) {
+    if (timeDropdownOpen.value && timeDropdownRef.value && !timeDropdownRef.value.contains(e.target as Node)) {
+        timeDropdownOpen.value = false;
+    }
+    if (providerDropdownOpen.value && providerDropdownRef.value && !providerDropdownRef.value.contains(e.target as Node)) {
+        providerDropdownOpen.value = false;
+    }
+}
 </script>
 
 <template>
@@ -262,7 +575,8 @@ watch(contactLimit, () => {
                     <div
                         v-for="contact in contacts"
                         :key="contact.userName"
-                        class="group rounded-lg border border-border/30 bg-card/20 p-4 transition-colors hover:bg-card/40"
+                        class="group cursor-pointer rounded-lg border border-border/30 bg-card/20 p-4 transition-colors hover:bg-card/40"
+                        @click="openContact(contact)"
                     >
                         <div class="flex items-center gap-3">
                             <img
@@ -296,5 +610,198 @@ watch(contactLimit, () => {
                 </div>
             </div>
         </section>
+
+        <!-- Contact Detail Sheet -->
+        <Sheet v-model:open="summaryOpen">
+            <SheetContent side="right" class="w-full sm:max-w-xl flex flex-col overflow-hidden">
+                <SheetHeader class="shrink-0">
+                    <SheetTitle>{{ summaryContact ? getContactName(summaryContact) : '' }}</SheetTitle>
+                    <SheetDescription>
+                        {{ summaryContact?.alias || summaryContact?.userName || '' }}
+                    </SheetDescription>
+                </SheetHeader>
+
+                <div class="flex-1 flex flex-col gap-4 overflow-hidden pt-4">
+                    <!-- Chat messages -->
+                    <div
+                        ref="chatScrollRef"
+                        class="flex-1 min-h-0 overflow-auto rounded-md bg-muted/20 ring-1 ring-border/30 p-3 space-y-2"
+                        @scroll="onChatScroll"
+                    >
+                        <div v-if="chatLoadingMore" class="flex items-center justify-center py-2">
+                            <span class="size-3 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"></span>
+                            <span class="ml-1.5 text-xs text-muted-foreground">加载更多…</span>
+                        </div>
+                        <div v-else-if="!chatHasMore && chatMessages.length > 0" class="text-center py-1">
+                            <span class="text-xs text-muted-foreground/60">已加载全部</span>
+                        </div>
+                        <div v-if="chatLoading" class="flex items-center justify-center py-8">
+                            <span class="size-4 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"></span>
+                            <span class="ml-2 text-xs text-muted-foreground">加载中…</span>
+                        </div>
+                        <div v-else-if="chatMessages.length === 0" class="py-8 text-center text-xs text-muted-foreground">
+                            今天暂无聊天记录
+                        </div>
+                        <div
+                            v-for="(msg, i) in chatMessages"
+                            :key="i"
+                            class="text-xs leading-relaxed"
+                            :class="msg.isSelf ? 'text-right' : ''"
+                        >
+                            <span class="text-muted-foreground">{{ msg.senderName }}</span>
+                            <span class="mx-1 text-muted-foreground/50">·</span>
+                            <span class="text-muted-foreground/70">{{ msg.time }}</span>
+                            <div
+                                class="mt-0.5 inline-block max-w-[85%] rounded-lg px-2.5 py-1.5 text-left"
+                                :class="msg.isSelf ? 'bg-primary/10 text-foreground' : 'bg-muted/40 text-foreground/90'"
+                            >
+                                {{ msg.content }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Summary section -->
+                    <div class="shrink-0 space-y-3 border-t border-border/40 pt-3 pb-2 px-1" @click="onSheetClick">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <!-- Time range dropdown -->
+                            <div ref="timeDropdownRef" class="relative">
+                                <button
+                                    type="button"
+                                    :class="[
+                                        'flex h-8 items-center gap-1 rounded-md border border-input bg-background/40 px-2 text-xs transition-colors hover:bg-background/60 focus:outline-none focus:ring-1 focus:ring-ring',
+                                        timeDropdownOpen && 'ring-1 ring-ring'
+                                    ]"
+                                    @click.stop="timeDropdownOpen = !timeDropdownOpen; providerDropdownOpen = false; fetchProviders()"
+                                >
+                                    <span>{{ selectedTimeLabel }}</span>
+                                    <ChevronDown :class="['size-3 text-muted-foreground transition-transform', timeDropdownOpen && 'rotate-180']" />
+                                </button>
+                                <Transition
+                                    enter-from-class="opacity-0 -translate-y-1"
+                                    enter-active-class="transition duration-150"
+                                    leave-active-class="transition duration-100"
+                                    leave-to-class="opacity-0 -translate-y-1"
+                                >
+                                    <div
+                                        v-if="timeDropdownOpen"
+                                        class="absolute bottom-full left-0 z-30 mb-1.5 min-w-max overflow-auto rounded-md border border-border/60 bg-popover/95 p-1 shadow-lg backdrop-blur"
+                                    >
+                                        <button
+                                            v-for="opt in timeRangeOptions"
+                                            :key="opt.value"
+                                            type="button"
+                                            :class="[
+                                                'flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors',
+                                                opt.value === summaryTimeRange
+                                                    ? 'bg-accent text-foreground'
+                                                    : 'text-foreground/85 hover:bg-accent/60'
+                                            ]"
+                                            @click="selectTimeRange(opt.value)"
+                                        >
+                                            <span>{{ opt.label }}</span>
+                                            <Check v-if="opt.value === summaryTimeRange" class="size-3 text-foreground/70" />
+                                        </button>
+                                    </div>
+                                </Transition>
+                            </div>
+
+                            <!-- Provider dropdown -->
+                            <div ref="providerDropdownRef" class="relative flex-1 min-w-[120px]">
+                                <button
+                                    type="button"
+                                    :class="[
+                                        'flex h-8 w-full items-center justify-between gap-1 rounded-md border border-input bg-background/40 px-2 text-xs transition-colors hover:bg-background/60 focus:outline-none focus:ring-1 focus:ring-ring',
+                                        providerDropdownOpen && 'ring-1 ring-ring'
+                                    ]"
+                                    @click.stop="providerDropdownOpen = !providerDropdownOpen; timeDropdownOpen = false; fetchProviders()"
+                                >
+                                    <span class="truncate">{{ selectedProviderLabel }}</span>
+                                    <ChevronDown :class="['size-3 shrink-0 text-muted-foreground transition-transform', providerDropdownOpen && 'rotate-180']" />
+                                </button>
+                                <Transition
+                                    enter-from-class="opacity-0 -translate-y-1"
+                                    enter-active-class="transition duration-150"
+                                    leave-active-class="transition duration-100"
+                                    leave-to-class="opacity-0 -translate-y-1"
+                                >
+                                    <div
+                                        v-if="providerDropdownOpen"
+                                        class="absolute bottom-full left-0 right-0 z-30 mb-1.5 overflow-auto rounded-md border border-border/60 bg-popover/95 p-1 shadow-lg backdrop-blur"
+                                    >
+                                        <div v-if="summaryProviders.length === 0" class="px-2.5 py-2 text-xs text-muted-foreground">
+                                            暂无提供商
+                                        </div>
+                                        <button
+                                            v-for="p in summaryProviders"
+                                            :key="p.id"
+                                            type="button"
+                                            :class="[
+                                                'flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors',
+                                                p.id === summaryProvider
+                                                    ? 'bg-accent text-foreground'
+                                                    : 'text-foreground/85 hover:bg-accent/60'
+                                            ]"
+                                            @click="selectProvider(p.id)"
+                                        >
+                                            <span>{{ p.name }}</span>
+                                            <Check v-if="p.id === summaryProvider" class="size-3 text-foreground/70" />
+                                        </button>
+                                    </div>
+                                </Transition>
+                            </div>
+
+                            <Button
+                                size="sm"
+                                class="h-8 gap-1 px-3 text-xs"
+                                :disabled="summaryLoading || !summaryProvider"
+                                @click="generateSummary"
+                            >
+                                <Sparkles class="size-3" />
+                                {{ summaryLoading ? '生成中…' : '总结' }}
+                            </Button>
+                        </div>
+
+                        <!-- Custom date range (separate row) -->
+                        <div v-if="summaryTimeRange === 'custom'" class="flex items-center gap-2">
+                            <input
+                                v-model="customStartDate"
+                                type="datetime-local"
+                                class="h-8 flex-1 rounded-md border border-input bg-background/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring [color-scheme:dark]"
+                            />
+                            <span class="text-xs text-muted-foreground">~</span>
+                            <input
+                                v-model="customEndDate"
+                                type="datetime-local"
+                                class="h-8 flex-1 rounded-md border border-input bg-background/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring [color-scheme:dark]"
+                            />
+                        </div>
+
+                        <div v-if="summaryError" class="text-xs text-destructive">{{ summaryError }}</div>
+
+                        <div v-if="summaryContent" class="relative">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs font-medium text-foreground/80">AI 总结</span>
+                                <button
+                                    class="text-xs text-muted-foreground hover:text-foreground"
+                                    @click="copySummary"
+                                >
+                                    <Copy class="size-3 inline mr-0.5" />复制
+                                </button>
+                            </div>
+                            <div
+                                ref="summaryScrollRef"
+                                class="max-h-[40vh] overflow-auto rounded-md bg-muted/30 ring-1 ring-border/40 p-3"
+                            >
+                                <MarkdownRender
+                                    :content="summaryContent"
+                                    :final="summaryFinal"
+                                    :max-live-nodes="0"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </SheetContent>
+        </Sheet>
     </div>
 </template>
