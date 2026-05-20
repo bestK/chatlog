@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
-import { marked } from 'marked';
+import { computed, nextTick, reactive, ref, watch } from 'vue';
+import MarkdownRender from 'markstream-vue';
+import 'markstream-vue/index.css';
 import { buildUrl, endpoints, getEndpoint, requestAISummaryStream, type EndpointKey, type ParamSpec } from './api';
 import DatePicker from './components/DatePicker.vue';
 import SearchableSelect from './components/SearchableSelect.vue';
@@ -28,6 +29,7 @@ const copyHint = ref('');
 
 // AI 总结相关状态
 const showAISummaryModal = ref(false);
+const showPromptSettings = ref(false);
 const aiProviders = ref<{ id: string; name: string; type: string; baseUrl: string; model: string }[]>([]);
 const selectedProvider = ref('');
 const summaryPrompt = ref(
@@ -37,6 +39,16 @@ const aiSummaryResult = ref('');
 const aiSummaryLoading = ref(false);
 const aiSummaryError = ref('');
 const aiSummaryStream = ref('');
+const aiSummaryFinal = ref(false);
+const aiSummaryScrollRef = ref<HTMLElement | null>(null);
+
+watch(() => aiSummaryStream.value, () => {
+    nextTick(() => {
+        if (aiSummaryScrollRef.value) {
+            aiSummaryScrollRef.value.scrollTop = aiSummaryScrollRef.value.scrollHeight;
+        }
+    });
+});
 
 const currentValues = computed({
     get: () => formValues[activeKey.value] || {},
@@ -215,22 +227,19 @@ function closeAISummaryModal() {
 function extractMessagesFromResponse(): string[] {
     try {
         const data = JSON.parse(responseBody.value);
-        // 如果是数组，直接返回
-        if (Array.isArray(data)) {
-            return data
+        // chatlog API 返回 {total, items: [...]}
+        const items = data.items || data.Items || (Array.isArray(data) ? data : data.data);
+        if (Array.isArray(items)) {
+            return items
                 .map((item: any) => {
                     if (typeof item === 'string') return item;
-                    if (item.content) return String(item.content);
-                    if (item.message) return String(item.message);
-                    return JSON.stringify(item);
-                })
-                .filter((m: string) => m.trim().length > 0);
-        }
-        // 如果是对象且有 data 字段
-        if (data.data && Array.isArray(data.data)) {
-            return data.data
-                .map((item: any) => {
-                    if (typeof item === 'string') return item;
+                    // Message 对象：拼接发送者和内容
+                    if (item.senderName || item.sender) {
+                        const name = item.senderName || item.sender || '';
+                        const content = item.content || '';
+                        const time = item.time || '';
+                        return `${time} ${name}: ${content}`;
+                    }
                     if (item.content) return String(item.content);
                     if (item.message) return String(item.message);
                     return JSON.stringify(item);
@@ -239,7 +248,7 @@ function extractMessagesFromResponse(): string[] {
         }
         return [];
     } catch {
-        // 如果不是 JSON，尝试按行分割
+        // 纯文本，按行分割
         return responseBody.value.split('\n').filter(l => l.trim().length > 0);
     }
 }
@@ -258,36 +267,52 @@ async function generateAISummary() {
     aiSummaryError.value = '';
     aiSummaryResult.value = '';
     aiSummaryStream.value = '';
+    aiSummaryFinal.value = false;
     try {
         const stream = await requestAISummaryStream({
             providerId: selectedProvider.value,
-            messages: messages.slice(0, 50), // 限制消息数量，避免超出 token 限制
+            messages: messages,
             prompt: summaryPrompt.value
         });
 
         const reader = stream.getReader();
         const decoder = new TextDecoder();
+        let buffer = '';
 
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
+            buffer += decoder.decode(value, { stream: true });
+            const parts = buffer.split('\n\n');
+            buffer = parts.pop() || '';
 
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const data = line.slice(6);
-                    if (data === '[DONE]') {
-                        aiSummaryResult.value = aiSummaryStream.value;
-                        return;
+            for (const part of parts) {
+                const lines = part.split('\n');
+                const dataLines: string[] = [];
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        dataLines.push(line.slice(6));
+                    } else if (line.startsWith('data:')) {
+                        dataLines.push(line.slice(5));
                     }
-                    if (data) {
-                        aiSummaryStream.value += data;
-                    }
+                }
+                const data = dataLines.join('\n');
+                if (data === '[DONE]') {
+                    aiSummaryResult.value = aiSummaryStream.value;
+                    aiSummaryFinal.value = true;
+                    return;
+                }
+                if (data) {
+                    aiSummaryStream.value += data;
                 }
             }
         }
+
+        if (!aiSummaryResult.value && aiSummaryStream.value) {
+            aiSummaryResult.value = aiSummaryStream.value;
+        }
+        aiSummaryFinal.value = true;
     } catch (e) {
         aiSummaryError.value = `生成失败：${(e as Error).message}`;
     } finally {
@@ -302,11 +327,7 @@ function copyAISummary() {
     }
 }
 
-const renderedMarkdown = computed(() => {
-    const raw = aiSummaryStream.value || aiSummaryResult.value;
-    if (!raw) return '';
-    return marked.parse(raw) as string;
-});
+const renderedContent = computed(() => aiSummaryStream.value || aiSummaryResult.value);
 </script>
 
 <template>
@@ -665,23 +686,43 @@ const renderedMarkdown = computed(() => {
                             </p>
                         </div>
 
-                        <!-- 提示词编辑 -->
+                        <!-- 提示词（折叠） -->
                         <div class="space-y-2">
-                            <label class="text-sm font-medium text-foreground">提示词</label>
-                            <textarea
-                                v-model="summaryPrompt"
-                                rows="4"
-                                class="w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-                                placeholder="请输入提示词..."
-                            ></textarea>
-                            <p class="text-xs text-muted-foreground">可修改提示词以自定义总结风格和内容。</p>
+                            <button
+                                type="button"
+                                class="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                                @click="showPromptSettings = !showPromptSettings"
+                            >
+                                <svg
+                                    :class="['size-3.5 transition-transform', showPromptSettings && 'rotate-90']"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path d="m9 18 6-6-6-6" />
+                                </svg>
+                                提示词设置
+                            </button>
+                            <div v-show="showPromptSettings" class="space-y-2 pt-1">
+                                <textarea
+                                    v-model="summaryPrompt"
+                                    rows="3"
+                                    class="w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                                    placeholder="请输入提示词..."
+                                ></textarea>
+                                <p class="text-xs text-muted-foreground">可修改提示词以自定义总结风格和内容。</p>
+                            </div>
                         </div>
 
                         <!-- 生成按钮 -->
                         <div class="flex items-center justify-between gap-3">
                             <div v-if="aiSummaryError" class="text-xs text-destructive">{{ aiSummaryError }}</div>
                             <div v-else class="text-xs text-muted-foreground">
-                                将分析当前响应中的聊天记录（最多 50 条）
+                                将分析当前查询结果中的聊天记录
                             </div>
                             <button
                                 class="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
@@ -693,7 +734,7 @@ const renderedMarkdown = computed(() => {
                         </div>
 
                         <!-- 加载状态 -->
-                        <div v-if="aiSummaryLoading" class="flex items-center justify-center gap-2 py-8">
+                        <div v-if="aiSummaryLoading && !aiSummaryStream" class="flex items-center justify-center gap-2 py-8">
                             <span
                                 class="size-4 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"
                             ></span>
@@ -712,11 +753,13 @@ const renderedMarkdown = computed(() => {
                                 </button>
                             </div>
                             <div
-                                class="relative max-h-[300px] overflow-auto rounded-md bg-muted/30 ring-1 ring-border/40 p-4"
+                                ref="aiSummaryScrollRef"
+                                class="relative max-h-[60vh] overflow-auto rounded-md bg-muted/30 ring-1 ring-border/40 p-4"
                             >
-                                <div
-                                    class="markdown-body text-sm leading-relaxed text-foreground/90"
-                                    v-html="renderedMarkdown"
+                                <MarkdownRender
+                                    :content="renderedContent"
+                                    :final="aiSummaryFinal"
+                                    :max-live-nodes="0"
                                 />
                             </div>
                         </div>
