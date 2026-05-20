@@ -503,6 +503,20 @@ func (m *Manager) SetSelectedAIProvider(providerID string) {
 	m.ctx.SetSelectedAIProvider(providerID)
 }
 
+func (m *Manager) GetSummaryPrompt() string {
+	if m == nil || m.ctx == nil {
+		return ""
+	}
+	return m.ctx.GetSummaryPrompt()
+}
+
+func (m *Manager) SetSummaryPrompt(prompt string) {
+	if m == nil || m.ctx == nil {
+		return
+	}
+	m.ctx.SetSummaryPrompt(prompt)
+}
+
 func (m *Manager) syncCurrentProfile() {
 	if m == nil || m.ctx == nil || m.db == nil || m.db.GetDB() == nil {
 		return

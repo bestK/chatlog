@@ -87,6 +87,7 @@ type Snapshot struct {
 	AutoDecrypt        bool
 	LastSessionUnix    int64
 	SelectedAIProvider string
+	SummaryPrompt      string
 
 	PID             int
 	ExePath         string
@@ -238,6 +239,7 @@ func (c *Context) Snapshot() Snapshot {
 		AutoDecrypt:        c.AutoDecrypt,
 		LastSessionUnix:    last,
 		SelectedAIProvider: c.conf.SelectedAIProvider,
+		SummaryPrompt:      c.conf.SummaryPrompt,
 		PID:                c.PID,
 		ExePath:            c.ExePath,
 		Status:             c.Status,
@@ -401,6 +403,24 @@ func (c *Context) SetSelectedAIProvider(providerID string) {
 	c.conf.SelectedAIProvider = providerID
 	if err := c.cm.SetConfig("selected_ai_provider", providerID); err != nil {
 		log.Error().Err(err).Msg("set selected_ai_provider failed")
+	}
+}
+
+func (c *Context) GetSummaryPrompt() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.conf.SummaryPrompt
+}
+
+func (c *Context) SetSummaryPrompt(prompt string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.conf.SummaryPrompt == prompt {
+		return
+	}
+	c.conf.SummaryPrompt = prompt
+	if err := c.cm.SetConfig("summary_prompt", prompt); err != nil {
+		log.Error().Err(err).Msg("set summary_prompt failed")
 	}
 }
 

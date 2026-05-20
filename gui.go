@@ -68,6 +68,7 @@ type State struct {
 	AutoDecrypt        bool   `json:"autoDecrypt"`
 	LastSession        string `json:"lastSession"`
 	SelectedAIProvider string `json:"selectedAIProvider"`
+	SummaryPrompt      string `json:"summaryPrompt"`
 	PID                int    `json:"pid"`
 	ExePath            string `json:"exePath"`
 	Status             string `json:"status"`
@@ -567,6 +568,7 @@ func (a *App) GetState() (State, error) {
 		AutoDecrypt:        snap.AutoDecrypt,
 		LastSession:        last,
 		SelectedAIProvider: snap.SelectedAIProvider,
+		SummaryPrompt:      snap.SummaryPrompt,
 		PID:                snap.PID,
 		ExePath:            snap.ExePath,
 		Status:             snap.Status,
@@ -813,9 +815,21 @@ func (a *App) SetSelectedAIProvider(providerID string) {
 	_ = a.emitState()
 }
 
+func (a *App) SetSummaryPrompt(prompt string) {
+	if a.mgr == nil {
+		return
+	}
+	a.mgr.SetSummaryPrompt(prompt)
+	_ = a.emitState()
+}
+
 func (a *App) GenerateAISummary(providerID string, messages []string, prompt string) error {
 	if a.ctx == nil {
 		return errors.New("未初始化")
+	}
+
+	if prompt == "" {
+		prompt = a.mgr.GetSummaryPrompt()
 	}
 
 	providers := a.mgr.GetAIProviders()

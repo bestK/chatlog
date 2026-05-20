@@ -9,6 +9,7 @@ type AppConfig struct {
 	Webhook            *Webhook        `mapstructure:"webhook" json:"webhook"`
 	AIProviders        []*AIProvider   `mapstructure:"ai_providers" json:"ai_providers"`
 	SelectedAIProvider string          `mapstructure:"selected_ai_provider" json:"selected_ai_provider"`
+	SummaryPrompt      string          `mapstructure:"summary_prompt" json:"summary_prompt"`
 }
 
 var AppDefaults = map[string]any{}
