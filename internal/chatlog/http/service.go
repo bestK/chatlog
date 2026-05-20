@@ -9,6 +9,8 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/rs/zerolog/log"
 
+	"github.com/sjzar/chatlog/internal/chatlog/ai"
+	"github.com/sjzar/chatlog/internal/chatlog/conf"
 	"github.com/sjzar/chatlog/internal/chatlog/database"
 	"github.com/sjzar/chatlog/internal/errors"
 )
@@ -16,6 +18,8 @@ import (
 type Service struct {
 	conf Config
 	db   *database.Service
+	ai   *ai.Service
+	ctx  AIContext
 
 	router *gin.Engine
 	server *http.Server
@@ -25,12 +29,17 @@ type Service struct {
 	mcpStreamableServer *server.StreamableHTTPServer
 }
 
+// AIContext 用于获取 AI 提供商配置
+type AIContext interface {
+	GetAIProviders() []*conf.AIProvider
+}
+
 type Config interface {
 	GetHTTPAddr() string
 	GetDataDir() string
 }
 
-func NewService(conf Config, db *database.Service) *Service {
+func NewService(conf Config, db *database.Service, aiSvc *ai.Service, ctx AIContext) *Service {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 
@@ -51,6 +60,8 @@ func NewService(conf Config, db *database.Service) *Service {
 		conf:   conf,
 		db:     db,
 		router: router,
+		ai:     aiSvc,
+		ctx:    ctx,
 	}
 
 	s.initMCPServer()

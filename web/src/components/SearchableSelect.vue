@@ -23,7 +23,7 @@ const activeIndex = ref(-1);
 const displayLabel = computed(() => {
     const v = props.modelValue;
     if (!v) return '';
-    const hit = options.value.find((o) => o.value === v);
+    const hit = options.value.find(o => o.value === v);
     return hit ? hit.label : v;
 });
 
@@ -51,7 +51,7 @@ function scheduleSearch(q: string) {
     debounceTimer = window.setTimeout(() => void search(q), 200);
 }
 
-watch(keyword, (q) => {
+watch(keyword, q => {
     if (!open.value) return;
     scheduleSearch(q);
 });
@@ -59,7 +59,7 @@ watch(keyword, (q) => {
 function openPanel() {
     if (open.value) return;
     open.value = true;
-    keyword.value = '';
+    keyword.value = displayLabel.value || '';
     nextTick(() => {
         inputRef.value?.focus();
         void search('');
@@ -106,6 +106,17 @@ function onKeydown(e: KeyboardEvent) {
     }
 }
 
+// 当 modelValue 存在但 options 为空时，尝试搜索以获取 label
+watch(
+    () => props.modelValue,
+    val => {
+        if (val && options.value.length === 0 && !open.value) {
+            void search('');
+        }
+    },
+    { immediate: true }
+);
+
 onMounted(() => {
     document.addEventListener('click', onClickOutside);
 });
@@ -117,15 +128,25 @@ onUnmounted(() => {
 
 <template>
     <div ref="wrapperRef" class="relative w-full">
-        <button
-            type="button"
+        <div
+            role="button"
+            tabindex="0"
             :class="[
                 'flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background/40 px-3 text-left text-sm transition-colors hover:bg-background/60 focus:outline-none focus:ring-1 focus:ring-ring',
                 open && 'ring-1 ring-ring'
             ]"
             @click.stop="openPanel"
         >
-            <span v-if="modelValue" class="flex min-w-0 flex-1 items-baseline gap-2">
+            <input
+                v-if="open"
+                ref="inputRef"
+                v-model="keyword"
+                :placeholder="placeholder || '搜索…'"
+                class="h-full min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                @click.stop
+                @keydown="onKeydown"
+            />
+            <span v-else-if="modelValue" class="flex min-w-0 flex-1 items-baseline gap-2">
                 <span class="truncate text-foreground">{{ displayLabel }}</span>
                 <span v-if="displayLabel !== modelValue" class="truncate font-mono text-xs text-muted-foreground">{{
                     modelValue
@@ -133,7 +154,7 @@ onUnmounted(() => {
             </span>
             <span v-else class="flex-1 truncate text-muted-foreground">{{ placeholder || '点击搜索' }}</span>
             <button
-                v-if="modelValue"
+                v-if="modelValue && !open"
                 type="button"
                 class="rounded p-0.5 text-muted-foreground hover:text-foreground"
                 @click.stop="clear"
@@ -165,7 +186,7 @@ onUnmounted(() => {
             >
                 <path d="m6 9 6 6 6-6" />
             </svg>
-        </button>
+        </div>
 
         <Transition
             enter-from-class="opacity-0 -translate-y-1"
@@ -177,21 +198,9 @@ onUnmounted(() => {
                 v-if="open"
                 class="absolute left-0 right-0 top-full z-30 mt-1.5 overflow-hidden rounded-md border border-border/60 bg-background/95 shadow-lg backdrop-blur"
             >
-                <div class="border-b border-border/40 p-1.5">
-                    <input
-                        ref="inputRef"
-                        v-model="keyword"
-                        :placeholder="placeholder || '搜索…'"
-                        class="h-8 w-full rounded-sm bg-transparent px-2 text-sm focus:outline-none"
-                        @keydown="onKeydown"
-                    />
-                </div>
                 <div class="max-h-60 overflow-auto p-1">
                     <div v-if="loading" class="px-2 py-3 text-center text-xs text-muted-foreground">搜索中…</div>
-                    <div
-                        v-else-if="options.length === 0"
-                        class="px-2 py-3 text-center text-xs text-muted-foreground"
-                    >
+                    <div v-else-if="options.length === 0" class="px-2 py-3 text-center text-xs text-muted-foreground">
                         无匹配项
                     </div>
                     <button
@@ -200,9 +209,7 @@ onUnmounted(() => {
                         type="button"
                         :class="[
                             'flex w-full flex-col items-start gap-0.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors',
-                            idx === activeIndex
-                                ? 'bg-accent text-foreground'
-                                : 'text-foreground/85 hover:bg-accent/60'
+                            idx === activeIndex ? 'bg-accent text-foreground' : 'text-foreground/85 hover:bg-accent/60'
                         ]"
                         @mouseenter="activeIndex = idx"
                         @click="pick(opt)"

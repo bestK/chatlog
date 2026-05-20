@@ -79,6 +79,7 @@ archives:
       files:
           - LICENSE
           - README.md
+          - wx_key.dll
 
 checksum:
     name_template: 'checksums.txt'
