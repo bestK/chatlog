@@ -212,6 +212,7 @@ async function openContact(contact: Contact) {
     chatHasMore.value = true;
 
     await loadChatMessages(contact, 'today', false);
+    void fetchProviders();
 }
 
 async function loadChatMessages(contact: Contact, time: string, prepend: boolean) {
@@ -605,7 +606,6 @@ function selectTimeRange(val: string) {
                                     placeholder="选择提供商"
                                     direction="up"
                                     @update:model-value="(v: string) => { summaryProvider = v; }"
-                                    @click="fetchProviders"
                                 />
                             </div>
 
