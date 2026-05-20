@@ -135,11 +135,11 @@ type ChatMessage = { time: string; senderName: string; sender: string; content: 
 const summaryOpen = ref(false);
 const summaryContact = ref<Contact | null>(null);
 const summaryProviders = ref<AIProvider[]>([]);
-const summaryProvider = ref(localStorage.getItem('chatlog_ai_provider') || '');
+const summaryProvider = ref(state.value?.selectedAIProvider || '');
 const summaryTimeRange = ref('today');
 
 watch(summaryProvider, (v) => {
-    if (v) localStorage.setItem('chatlog_ai_provider', v);
+    if (v) backend.SetSelectedAIProvider(v);
 });
 
 const providerOptions = computed(() =>
@@ -199,11 +199,6 @@ watch(summaryStream, () => {
     });
 });
 
-function baseUrl() {
-    const addr = state.value?.httpAddr || '127.0.0.1:5030';
-    return `http://${addr}`;
-}
-
 async function openContact(contact: Contact) {
     summaryContact.value = contact;
     summaryStream.value = '';
@@ -228,18 +223,8 @@ async function loadChatMessages(contact: Contact, time: string, prepend: boolean
         chatHasMore.value = true;
     }
     try {
-        const params = new URLSearchParams({
-            talker: contact.userName,
-            time,
-            format: 'json',
-            limit: String(chatPageSize),
-            offset: String(chatOffset.value),
-            sort: 'desc',
-        });
-        const resp = await fetch(`${baseUrl()}/api/v1/chatlog?${params}`);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
-        const items = data.items || data.Items || [];
+        const resp = await backend.GetMessages(time, contact.userName, '', '', chatPageSize, chatOffset.value, 'desc');
+        const items = resp.items || [];
         const mapped: ChatMessage[] = items.map((m: any) => ({
             time: m.time || '',
             senderName: m.senderName || m.sender || '',
@@ -296,17 +281,8 @@ async function generateSummary() {
     summaryFinal.value = false;
 
     try {
-        const params = new URLSearchParams({
-            talker: summaryContact.value.userName,
-            time: effectiveTimeRange.value,
-            format: 'json',
-            limit: '500',
-            sort: 'asc',
-        });
-        const msgResp = await fetch(`${baseUrl()}/api/v1/chatlog?${params}`);
-        if (!msgResp.ok) throw new Error(`获取聊天记录失败: HTTP ${msgResp.status}`);
-        const msgData = await msgResp.json();
-        const items = msgData.items || msgData.Items || [];
+        const resp = await backend.GetMessages(effectiveTimeRange.value, summaryContact.value.userName, '', '', 500, 0, 'asc');
+        const items = resp.items || [];
         if (items.length === 0) {
             summaryError.value = '该时间范围内没有聊天记录';
             return;
@@ -319,64 +295,22 @@ async function generateSummary() {
             return `${time} ${name}: ${content}`;
         });
 
-        if (!summaryProvider.value) {
-            try {
-                const resp = await fetch(`${baseUrl()}/api/v1/ai/providers`);
-                const data = await resp.json();
-                summaryProviders.value = data.providers || [];
-                if (summaryProviders.value.length > 0) {
-                    summaryProvider.value = summaryProviders.value[0].id;
-                }
-            } catch {
-                summaryError.value = '无法获取 AI 提供商';
-                return;
+        const offChunk = backend.EventsOn('ai:summary:chunk', (chunk: unknown) => {
+            if (typeof chunk === 'string') {
+                summaryStream.value += chunk;
             }
-        }
-
-        const streamResp = await fetch(`${baseUrl()}/api/v1/ai/summary/stream`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                providerId: summaryProvider.value,
-                messages,
-            }),
         });
-        if (!streamResp.ok) throw new Error(`AI 请求失败: HTTP ${streamResp.status}`);
-
-        const reader = streamResp.body!.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const parts = buffer.split('\n\n');
-            buffer = parts.pop() || '';
-            for (const part of parts) {
-                const lines = part.split('\n');
-                const dataLines: string[] = [];
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) dataLines.push(line.slice(6));
-                    else if (line.startsWith('data:')) dataLines.push(line.slice(5));
-                }
-                const data = dataLines.join('\n');
-                if (data === '[DONE]') {
-                    summaryResult.value = summaryStream.value;
-                    summaryFinal.value = true;
-                    return;
-                }
-                if (data) summaryStream.value += data;
-            }
-        }
-
-        if (!summaryResult.value && summaryStream.value) {
+        const offDone = backend.EventsOn('ai:summary:done', () => {
             summaryResult.value = summaryStream.value;
-        }
-        summaryFinal.value = true;
+            summaryFinal.value = true;
+            summaryLoading.value = false;
+            offChunk?.();
+            offDone?.();
+        });
+
+        await backend.GenerateAISummary(summaryProvider.value, messages, '');
     } catch (e) {
         summaryError.value = String((e as Error).message || e);
-    } finally {
         summaryLoading.value = false;
     }
 }
@@ -391,9 +325,10 @@ function copySummary() {
 
 async function fetchProviders() {
     try {
-        const resp = await fetch(`${baseUrl()}/api/v1/ai/providers`);
-        const data = await resp.json();
-        summaryProviders.value = data.providers || [];
+        const list = await backend.ListAIProviders();
+        summaryProviders.value = (list || []).map(p => ({
+            id: p.id, name: p.name, type: p.type, baseUrl: p.baseUrl, model: p.model
+        }));
         if (summaryProviders.value.length > 0) {
             const exists = summaryProviders.value.some(p => p.id === summaryProvider.value);
             if (!exists) {

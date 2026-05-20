@@ -1,13 +1,14 @@
 package conf
 
 type AppConfig struct {
-	ConfigDir      string          `mapstructure:"-" json:"config_dir"`
-	CurrentAccount string          `mapstructure:"current_account" json:"current_account"`
-	LastAccount    string          `mapstructure:"last_account" json:"last_account"`
-	Debug          bool            `mapstructure:"debug" json:"debug"`
-	History        []ProcessConfig `mapstructure:"history" json:"history"`
-	Webhook        *Webhook        `mapstructure:"webhook" json:"webhook"`
-	AIProviders    []*AIProvider   `mapstructure:"ai_providers" json:"ai_providers"`
+	ConfigDir          string          `mapstructure:"-" json:"config_dir"`
+	CurrentAccount     string          `mapstructure:"current_account" json:"current_account"`
+	LastAccount        string          `mapstructure:"last_account" json:"last_account"`
+	Debug              bool            `mapstructure:"debug" json:"debug"`
+	History            []ProcessConfig `mapstructure:"history" json:"history"`
+	Webhook            *Webhook        `mapstructure:"webhook" json:"webhook"`
+	AIProviders        []*AIProvider   `mapstructure:"ai_providers" json:"ai_providers"`
+	SelectedAIProvider string          `mapstructure:"selected_ai_provider" json:"selected_ai_provider"`
 }
 
 var AppDefaults = map[string]any{}

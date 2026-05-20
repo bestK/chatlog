@@ -291,9 +291,31 @@ async function decryptNow() {
                 <h3 class="font-serif text-xl font-medium tracking-tight text-foreground">数据库解密</h3>
                 <p class="text-sm text-muted-foreground">开始前请确保目录与密钥已保存。该操作耗资较高，请耐心等待。</p>
             </header>
-            <div class="rounded-xl bg-muted/30 ring-1 ring-border/40 px-5 py-4 text-sm text-muted-foreground">
-                解密后的数据将存放于 <span class="font-mono text-foreground/90">{{ workDir || '未定义' }}</span
-                >。
+            <div class="rounded-xl bg-muted/30 ring-1 ring-border/40 px-5 py-4 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-sm text-foreground">自动解密</div>
+                        <div class="text-xs text-muted-foreground">数据库变更时自动解密到工作目录。</div>
+                    </div>
+                    <button
+                        type="button"
+                        :class="[
+                            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                            state?.autoDecrypt ? 'bg-primary' : 'bg-input'
+                        ]"
+                        @click="backend.SetAutoDecrypt(!state?.autoDecrypt)"
+                    >
+                        <span
+                            :class="[
+                                'pointer-events-none inline-block size-4 rounded-full bg-background shadow-sm ring-0 transition-transform',
+                                state?.autoDecrypt ? 'translate-x-4' : 'translate-x-0'
+                            ]"
+                        />
+                    </button>
+                </div>
+                <div class="text-sm text-muted-foreground">
+                    解密后的数据将存放于 <span class="font-mono text-foreground/90">{{ workDir || '未定义' }}</span>。
+                </div>
             </div>
         </section>
     </div>
