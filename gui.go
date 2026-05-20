@@ -56,22 +56,23 @@ func (w *notifyingWriter) Write(p []byte) (int, error) {
 }
 
 type State struct {
-	Account         string `json:"account"`
-	Platform        string `json:"platform"`
-	FullVersion     string `json:"fullVersion"`
-	DataDir         string `json:"dataDir"`
-	DataKey         string `json:"dataKey"`
-	ImgKey          string `json:"imgKey"`
-	WorkDir         string `json:"workDir"`
-	HTTPEnabled     bool   `json:"httpEnabled"`
-	HTTPAddr        string `json:"httpAddr"`
-	AutoDecrypt     bool   `json:"autoDecrypt"`
-	LastSession     string `json:"lastSession"`
-	PID             int    `json:"pid"`
-	ExePath         string `json:"exePath"`
-	Status          string `json:"status"`
-	Nickname        string `json:"nickname"`
-	SmallHeadImgUrl string `json:"smallHeadImgUrl"`
+	Account            string `json:"account"`
+	Platform           string `json:"platform"`
+	FullVersion        string `json:"fullVersion"`
+	DataDir            string `json:"dataDir"`
+	DataKey            string `json:"dataKey"`
+	ImgKey             string `json:"imgKey"`
+	WorkDir            string `json:"workDir"`
+	HTTPEnabled        bool   `json:"httpEnabled"`
+	HTTPAddr           string `json:"httpAddr"`
+	AutoDecrypt        bool   `json:"autoDecrypt"`
+	LastSession        string `json:"lastSession"`
+	SelectedAIProvider string `json:"selectedAIProvider"`
+	PID                int    `json:"pid"`
+	ExePath            string `json:"exePath"`
+	Status             string `json:"status"`
+	Nickname           string `json:"nickname"`
+	SmallHeadImgUrl    string `json:"smallHeadImgUrl"`
 }
 
 type Instance struct {
@@ -554,22 +555,23 @@ func (a *App) GetState() (State, error) {
 		last = time.Unix(snap.LastSessionUnix, 0).Format("2006-01-02 15:04:05")
 	}
 	return State{
-		Account:         snap.Account,
-		Platform:        snap.Platform,
-		FullVersion:     snap.FullVersion,
-		DataDir:         snap.DataDir,
-		DataKey:         snap.DataKey,
-		ImgKey:          snap.ImgKey,
-		WorkDir:         snap.WorkDir,
-		HTTPEnabled:     snap.HTTPEnabled,
-		HTTPAddr:        snap.HTTPAddr,
-		AutoDecrypt:     snap.AutoDecrypt,
-		LastSession:     last,
-		PID:             snap.PID,
-		ExePath:         snap.ExePath,
-		Status:          snap.Status,
-		Nickname:        snap.Nickname,
-		SmallHeadImgUrl: snap.SmallHeadImgUrl,
+		Account:            snap.Account,
+		Platform:           snap.Platform,
+		FullVersion:        snap.FullVersion,
+		DataDir:            snap.DataDir,
+		DataKey:            snap.DataKey,
+		ImgKey:             snap.ImgKey,
+		WorkDir:            snap.WorkDir,
+		HTTPEnabled:        snap.HTTPEnabled,
+		HTTPAddr:           snap.HTTPAddr,
+		AutoDecrypt:        snap.AutoDecrypt,
+		LastSession:        last,
+		SelectedAIProvider: snap.SelectedAIProvider,
+		PID:                snap.PID,
+		ExePath:            snap.ExePath,
+		Status:             snap.Status,
+		Nickname:           snap.Nickname,
+		SmallHeadImgUrl:    snap.SmallHeadImgUrl,
 	}, nil
 }
 
@@ -793,6 +795,58 @@ func (a *App) SetAutoDecrypt(enabled bool) error {
 		}
 	}
 	_ = a.emitState()
+	return nil
+}
+
+func (a *App) GetMessages(timeStr, talker, sender, keyword string, limit, offset int, order string) (*wechatdb.GetMessagesResp, error) {
+	if a.mgr == nil {
+		return nil, errors.New("未初始化")
+	}
+	return a.mgr.GetMessages(timeStr, talker, sender, keyword, limit, offset, order)
+}
+
+func (a *App) SetSelectedAIProvider(providerID string) {
+	if a.mgr == nil {
+		return
+	}
+	a.mgr.SetSelectedAIProvider(providerID)
+	_ = a.emitState()
+}
+
+func (a *App) GenerateAISummary(providerID string, messages []string, prompt string) error {
+	if a.ctx == nil {
+		return errors.New("未初始化")
+	}
+
+	providers := a.mgr.GetAIProviders()
+	var provider *conf.AIProvider
+	for _, p := range providers {
+		if p != nil && p.ID == providerID && !p.Disabled {
+			provider = p
+			break
+		}
+	}
+	if provider == nil {
+		return errors.New("未找到指定的 AI 提供商")
+	}
+
+	aiSvc := ai.New()
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+
+	ch, err := aiSvc.GenerateSummaryStream(ctx, provider, messages, prompt)
+	if err != nil {
+		cancel()
+		return err
+	}
+
+	go func() {
+		defer cancel()
+		for chunk := range ch {
+			runtime.EventsEmit(a.ctx, "ai:summary:chunk", chunk)
+		}
+		runtime.EventsEmit(a.ctx, "ai:summary:done", nil)
+	}()
+
 	return nil
 }
 

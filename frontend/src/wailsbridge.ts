@@ -10,6 +10,7 @@ export type State = {
     httpAddr: string;
     autoDecrypt: boolean;
     lastSession: string;
+    selectedAIProvider: string;
     pid: number;
     exePath: string;
     status: string;
@@ -44,6 +45,25 @@ export type Contact = {
 export type ContactsResp = {
     total: number;
     items: Contact[];
+};
+
+export type Message = {
+    seq: number;
+    time: string;
+    talker: string;
+    talkerName: string;
+    isChatRoom: boolean;
+    sender: string;
+    senderName: string;
+    isSelf: boolean;
+    type: number;
+    content: string;
+    isMentionMe: boolean;
+};
+
+export type MessagesResp = {
+    total: number;
+    items: Message[];
 };
 
 export type WebhookItem = {
@@ -94,6 +114,7 @@ type Backend = {
     SwitchToPID(pid: number): Promise<State>;
     SwitchToHistory(account: string): Promise<State>;
     GetContacts(keyword: string, isInChatRoom: number, limit: number, offset: number): Promise<ContactsResp>;
+    GetMessages(timeStr: string, talker: string, sender: string, keyword: string, limit: number, offset: number, order: string): Promise<MessagesResp>;
     GetDataKey(): Promise<string>;
     GetImgKey(): Promise<string>;
     GetKeys(): Promise<Record<string, string>>;
@@ -107,6 +128,8 @@ type Backend = {
     StartHTTP(): Promise<void>;
     StopHTTP(): Promise<void>;
     SetAutoDecrypt(enabled: boolean): Promise<void>;
+    SetSelectedAIProvider(providerID: string): Promise<void>;
+    GenerateAISummary(providerID: string, messages: string[], prompt: string): Promise<void>;
     GetLogPath(): Promise<string>;
     ReadLogTail(maxLines: number): Promise<string>;
     EnableStateEvents(enabled: boolean): Promise<void>;
@@ -158,6 +181,11 @@ export const backend = {
     StartHTTP: () => window.go.main.App.StartHTTP(),
     StopHTTP: () => window.go.main.App.StopHTTP(),
     SetAutoDecrypt: (enabled: boolean) => window.go.main.App.SetAutoDecrypt(enabled),
+    SetSelectedAIProvider: (providerID: string) => window.go.main.App.SetSelectedAIProvider(providerID),
+    GetMessages: (timeStr: string, talker: string, sender: string, keyword: string, limit: number, offset: number, order: string) =>
+        window.go.main.App.GetMessages(timeStr, talker, sender, keyword, limit, offset, order),
+    GenerateAISummary: (providerID: string, messages: string[], prompt: string) =>
+        window.go.main.App.GenerateAISummary(providerID, messages, prompt),
     GetLogPath: () => window.go.main.App.GetLogPath(),
     ReadLogTail: (maxLines: number) => window.go.main.App.ReadLogTail(maxLines),
     EnableStateEvents: (enabled: boolean) => window.go.main.App.EnableStateEvents(enabled),

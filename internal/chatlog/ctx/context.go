@@ -84,8 +84,9 @@ type Snapshot struct {
 	HTTPEnabled bool
 	HTTPAddr    string
 
-	AutoDecrypt     bool
-	LastSessionUnix int64
+	AutoDecrypt        bool
+	LastSessionUnix    int64
+	SelectedAIProvider string
 
 	PID             int
 	ExePath         string
@@ -225,23 +226,24 @@ func (c *Context) Snapshot() Snapshot {
 	}
 
 	return Snapshot{
-		Account:         c.Account,
-		Platform:        c.Platform,
-		FullVersion:     c.FullVersion,
-		DataDir:         c.DataDir,
-		DataKey:         c.DataKey,
-		ImgKey:          c.ImgKey,
-		WorkDir:         c.WorkDir,
-		HTTPEnabled:     c.HTTPEnabled,
-		HTTPAddr:        c.HTTPAddr,
-		AutoDecrypt:     c.AutoDecrypt,
-		LastSessionUnix: last,
-		PID:             c.PID,
-		ExePath:         c.ExePath,
-		Status:          c.Status,
-		Nickname:        c.Nickname,
-		SmallHeadImgUrl: c.SmallHeadImgUrl,
-		WeChatInstances: instances,
+		Account:            c.Account,
+		Platform:           c.Platform,
+		FullVersion:        c.FullVersion,
+		DataDir:            c.DataDir,
+		DataKey:            c.DataKey,
+		ImgKey:             c.ImgKey,
+		WorkDir:            c.WorkDir,
+		HTTPEnabled:        c.HTTPEnabled,
+		HTTPAddr:           c.HTTPAddr,
+		AutoDecrypt:        c.AutoDecrypt,
+		LastSessionUnix:    last,
+		SelectedAIProvider: c.conf.SelectedAIProvider,
+		PID:                c.PID,
+		ExePath:            c.ExePath,
+		Status:             c.Status,
+		Nickname:           c.Nickname,
+		SmallHeadImgUrl:    c.SmallHeadImgUrl,
+		WeChatInstances:    instances,
 	}
 }
 
@@ -382,6 +384,24 @@ func (c *Context) SetAutoDecrypt(enabled bool) {
 	}
 	c.AutoDecrypt = enabled
 	c.UpdateConfig()
+}
+
+func (c *Context) GetSelectedAIProvider() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.conf.SelectedAIProvider
+}
+
+func (c *Context) SetSelectedAIProvider(providerID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.conf.SelectedAIProvider == providerID {
+		return
+	}
+	c.conf.SelectedAIProvider = providerID
+	if err := c.cm.SetConfig("selected_ai_provider", providerID); err != nil {
+		log.Error().Err(err).Msg("set selected_ai_provider failed")
+	}
 }
 
 // 更新配置

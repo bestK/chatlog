@@ -466,6 +466,43 @@ func (m *Manager) GetContacts(keyword string, isInChatRoom, limit, offset int) (
 	return m.db.GetContacts(keyword, isInChatRoom, limit, offset)
 }
 
+func (m *Manager) GetMessages(timeStr, talker, sender, keyword string, limit, offset int, order string) (*wechatdb.GetMessagesResp, error) {
+	if m == nil || m.db == nil {
+		return nil, fmt.Errorf("未初始化")
+	}
+	if limit < 0 {
+		limit = 0
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if m.db.GetDB() == nil {
+		if err := m.db.Start(); err != nil {
+			return nil, err
+		}
+		m.syncCurrentProfile()
+	}
+	start, end, ok := util.TimeRangeOf(timeStr)
+	if !ok {
+		return nil, fmt.Errorf("invalid time range: %s", timeStr)
+	}
+	return m.db.GetMessages(start, end, talker, sender, keyword, limit, offset, order)
+}
+
+func (m *Manager) GetSelectedAIProvider() string {
+	if m == nil || m.ctx == nil {
+		return ""
+	}
+	return m.ctx.GetSelectedAIProvider()
+}
+
+func (m *Manager) SetSelectedAIProvider(providerID string) {
+	if m == nil || m.ctx == nil {
+		return
+	}
+	m.ctx.SetSelectedAIProvider(providerID)
+}
+
 func (m *Manager) syncCurrentProfile() {
 	if m == nil || m.ctx == nil || m.db == nil || m.db.GetDB() == nil {
 		return
