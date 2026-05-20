@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Pagination } from '@/components/ui/pagination';
 import { computed, inject, nextTick, onMounted, ref, watch } from 'vue';
 import { appContextKey } from '../app/context';
 import { backend, type Contact, type Instance } from '../wailsbridge';
@@ -297,15 +298,14 @@ watch(contactLimit, () => {
                         </svg>
                     </div>
                 </div>
-                <select
-                    v-model.number="contactLimit"
-                    class="h-9 rounded-md border border-input bg-background/40 px-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                >
-                    <option :value="20">20 / 页</option>
-                    <option :value="50">50 / 页</option>
-                    <option :value="100">100 / 页</option>
-                    <option :value="200">200 / 页</option>
-                </select>
+                <Pagination
+                    :total="contactsTotal"
+                    :limit="contactLimit"
+                    :offset="contactOffset"
+                    :loading="contactsLoading"
+                    @update:offset="contactOffset = $event; loadContacts({ preserveScroll: true, source: 'next' })"
+                    @update:limit="contactLimit = $event; contactOffset = 0; loadContacts({ preserveScroll: true, source: 'limit' })"
+                />
                 <Button
                     variant="ghost"
                     size="icon"
@@ -329,26 +329,6 @@ watch(contactLimit, () => {
                         <path d="M21 3v5h-5" />
                     </svg>
                 </Button>
-                <div class="flex items-center gap-1">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        class="h-9 px-3 text-sm font-normal text-muted-foreground hover:text-foreground"
-                        :disabled="contactsLoading || contactOffset === 0"
-                        @click="prevContactsPage"
-                    >
-                        {{ prevButtonText }}
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        class="h-9 px-3 text-sm font-normal text-muted-foreground hover:text-foreground"
-                        :disabled="contactsLoading || contactOffset + contactLimit >= contactsTotal"
-                        @click="nextContactsPage"
-                    >
-                        {{ nextButtonText }}
-                    </Button>
-                </div>
             </div>
 
             <div class="relative">
