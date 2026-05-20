@@ -2,6 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
+import { RefreshCw, Search } from 'lucide-vue-next';
 import { computed, inject, nextTick, onMounted, ref, watch } from 'vue';
 import { appContextKey } from '../app/context';
 import { backend, type Contact, type Instance } from '../wailsbridge';
