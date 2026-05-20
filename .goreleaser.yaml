@@ -4,78 +4,45 @@ version: 2
 before:
     hooks:
         - go mod tidy
-        - sh -c "cd web && pnpm install --frozen-lockfile && pnpm run build"
+        - sh -c "pnpm --dir web install --frozen-lockfile && pnpm --dir web run build && pnpm --dir frontend install --frozen-lockfile && pnpm --dir frontend run build"
 
 builds:
     - id: chatlog-builds
       binary: chatlog
       ldflags:
           - -s -w -X github.com/sjzar/chatlog/pkg/version.Version={{.Version}}
+      tags:
+          - desktop
+          - production
       env:
           - CGO_ENABLED=1
       goos:
-          - darwin
           - windows
-          - linux
       goarch:
           - amd64
-          - arm64
       overrides:
-          - goos: darwin
-            goarch: amd64
-            env:
-                - CGO_ENABLED=1
-                - CC=o64-clang
-                - CXX=o64-clang++
-          - goos: darwin
-            goarch: arm64
-            env:
-                - CGO_ENABLED=1
-                - CC=oa64-clang
-                - CXX=oa64-clang++
           - goos: windows
             goarch: amd64
             env:
                 - CGO_ENABLED=1
                 - CC=x86_64-w64-mingw32-gcc
                 - CXX=x86_64-w64-mingw32-g++
-          - goos: windows
-            goarch: arm64
-            env:
-                - CGO_ENABLED=1
-                - CC=/llvm-mingw/bin/aarch64-w64-mingw32-gcc
-                - CXX=/llvm-mingw/bin/aarch64-w64-mingw32-g++
-          - goos: linux
-            goarch: amd64
-            env:
-                - CGO_ENABLED=1
-                - CC=x86_64-linux-gnu-gcc
-                - CXX=x86_64-linux-gnu-g++
-          - goos: linux
-            goarch: arm64
-            env:
-                - CGO_ENABLED=1
-                - CC=aarch64-linux-gnu-gcc
-                - CXX=aarch64-linux-gnu-g++
 
 upx:
     - enabled: true
-      goos: [darwin, windows, linux]
-      goarch: [amd64, arm64]
+      goos: [windows]
+      goarch: [amd64]
       compress: best
       lzma: true
 
 archives:
     - id: default
-      formats: tar.gz
+      formats: zip
       name_template: >-
           {{ .ProjectName }}_
           {{- .Version }}_
           {{- .Os }}_
           {{- .Arch }}
-      format_overrides:
-          - goos: windows
-            formats: zip
       files:
           - LICENSE
           - README.md
