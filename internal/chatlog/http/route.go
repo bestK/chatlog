@@ -118,6 +118,7 @@ func (s *Service) handleChatlog(c *gin.Context) {
 		Limit   int    `form:"limit"`
 		Offset  int    `form:"offset"`
 		Format  string `form:"format"`
+		Sort    string `form:"sort"`
 	}{}
 
 	if err := c.BindQuery(&q); err != nil {
@@ -138,7 +139,12 @@ func (s *Service) handleChatlog(c *gin.Context) {
 		q.Offset = 0
 	}
 
-	resp, err := s.db.GetMessages(start, end, q.Talker, q.Sender, q.Keyword, q.Limit, q.Offset)
+	order := "desc"
+	if strings.ToLower(q.Sort) == "asc" {
+		order = "asc"
+	}
+
+	resp, err := s.db.GetMessages(start, end, q.Talker, q.Sender, q.Keyword, q.Limit, q.Offset, order)
 	if err != nil {
 		errors.Err(c, err)
 		return
@@ -603,13 +609,12 @@ func (s *Service) handleAISummaryStream(c *gin.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			// SSE 格式：data: 内容\n\n
-			c.SSEvent("", chunk)
+			fmt.Fprintf(c.Writer, "data: %s\n\n", chunk)
 			c.Writer.Flush()
 		}
 	}
 
 	// 发送结束标记
-	c.SSEvent("", "[DONE]")
+	fmt.Fprintf(c.Writer, "data: [DONE]\n\n")
 	c.Writer.Flush()
 }

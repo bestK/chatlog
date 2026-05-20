@@ -44,6 +44,7 @@ type webhookRegistration struct {
 type Config interface {
 	GetWorkDir() string
 	GetPlatform() string
+	GetHTTPAddr() string
 	GetWebhook() *conf.Webhook
 }
 
@@ -103,8 +104,8 @@ func (s *Service) GetDB() *wechatdb.DB {
 	return s.db
 }
 
-func (s *Service) GetMessages(start, end time.Time, talker string, sender string, keyword string, limit, offset int) (*wechatdb.GetMessagesResp, error) {
-	return s.db.GetMessages(start, end, talker, sender, keyword, limit, offset)
+func (s *Service) GetMessages(start, end time.Time, talker string, sender string, keyword string, limit, offset int, order string) (*wechatdb.GetMessagesResp, error) {
+	return s.db.GetMessages(start, end, talker, sender, keyword, limit, offset, order)
 }
 
 func (s *Service) GetContacts(key string, isInChatRoom, limit, offset int) (*wechatdb.GetContactsResp, error) {

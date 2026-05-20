@@ -12,7 +12,7 @@ import (
 )
 
 // GetMessages 实现 Repository 接口的 GetMessages 方法
-func (r *Repository) GetMessages(ctx context.Context, startTime, endTime time.Time, talker string, sender string, keyword string, limit, offset int) (int, []*model.Message, error) {
+func (r *Repository) GetMessages(ctx context.Context, startTime, endTime time.Time, talker string, sender string, keyword string, limit, offset int, order string) (int, []*model.Message, error) {
 
 	talker, sender = r.parseTalkerAndSender(ctx, talker, sender)
 	total, err := r.ds.GetMessagesCount(ctx, startTime, endTime, r.SelfID, talker, sender, keyword)
@@ -20,7 +20,7 @@ func (r *Repository) GetMessages(ctx context.Context, startTime, endTime time.Ti
 		log.Debug().Msgf("GetMessagesCount failed: %v", err)
 	}
 
-	messages, err := r.ds.GetMessages(ctx, startTime, endTime, r.SelfID, talker, sender, keyword, limit, offset)
+	messages, err := r.ds.GetMessages(ctx, startTime, endTime, r.SelfID, talker, sender, keyword, limit, offset, order)
 	if err != nil {
 		return 0, nil, err
 	}

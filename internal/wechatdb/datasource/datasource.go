@@ -14,7 +14,8 @@ import (
 type DataSource interface {
 
 	// 消息
-	GetMessages(ctx context.Context, startTime, endTime time.Time, speakerto string, talker string, sender string, keyword string, limit, offset int) ([]*model.Message, error)
+	// order: "asc" 或 "desc"，默认 "desc"（从新到旧）
+	GetMessages(ctx context.Context, startTime, endTime time.Time, speakerto string, talker string, sender string, keyword string, limit, offset int, order string) ([]*model.Message, error)
 	GetMessagesCount(ctx context.Context, startTime, endTime time.Time, speakerto string, talker string, sender string, keyword string) (int, error)
 
 	// 联系人

@@ -22,6 +22,7 @@ import (
 
 type Config interface {
 	GetWebhook() *conf.Webhook
+	GetHTTPAddr() string
 }
 
 type Webhook interface {
@@ -29,8 +30,9 @@ type Webhook interface {
 }
 
 type Service struct {
-	config *conf.Webhook
-	hooks  map[string][]*conf.WebhookItem
+	config   *conf.Webhook
+	httpAddr string
+	hooks    map[string][]*conf.WebhookItem
 }
 
 var processedMessages = messageview.NewDedupStore(5 * time.Minute)
@@ -38,7 +40,8 @@ var observedMessages = messageview.NewDedupStore(5 * time.Minute)
 
 func New(config Config) *Service {
 	s := &Service{
-		config: config.GetWebhook(),
+		config:   config.GetWebhook(),
+		httpAddr: config.GetHTTPAddr(),
 	}
 
 	if s.config == nil {
@@ -86,10 +89,14 @@ func (s *Service) GetHooks(ctx context.Context, db *wechatdb.DB) []*Group {
 	}
 
 	groups := make([]*Group, 0)
+	host := s.config.Host
+	if host == "" {
+		host = "http://" + s.httpAddr
+	}
 	for group, items := range s.hooks {
 		hooks := make([]Webhook, 0)
 		for _, item := range items {
-			hooks = append(hooks, NewMessageWebhook(item, db, s.config.Host))
+			hooks = append(hooks, NewMessageWebhook(item, db, host))
 		}
 		groups = append(groups, NewGroup(ctx, group, hooks, s.config.DelayMs))
 	}
@@ -217,7 +224,7 @@ func (m *MessageWebhook) Do(event fsnotify.Event) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	messages, err := m.db.GetMessages(m.lastTime, time.Now().Add(time.Minute*10), m.conf.Talker, "", "", 0, 0)
+	messages, err := m.db.GetMessages(m.lastTime, time.Now().Add(time.Minute*10), m.conf.Talker, "", "", 0, 0, "asc")
 	if err != nil {
 		log.Error().Err(err).Msgf("webhook get messages failed")
 		return

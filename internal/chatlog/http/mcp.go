@@ -292,7 +292,7 @@ func (s *Service) handleMCPChatLog(ctx context.Context, request mcp.CallToolRequ
 		req.Offset = 0
 	}
 
-	messages, err := s.db.GetMessages(start, end, req.Talker, req.Sender, req.Keyword, req.Limit, req.Offset)
+	messages, err := s.db.GetMessages(start, end, req.Talker, req.Sender, req.Keyword, req.Limit, req.Offset, "asc")
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get messages")
 		return errors.ErrMCPTool(err), nil

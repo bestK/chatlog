@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
+import { marked } from 'marked';
 import { buildUrl, endpoints, getEndpoint, requestAISummaryStream, type EndpointKey, type ParamSpec } from './api';
 import DatePicker from './components/DatePicker.vue';
 import SearchableSelect from './components/SearchableSelect.vue';
@@ -295,10 +296,17 @@ async function generateAISummary() {
 }
 
 function copyAISummary() {
-    if (aiSummaryResult.value) {
-        void copyText(aiSummaryResult.value, '总结已复制');
+    const text = aiSummaryStream.value || aiSummaryResult.value;
+    if (text) {
+        void copyText(text, '总结已复制');
     }
 }
+
+const renderedMarkdown = computed(() => {
+    const raw = aiSummaryStream.value || aiSummaryResult.value;
+    if (!raw) return '';
+    return marked.parse(raw) as string;
+});
 </script>
 
 <template>
@@ -706,13 +714,9 @@ function copyAISummary() {
                             <div
                                 class="relative max-h-[300px] overflow-auto rounded-md bg-muted/30 ring-1 ring-border/40 p-4"
                             >
-                                <VueStreamMarkdown
-                                    :content="aiSummaryStream || aiSummaryResult"
-                                    :mode="aiSummaryStream ? 'streaming' : 'static'"
-                                    :enable-animate="true"
-                                    :animation="'typewriter'"
-                                    :controls="{ copy: true, zoom: false }"
-                                    class="whitespace-pre-wrap break-all text-sm leading-relaxed text-foreground/90"
+                                <div
+                                    class="markdown-body text-sm leading-relaxed text-foreground/90"
+                                    v-html="renderedMarkdown"
                                 />
                             </div>
                         </div>
