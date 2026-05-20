@@ -125,8 +125,19 @@ function getAvatarFallback(instance: Instance) {
     return name ? name.slice(0, 1).toUpperCase() : '?';
 }
 
-function switchTo(pid: number) {
-    return run(() => backend.SwitchToPID(pid), '已切换账号');
+const switchingPid = ref<number | null>(null);
+
+function isCurrent(instance: Instance) {
+    return state.value?.pid === instance.pid;
+}
+
+async function switchTo(pid: number) {
+    switchingPid.value = pid;
+    try {
+        await run(() => backend.SwitchToPID(pid), '已切换账号');
+    } finally {
+        switchingPid.value = null;
+    }
 }
 
 function getContactName(c: Contact) {
@@ -181,7 +192,10 @@ watch(contactLimit, () => {
                 <div
                     v-for="instance in instances"
                     :key="instance.pid"
-                    class="rounded-xl bg-muted/30 ring-1 ring-border/40 p-4 space-y-3"
+                    class="rounded-xl p-4 space-y-3"
+                    :class="isCurrent(instance)
+                        ? 'bg-primary/5 ring-2 ring-primary/30'
+                        : 'bg-muted/30 ring-1 ring-border/40'"
                 >
                     <div class="flex items-center justify-between gap-3">
                         <div class="flex items-center gap-3 min-w-0">
@@ -216,12 +230,17 @@ watch(contactLimit, () => {
                             </div>
                         </div>
                         <Button
+                            v-if="instances.length > 1"
                             variant="ghost"
                             size="sm"
-                            class="h-8 px-2.5 text-xs font-normal text-muted-foreground hover:text-foreground"
+                            class="h-8 px-2.5 text-xs font-normal"
+                            :class="isCurrent(instance)
+                                ? 'text-primary cursor-default'
+                                : 'text-muted-foreground hover:text-foreground'"
+                            :disabled="isCurrent(instance) || instance.status === 'offline' || switchingPid === instance.pid"
                             @click="switchTo(instance.pid)"
                         >
-                            切换
+                            {{ isCurrent(instance) ? '当前' : switchingPid === instance.pid ? '切换中…' : instance.status === 'offline' ? '离线' : '切换' }}
                         </Button>
                     </div>
 
