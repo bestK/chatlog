@@ -20,26 +20,8 @@ const contactLimit = ref(50);
 const contactOffset = ref(0);
 const contactLoadingSource = ref<'init' | 'refresh' | 'search' | 'prev' | 'next' | 'limit' | 'account' | null>(null);
 
-const contactRangeText = computed(() => {
-    if (contactsTotal.value <= 0) return '0 / 0';
-    const start = Math.min(contactOffset.value + 1, contactsTotal.value);
-    const end = Math.min(contactOffset.value + contacts.value.length, contactsTotal.value);
-    return `${start}-${end} / ${contactsTotal.value}`;
-});
-
 const hasContacts = computed(() => contacts.value.length > 0);
 const hasKeyword = computed(() => contactKeyword.value.trim().length > 0);
-const contactPageText = computed(() => {
-    if (contactsTotal.value <= 0) return '第 0 页';
-    return `第 ${Math.floor(contactOffset.value / contactLimit.value) + 1} 页`;
-});
-
-const prevButtonText = computed(() =>
-    contactsLoading.value && contactLoadingSource.value === 'prev' ? '加载中…' : '上一页'
-);
-const nextButtonText = computed(() =>
-    contactsLoading.value && contactLoadingSource.value === 'next' ? '加载中…' : '下一页'
-);
 
 let contactLoadTimer: number | undefined;
 
@@ -94,17 +76,6 @@ function scheduleLoadContacts(delayMs = 200) {
     contactLoadTimer = window.setTimeout(() => {
         void loadContacts({ preserveScroll: true, source: 'search' });
     }, delayMs);
-}
-
-function prevContactsPage() {
-    contactOffset.value = Math.max(0, contactOffset.value - contactLimit.value);
-    void loadContacts({ preserveScroll: true, source: 'prev' });
-}
-
-function nextContactsPage() {
-    if (contactOffset.value + contactLimit.value >= contactsTotal.value) return;
-    contactOffset.value = contactOffset.value + contactLimit.value;
-    void loadContacts({ preserveScroll: true, source: 'next' });
 }
 
 function getAccountName(instance: Instance) {
