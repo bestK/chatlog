@@ -3,9 +3,7 @@ package wechat
 import (
 	"context"
 	"os"
-	"time"
 
-	"github.com/rs/zerolog/log"
 	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/wechat/decrypt"
 	"github.com/sjzar/chatlog/internal/wechat/key"
@@ -92,189 +90,91 @@ func (a *Account) RefreshStatus() error {
 	return nil
 }
 
-// GetDataKey 获取数据库密钥
-func (a *Account) GetDataKey(ctx context.Context) (string, error) {
-	return a.getDataKey(ctx, nil)
-}
+// GetKeys extracts encryption keys from the running WeChat process.
+// It returns cached keys when available and only extracts what's needed.
+func (a *Account) GetKeys(ctx context.Context, opts key.ExtractOpts) (key.Keys, error) {
+	result := key.Keys{}
 
-func (a *Account) GetDataKeyWithProgress(ctx context.Context, onProgress func(string)) (string, error) {
-	return a.getDataKey(ctx, onProgress)
-}
-
-func (a *Account) getDataKey(ctx context.Context, onProgress func(string)) (string, error) {
-	startedAt := time.Now()
-	log.Info().
-		Str("account", a.Name).
-		Uint32("pid", a.PID).
-		Str("platform", a.Platform).
-		Msg("account get data key entered")
-	// 如果已经有密钥，直接返回
-	if a.Key != "" {
-		log.Info().
-			Str("account", a.Name).
-			Uint32("pid", a.PID).
-			Msg("account get data key hit cached key")
-		return a.Key, nil
+	// Return cached keys if available
+	if opts.NeedDataKey && a.Key != "" {
+		result.DataKey = a.Key
+		opts.NeedDataKey = false
+	}
+	if opts.NeedImgKey && a.ImgKey != "" {
+		result.ImgKey = a.ImgKey
+		opts.NeedImgKey = false
+	}
+	if !opts.NeedDataKey && !opts.NeedImgKey {
+		return result, nil
 	}
 
-	// 刷新进程状态
+	// Refresh process status
 	if err := a.RefreshStatus(); err != nil {
-		log.Info().Err(err).Str("account", a.Name).Uint32("pid", a.PID).Msg("account refresh status failed before get data key")
-		return "", errors.RefreshProcessStatusFailed(err)
+		return result, errors.RefreshProcessStatusFailed(err)
 	}
-	log.Info().
-		Str("account", a.Name).
-		Uint32("pid", a.PID).
-		Str("status", a.Status).
-		Str("data_dir", a.DataDir).
-		Dur("elapsed", time.Since(startedAt)).
-		Msg("account refresh status completed before get data key")
-
-	// 检查账号状态
 	if a.Status != model.StatusOnline {
-		log.Info().Str("account", a.Name).Uint32("pid", a.PID).Str("status", a.Status).Msg("account is not online for data key extraction")
-		return "", errors.WeChatAccountNotOnline(a.Name)
+		return result, errors.WeChatAccountNotOnline(a.Name)
 	}
 
-	// 创建密钥提取器
-	extractor, err := key.NewExtractor(a.Platform)
-	if err != nil {
-		log.Info().Err(err).Str("account", a.Name).Uint32("pid", a.PID).Str("platform", a.Platform).Msg("create key extractor failed")
-		return "", err
-	}
-	log.Info().Str("account", a.Name).Uint32("pid", a.PID).Str("platform", a.Platform).Msg("key extractor created")
-
+	// Resolve process and create extractor
 	process, err := a.resolveProcess()
 	if err != nil {
-		log.Info().Err(err).Str("account", a.Name).Uint32("pid", a.PID).Msg("resolve process failed before data key extraction")
-		return "", err
+		return result, err
 	}
-	log.Info().
-		Str("account", a.Name).
-		Uint32("pid", process.PID).
-		Str("process_data_dir", process.DataDir).
-		Dur("elapsed", time.Since(startedAt)).
-		Msg("resolve process completed before data key extraction")
 
-	extractor.SetProgress(onProgress)
+	var extractorOpts []key.ExtractorOption
 	if process.Platform != "windows" {
 		validator, err := decrypt.NewValidator(process.Platform, process.DataDir)
 		if err != nil {
-			log.Info().Err(err).Str("account", a.Name).Uint32("pid", process.PID).Str("process_data_dir", process.DataDir).Msg("create validator failed before data key extraction")
-			return "", err
+			return result, err
 		}
-		log.Info().
-			Str("account", a.Name).
-			Uint32("pid", process.PID).
-			Dur("elapsed", time.Since(startedAt)).
-			Msg("validator created before data key extraction")
-		extractor.SetValidate(validator)
-	} else {
-		log.Info().
-			Str("account", a.Name).
-			Uint32("pid", process.PID).
-			Dur("elapsed", time.Since(startedAt)).
-			Msg("skip validator creation for windows data key extraction")
+		extractorOpts = append(extractorOpts, key.WithValidator(validator))
 	}
-	log.Info().
-		Str("account", a.Name).
-		Uint32("pid", process.PID).
-		Dur("elapsed", time.Since(startedAt)).
-		Msg("calling extractor extract data key")
 
-	// 提取数据库密钥
-	dataKey, err := extractor.ExtractDataKey(ctx, process)
+	extractor, err := key.NewExtractor(a.Platform, extractorOpts...)
 	if err != nil {
-		log.Info().
-			Err(err).
-			Str("account", a.Name).
-			Uint32("pid", process.PID).
-			Dur("elapsed", time.Since(startedAt)).
-			Msg("extract data key failed")
-		return "", err
+		return result, err
 	}
 
-	if dataKey != "" {
-		a.Key = dataKey
+	keys, err := extractor.Extract(ctx, process, opts)
+	if err != nil {
+		return result, err
 	}
-	log.Info().
-		Str("account", a.Name).
-		Uint32("pid", process.PID).
-		Dur("elapsed", time.Since(startedAt)).
-		Msg("account get data key finished")
 
-	return dataKey, nil
+	// Cache extracted keys
+	if keys.DataKey != "" {
+		a.Key = keys.DataKey
+		result.DataKey = keys.DataKey
+	}
+	if keys.ImgKey != "" {
+		a.ImgKey = keys.ImgKey
+		result.ImgKey = keys.ImgKey
+	}
+
+	return result, nil
 }
 
-// GetImgKey 获取图片密钥
-func (a *Account) GetImgKey(ctx context.Context) (string, error) {
-	// 如果已经有密钥，直接返回
-	if a.ImgKey != "" {
-		return a.ImgKey, nil
-	}
-
-	// 刷新进程状态
-	if err := a.RefreshStatus(); err != nil {
-		return "", errors.RefreshProcessStatusFailed(err)
-	}
-
-	// 创建密钥提取器
-	extractor, err := key.NewExtractor(a.Platform)
-	if err != nil {
-		return "", err
-	}
-
-	process, err := a.resolveProcess()
-	if err != nil {
-		return "", err
-	}
-
-	// 提取图片密钥
-	imgKey, err := extractor.ExtractImgKey(ctx, process)
-	if err != nil {
-		return "", err
-	}
-
-	if imgKey != "" {
-		a.ImgKey = imgKey
-	}
-
-	return imgKey, nil
+// GetDataKeyWithProgress is a convenience wrapper for GetKeys (data key only).
+func (a *Account) GetDataKeyWithProgress(ctx context.Context, onProgress func(string)) (string, error) {
+	keys, err := a.GetKeys(ctx, key.ExtractOpts{NeedDataKey: true, OnProgress: onProgress})
+	return keys.DataKey, err
 }
 
-// GetKey 获取账号的密钥（兼容旧接口）
-func (a *Account) GetKey(ctx context.Context) (string, string, error) {
-	dataKey, err := a.GetDataKey(ctx)
-	if err != nil {
-		return "", "", err
-	}
-
-	imgKey, err := a.GetImgKey(ctx)
-	if err != nil {
-		return dataKey, "", err
-	}
-
-	return dataKey, imgKey, nil
-}
-
+// GetKeyWithProgress extracts both data key and image key.
 func (a *Account) GetKeyWithProgress(ctx context.Context, onProgress func(string)) (string, string, error) {
-	dataKey, err := a.GetDataKeyWithProgress(ctx, onProgress)
-	if err != nil {
-		return "", "", err
-	}
+	keys, err := a.GetKeys(ctx, key.ExtractOpts{NeedDataKey: true, NeedImgKey: true, OnProgress: onProgress})
+	return keys.DataKey, keys.ImgKey, err
+}
 
-	imgKey, err := a.GetImgKey(ctx)
-	if err != nil {
-		return dataKey, "", err
-	}
-
-	return dataKey, imgKey, nil
+// GetImgKey extracts only the image key.
+func (a *Account) GetImgKey(ctx context.Context) (string, error) {
+	keys, err := a.GetKeys(ctx, key.ExtractOpts{NeedImgKey: true})
+	return keys.ImgKey, err
 }
 
 // DecryptDatabase 解密数据库
 func (a *Account) DecryptDatabase(ctx context.Context, dbPath, outputPath string) error {
-	// 获取密钥
-	hexKey, _, err := a.GetKey(ctx)
+	keys, err := a.GetKeys(ctx, key.ExtractOpts{NeedDataKey: true})
 	if err != nil {
 		return err
 	}
@@ -293,5 +193,5 @@ func (a *Account) DecryptDatabase(ctx context.Context, dbPath, outputPath string
 	defer output.Close()
 
 	// 解密数据库
-	return decryptor.Decrypt(ctx, dbPath, hexKey, output)
+	return decryptor.Decrypt(ctx, dbPath, keys.DataKey, output)
 }

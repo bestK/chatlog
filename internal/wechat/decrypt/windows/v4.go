@@ -2,7 +2,9 @@ package windows
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha512"
+	"encoding/binary"
 	"encoding/hex"
 	"hash"
 	"io"
@@ -65,12 +67,46 @@ func (d *V4Decryptor) deriveKeys(key []byte, salt []byte) ([]byte, []byte) {
 
 // Validate 验证密钥是否有效
 func (d *V4Decryptor) Validate(page1 []byte, key []byte) bool {
+	_, _, ok := d.resolveKeys(page1, key)
+	return ok
+}
+
+func (d *V4Decryptor) resolveKeys(page1 []byte, key []byte) ([]byte, []byte, bool) {
 	if len(page1) < d.pageSize || len(key) != common.KeySize {
-		return false
+		return nil, nil, false
+	}
+
+	if d.validateEncKey(page1, key) {
+		return key, d.deriveMacKey(key, page1[:common.SaltSize]), true
 	}
 
 	salt := page1[:common.SaltSize]
-	return common.ValidateKey(page1, key, salt, d.hashFunc, d.hmacSize, d.reserve, d.pageSize, d.deriveKeys)
+	if common.ValidateKey(page1, key, salt, d.hashFunc, d.hmacSize, d.reserve, d.pageSize, d.deriveKeys) {
+		encKey, macKey := d.deriveKeys(key, salt)
+		return encKey, macKey, true
+	}
+
+	return nil, nil, false
+}
+
+func (d *V4Decryptor) deriveMacKey(encKey []byte, salt []byte) []byte {
+	macSalt := common.XorBytes(salt, 0x3a)
+	return pbkdf2.Key(encKey, macSalt, 2, common.KeySize, d.hashFunc)
+}
+
+func (d *V4Decryptor) validateEncKey(page1 []byte, encKey []byte) bool {
+	macKey := d.deriveMacKey(encKey, page1[:common.SaltSize])
+	dataEnd := d.pageSize - d.reserve + common.IVSize
+	storedMAC := page1[d.pageSize-d.hmacSize : d.pageSize]
+
+	mac := hmac.New(d.hashFunc, macKey)
+	mac.Write(page1[common.SaltSize:dataEnd])
+
+	pageNoBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(pageNoBytes, 1)
+	mac.Write(pageNoBytes)
+
+	return hmac.Equal(mac.Sum(nil), storedMAC)
 }
 
 // Decrypt 解密数据库
@@ -87,13 +123,11 @@ func (d *V4Decryptor) Decrypt(ctx context.Context, dbfile string, hexKey string,
 		return err
 	}
 
-	// 验证密钥
-	if !d.Validate(dbInfo.FirstPage, key) {
+	// 验证并解析密钥。Windows 内存扫描拿到的是 SQLCipher 页加密 enc_key；旧路径可能传入 raw key。
+	encKey, macKey, ok := d.resolveKeys(dbInfo.FirstPage, key)
+	if !ok {
 		return errors.ErrDecryptIncorrectKey
 	}
-
-	// 计算密钥
-	encKey, macKey := d.deriveKeys(key, dbInfo.Salt)
 
 	// 打开数据库文件
 	dbFile, err := os.Open(dbfile)

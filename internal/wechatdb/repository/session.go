@@ -89,13 +89,20 @@ func (r *Repository) EnrichSessions(ctx context.Context, sessions []*model.Sessi
 		if s.IsChatroom {
 			// 群聊
 			// 获取更准确的群名（作为会话名）
+			topicName := ""
 			if chatRoom, ok := r.chatRoomCache[s.TopicID]; ok {
-				s.TopicName = chatRoom.DisplayName()
-			} else {
+				topicName = chatRoom.DisplayName()
+			}
+			if topicName == "" {
 				contact := r.getFullContact(s.TopicID)
 				if contact != nil {
-					s.TopicName = contact.DisplayName()
+					topicName = contact.DisplayName()
 				}
+			}
+			if topicName != "" {
+				s.TopicName = topicName
+			} else {
+				s.TopicName = s.TopicID
 			}
 
 			// 如果 PersonID 还是空的（或者 Wrap 没给），尝试从内容解析

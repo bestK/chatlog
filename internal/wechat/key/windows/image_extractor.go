@@ -12,8 +12,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"unsafe"
-
 	"golang.org/x/sys/windows"
 )
 
@@ -609,56 +607,16 @@ func GetImageKeys(manualDirectory string, preferredPID uint32, onProgress func(s
 	return SuccessResult(xorKey, aesKey)
 }
 
-// 内存操作辅助结构和函数
-
-// MemoryRegion represents a memory region in a process
-type MemoryRegion struct {
-	BaseAddress uintptr
-	RegionSize  uintptr
-	State       uint32
-	Protect     uint32
-	Type        uint32
-}
-
-// GetMemoryRegions gets all memory regions of a process
-func GetMemoryRegions(handle windows.Handle) []MemoryRegion {
-	var regions []MemoryRegion
-	var address uintptr = 0
-	var minAddr uintptr = 0x10000        // user space start roughly
-	var maxAddr uintptr = 0x7FFFFFFFFFFF // max user space for 64bit
-
-	// Adjust for 32-bit processes or based on system
-	// Using a safe upper bound.
-	address = minAddr
-
-	for address < maxAddr {
-		var mbi windows.MemoryBasicInformation
-		err := windows.VirtualQueryEx(handle, address, &mbi, unsafe.Sizeof(mbi))
-		if err != nil {
-			break
-		}
-
-		if mbi.State == windows.MEM_COMMIT {
-			regions = append(regions, MemoryRegion{
-				BaseAddress: mbi.BaseAddress,
-				RegionSize:  mbi.RegionSize,
-				State:       mbi.State,
-				Protect:     mbi.Protect,
-				Type:        mbi.Type,
-			})
-		}
-		address = mbi.BaseAddress + mbi.RegionSize
+// ScanImgKey extracts the image AES key from a running WeChat process memory.
+// pid must be non-zero. Returns the 16-char AES key or an error.
+func ScanImgKey(_ context.Context, dataDir string, pid uint32, onProgress func(string)) (string, error) {
+	result := GetImageKeys(dataDir, pid, onProgress)
+	if result.Success {
+		return result.AesKey, nil
 	}
-	return regions
-}
-
-// ReadMemoryChunk reads a chunk of memory from a process
-func ReadMemoryChunk(handle windows.Handle, address uintptr, size int) ([]byte, error) {
-	buffer := make([]byte, size)
-	var bytesRead uintptr
-	err := windows.ReadProcessMemory(handle, address, &buffer[0], uintptr(size), &bytesRead)
-	if err != nil {
-		return nil, err
+	msg := result.Error
+	if msg == "" {
+		msg = "未能从微信进程内存中提取到图片密钥"
 	}
-	return buffer[:bytesRead], nil
+	return "", fmt.Errorf("%s", msg)
 }

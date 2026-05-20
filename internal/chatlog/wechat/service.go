@@ -2,6 +2,7 @@ package wechat
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -47,6 +48,63 @@ type Config interface {
 	GetDataDir() string
 	GetWorkDir() string
 	GetPlatform() string
+}
+
+type dbKeyEntry struct {
+	EncKey string `json:"enc_key"`
+	Salt   string `json:"salt"`
+}
+
+func selectDataKey(rawKey string, relPath string) (string, error) {
+	rawKey = strings.TrimSpace(rawKey)
+	if rawKey == "" {
+		return "", fmt.Errorf("data key empty")
+	}
+	if !strings.HasPrefix(rawKey, "{") {
+		return rawKey, nil
+	}
+
+	keys := make(map[string]dbKeyEntry)
+	if err := json.Unmarshal([]byte(rawKey), &keys); err != nil {
+		return "", err
+	}
+
+	for _, candidate := range keyPathVariants(relPath) {
+		if info, ok := keys[candidate]; ok && strings.TrimSpace(info.EncKey) != "" {
+			return strings.TrimSpace(info.EncKey), nil
+		}
+	}
+
+	return "", fmt.Errorf("database key not found for %s", relPath)
+}
+
+func keyPathVariants(relPath string) []string {
+	normalized := filepath.ToSlash(filepath.Clean(relPath))
+	variants := make([]string, 0, 6)
+	add := func(path string) {
+		if path == "" {
+			return
+		}
+		for _, existing := range variants {
+			if existing == path {
+				return
+			}
+		}
+		variants = append(variants, path)
+	}
+
+	add(relPath)
+	add(normalized)
+	add(strings.ReplaceAll(normalized, "/", `\`))
+	add(strings.ReplaceAll(normalized, "/", string(filepath.Separator)))
+
+	if withoutPrefix, ok := strings.CutPrefix(normalized, "db_storage/"); ok {
+		add(withoutPrefix)
+		add(strings.ReplaceAll(withoutPrefix, "/", `\`))
+		add(strings.ReplaceAll(withoutPrefix, "/", string(filepath.Separator)))
+	}
+
+	return variants
 }
 
 func NewService(conf Config) *Service {
@@ -238,7 +296,14 @@ func (s *Service) DecryptDBFile(dbFile string) error {
 		return err
 	}
 
-	err = decryptor.Decrypt(context.Background(), dbFile, s.conf.GetDataKey(), f)
+	dataKey, err := selectDataKey(s.conf.GetDataKey(), rel)
+	if err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+
+	err = decryptor.Decrypt(context.Background(), dbFile, dataKey, f)
 	f.Close()
 
 	if err != nil {

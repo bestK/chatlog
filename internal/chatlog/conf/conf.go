@@ -43,7 +43,7 @@ func LoadAppConfig(configPath string) (*AppConfig, *config.Manager, error) {
 }
 
 // LoadServiceConfig 加载服务配置
-func LoadServiceConfig(configPath string, cmdConf map[string]any) (*ServerConfig, *config.Manager, error) {
+func LoadServiceConfig(configPath string, overrides ServerOverrides) (*ServerConfig, *config.Manager, error) {
 
 	if configPath == "" {
 		configPath = os.Getenv(EnvConfigDir)
@@ -58,15 +58,12 @@ func LoadServiceConfig(configPath string, cmdConf map[string]any) (*ServerConfig
 	conf := &ServerConfig{}
 	config.SetDefaults(scm.Viper, conf, ServerDefaults)
 
-	// Load cmd Conf
-	for key, value := range cmdConf {
-		scm.SetConfig(key, value)
-	}
-
 	if err := scm.Load(conf); err != nil {
 		log.Error().Err(err).Msg("load server config failed")
 		return nil, nil, err
 	}
+	overrides.ApplyTo(conf)
+	conf.ApplyHistoryDefaults(overrides)
 
 	b, _ := json.Marshal(conf)
 	log.Info().Msgf("server config: %s", string(b))

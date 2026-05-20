@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/sjzar/chatlog/internal/chatlog"
+	"github.com/sjzar/chatlog/internal/chatlog/conf"
 )
 
 func init() {
@@ -36,44 +37,40 @@ var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "Start HTTP server",
 	Run: func(cmd *cobra.Command, args []string) {
-
-		cmdConf := getServerConfig()
-		log.Info().Msgf("server cmd config: %+v", cmdConf)
+		overrides := getServerOverrides()
+		log.Info().Msgf("server overrides: %+v", overrides)
 
 		m := chatlog.New()
-		if err := m.CommandHTTPServer("", cmdConf); err != nil {
+		if err := m.CommandHTTPServer("", overrides); err != nil {
 			log.Err(err).Msg("failed to start server")
 			return
 		}
 	},
 }
 
-func getServerConfig() map[string]any {
-	cmdConf := make(map[string]any)
+func getServerOverrides() conf.ServerOverrides {
+	overrides := conf.ServerOverrides{}
 	if len(serverAddr) != 0 {
-		cmdConf["http_addr"] = serverAddr
+		overrides.HTTPAddr = conf.StringOverride(serverAddr)
 	}
 	if len(serverDataDir) != 0 {
-		cmdConf["data_dir"] = serverDataDir
+		overrides.DataDir = conf.StringOverride(serverDataDir)
 	}
 	if len(serverDataKey) != 0 {
-		cmdConf["data_key"] = serverDataKey
+		overrides.DataKey = conf.StringOverride(serverDataKey)
 	}
 	if len(serverImgKey) != 0 {
-		cmdConf["img_key"] = serverImgKey
+		overrides.ImgKey = conf.StringOverride(serverImgKey)
 	}
 	if len(serverWorkDir) != 0 {
-		cmdConf["work_dir"] = serverWorkDir
+		overrides.WorkDir = conf.StringOverride(serverWorkDir)
 	}
 	if len(serverPlatform) != 0 {
-		cmdConf["platform"] = serverPlatform
+		overrides.Platform = conf.StringOverride(serverPlatform)
 	}
-	if serverVer != 0 {
-		cmdConf["version"] = serverVer
-	}
-	cmdConf["auto_decrypt"] = serverAutoDecrypt
+	overrides.AutoDecrypt = conf.BoolOverride(serverAutoDecrypt)
 	if Debug {
-		cmdConf["debug"] = true
+		overrides.Debug = conf.BoolOverride(true)
 	}
-	return cmdConf
+	return overrides
 }
