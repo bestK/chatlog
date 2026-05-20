@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { inject, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue';
 import { appContextKey } from '../app/context';
@@ -10,12 +11,15 @@ const app = injected;
 
 const { state, dataDir, workDir, dataKey, imgKey, run, feedback } = app;
 
+const summaryPrompt = ref(state.value?.summaryPrompt || '');
+
 watch(() => state.value?.account, () => {
     if (!state.value) return;
     dataDir.value = state.value.dataDir || '';
     workDir.value = state.value.workDir || '';
     dataKey.value = state.value.dataKey || '';
     imgKey.value = state.value.imgKey || '';
+    summaryPrompt.value = state.value.summaryPrompt || '';
 });
 
 type ActionDialogOptions<T> = {
@@ -315,6 +319,33 @@ async function decryptNow() {
                 </div>
                 <div class="text-sm text-muted-foreground">
                     解密后的数据将存放于 <span class="font-mono text-foreground/90">{{ workDir || '未定义' }}</span>。
+                </div>
+            </div>
+        </section>
+
+        <section class="space-y-4">
+            <header class="space-y-1">
+                <h3 class="font-serif text-xl font-medium tracking-tight text-foreground">AI 总结</h3>
+                <p class="text-sm text-muted-foreground">自定义 AI 总结聊天记录时使用的提示词。</p>
+            </header>
+            <div class="rounded-xl bg-muted/30 ring-1 ring-border/40 px-5 py-4 space-y-3">
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm text-foreground">总结提示词</label>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            class="h-7 px-2 text-xs font-normal text-muted-foreground hover:text-foreground"
+                            @click="backend.SetSummaryPrompt(summaryPrompt)"
+                        >保存</Button>
+                    </div>
+                    <textarea
+                        v-model="summaryPrompt"
+                        rows="4"
+                        class="w-full rounded-md border border-input bg-background/40 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                        placeholder="留空使用默认提示词：请总结以下聊天记录的主要内容…"
+                    ></textarea>
+                    <p class="text-xs text-muted-foreground">留空将使用内置默认提示词。修改后点击保存生效。</p>
                 </div>
             </div>
         </section>

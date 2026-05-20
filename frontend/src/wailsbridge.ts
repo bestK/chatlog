@@ -11,6 +11,7 @@ export type State = {
     autoDecrypt: boolean;
     lastSession: string;
     selectedAIProvider: string;
+    summaryPrompt: string;
     pid: number;
     exePath: string;
     status: string;
@@ -129,6 +130,7 @@ type Backend = {
     StopHTTP(): Promise<void>;
     SetAutoDecrypt(enabled: boolean): Promise<void>;
     SetSelectedAIProvider(providerID: string): Promise<void>;
+    SetSummaryPrompt(prompt: string): Promise<void>;
     GenerateAISummary(providerID: string, messages: string[], prompt: string): Promise<void>;
     GetLogPath(): Promise<string>;
     ReadLogTail(maxLines: number): Promise<string>;
@@ -182,6 +184,7 @@ export const backend = {
     StopHTTP: () => window.go.main.App.StopHTTP(),
     SetAutoDecrypt: (enabled: boolean) => window.go.main.App.SetAutoDecrypt(enabled),
     SetSelectedAIProvider: (providerID: string) => window.go.main.App.SetSelectedAIProvider(providerID),
+    SetSummaryPrompt: (prompt: string) => window.go.main.App.SetSummaryPrompt(prompt),
     GetMessages: (timeStr: string, talker: string, sender: string, keyword: string, limit: number, offset: number, order: string) =>
         window.go.main.App.GetMessages(timeStr, talker, sender, keyword, limit, offset, order),
     GenerateAISummary: (providerID: string, messages: string[], prompt: string) =>
