@@ -5,7 +5,6 @@
 *.exe
 *.exe~
 *.dll
-!wx_key.dll
 *.so
 *.dylib
 
@@ -54,3 +53,6 @@ frontend/tsconfig.tsbuildinfo
 # server web
 web/node_modules/
 web/dist/
+
+# local reference projects
+wechat-decrypt/

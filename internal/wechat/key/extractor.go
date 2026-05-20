@@ -10,33 +10,68 @@ import (
 	"github.com/sjzar/chatlog/internal/wechat/model"
 )
 
-// Extractor 定义密钥提取器接口
-type Extractor interface {
-	// Extract 从进程中提取密钥（兼容旧接口）
-	// dataKey, imgKey, error
-	Extract(ctx context.Context, proc *model.Process) (string, string, error)
-
-	// ExtractDataKey 仅提取数据库密钥
-	ExtractDataKey(ctx context.Context, proc *model.Process) (string, error)
-
-	// ExtractImgKey 仅提取图片密钥
-	ExtractImgKey(ctx context.Context, proc *model.Process) (string, error)
-
-	// SearchKey 在内存中搜索密钥
-	SearchKey(ctx context.Context, memory []byte) (string, bool)
-
-	SetValidate(validator *decrypt.Validator)
-	SetProgress(progress func(string))
+// Keys holds extracted encryption keys.
+type Keys struct {
+	DataKey string // db encryption key (hex string or JSON map for multi-salt)
+	ImgKey  string // image AES key
 }
 
-// NewExtractor 创建适合当前平台的密钥提取器
-func NewExtractor(platform string) (Extractor, error) {
+// ExtractOpts controls which keys to extract and how to report progress.
+type ExtractOpts struct {
+	NeedDataKey bool
+	NeedImgKey  bool
+	OnProgress  func(string)
+}
+
+// Extractor extracts encryption keys from a running WeChat process.
+type Extractor interface {
+	Extract(ctx context.Context, proc *model.Process, opts ExtractOpts) (Keys, error)
+}
+
+// ExtractorOption configures an Extractor at construction time.
+type ExtractorOption func(*extractorConfig)
+
+type extractorConfig struct {
+	validator *decrypt.Validator
+}
+
+// WithValidator injects a key validator (required for darwin).
+func WithValidator(v *decrypt.Validator) ExtractorOption {
+	return func(c *extractorConfig) { c.validator = v }
+}
+
+// NewExtractor creates a platform-appropriate key extractor.
+func NewExtractor(platform string, opts ...ExtractorOption) (Extractor, error) {
+	cfg := &extractorConfig{}
+	for _, o := range opts {
+		o(cfg)
+	}
 	switch platform {
 	case "windows":
-		return windows.NewV4Extractor(), nil
+		return &windowsAdapter{impl: windows.NewV4Extractor()}, nil
 	case "darwin":
-		return darwin.NewV4Extractor(), nil
+		return &darwinAdapter{impl: darwin.NewV4Extractor(cfg.validator)}, nil
 	default:
 		return nil, errors.PlatformUnsupported(platform)
 	}
+}
+
+// windowsAdapter wraps windows.V4Extractor to satisfy the Extractor interface.
+type windowsAdapter struct {
+	impl *windows.V4Extractor
+}
+
+func (a *windowsAdapter) Extract(ctx context.Context, proc *model.Process, opts ExtractOpts) (Keys, error) {
+	dataKey, imgKey, err := a.impl.Extract(ctx, proc, opts.NeedDataKey, opts.NeedImgKey, opts.OnProgress)
+	return Keys{DataKey: dataKey, ImgKey: imgKey}, err
+}
+
+// darwinAdapter wraps darwin.V4Extractor to satisfy the Extractor interface.
+type darwinAdapter struct {
+	impl *darwin.V4Extractor
+}
+
+func (a *darwinAdapter) Extract(ctx context.Context, proc *model.Process, opts ExtractOpts) (Keys, error) {
+	dataKey, imgKey, err := a.impl.Extract(ctx, proc, opts.NeedDataKey, opts.NeedImgKey, opts.OnProgress)
+	return Keys{DataKey: dataKey, ImgKey: imgKey}, err
 }

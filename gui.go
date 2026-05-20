@@ -154,9 +154,7 @@ func (a *App) initLogger() {
 
 func (a *App) resetLogger() {
 	writers := make([]io.Writer, 0, 3)
-	if util.HasUsableConsole(os.Stderr) {
-		writers = append(writers, util.NewPlainLogWriter(os.Stderr, false))
-	}
+	writers = append(writers, util.NewPlainLogWriter(os.Stderr, true))
 	if a.logFile != nil {
 		writers = append(writers, util.NewPlainLogWriter(a.logFile, true))
 	}

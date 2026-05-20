@@ -39,26 +39,54 @@ var V4ImgKeyPatterns = []KeyPatternInfo{
 
 type V4Extractor struct {
 	validator         *decrypt.Validator
-	progress          func(string)
 	dataKeyPatterns   []KeyPatternInfo
 	imgKeyPatterns    []KeyPatternInfo
-	processedDataKeys sync.Map // Thread-safe map for processed data keys
-	processedImgKeys  sync.Map // Thread-safe map for processed image keys
+	processedDataKeys sync.Map
+	processedImgKeys  sync.Map
 }
 
-func NewV4Extractor() *V4Extractor {
+func NewV4Extractor(validator *decrypt.Validator) *V4Extractor {
 	return &V4Extractor{
+		validator:       validator,
 		dataKeyPatterns: V4KeyPatterns,
 		imgKeyPatterns:  V4ImgKeyPatterns,
 	}
 }
 
-func (e *V4Extractor) SetProgress(progress func(string)) {
-	e.progress = progress
-}
+// Extract extracts keys from a running WeChat process.
+// For image keys, it first tries kvcomm cache derivation (no SIP required),
+// then falls back to memory scanning if needed.
+func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process, needDataKey, needImgKey bool, onProgress func(string)) (string, string, error) {
+	var imgKey string
 
-func (e *V4Extractor) Extract(ctx context.Context, proc *model.Process) (string, string, error) {
-	return e.extractKeys(ctx, proc, true, true)
+	// Try kvcomm-based image key derivation first (doesn't require SIP/memory access)
+	if needImgKey && proc.DataDir != "" {
+		derived, err := DeriveImgKey(proc.DataDir, onProgress)
+		if err == nil && derived != "" {
+			imgKey = derived
+			needImgKey = false
+		} else if err != nil {
+			log.Debug().Err(err).Msg("kvcomm image key derivation failed, will try memory scan")
+		}
+	}
+
+	// If we still need keys via memory scanning
+	if needDataKey || needImgKey {
+		dataKey, memImgKey, err := e.extractKeys(ctx, proc, needDataKey, needImgKey)
+		if err != nil {
+			// If we already got imgKey from kvcomm but data key failed, return partial success
+			if imgKey != "" && !needDataKey {
+				return "", imgKey, nil
+			}
+			return dataKey, imgKey, err
+		}
+		if memImgKey != "" {
+			imgKey = memImgKey
+		}
+		return dataKey, imgKey, nil
+	}
+
+	return "", imgKey, nil
 }
 
 func (e *V4Extractor) extractKeys(ctx context.Context, proc *model.Process, needDataKey bool, needImgKey bool) (string, string, error) {
@@ -356,22 +384,6 @@ func (e *V4Extractor) SearchImgKey(ctx context.Context, memory []byte) (string, 
 	}
 
 	return "", false
-}
-
-func (e *V4Extractor) SetValidate(validator *decrypt.Validator) {
-	e.validator = validator
-}
-
-// ExtractDataKey 仅提取数据库密钥
-func (e *V4Extractor) ExtractDataKey(ctx context.Context, proc *model.Process) (string, error) {
-	dataKey, _, err := e.extractKeys(ctx, proc, true, false)
-	return dataKey, err
-}
-
-// ExtractImgKey 仅提取图片密钥
-func (e *V4Extractor) ExtractImgKey(ctx context.Context, proc *model.Process) (string, error) {
-	_, imgKey, err := e.extractKeys(ctx, proc, false, true)
-	return imgKey, err
 }
 
 type KeyPatternInfo struct {

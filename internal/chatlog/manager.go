@@ -490,9 +490,11 @@ func (m *Manager) CommandKey(configPath string, pid int, force bool, showXorKey 
 	}
 
 	if len(m.ctx.WeChatInstances) == 1 {
+		current := m.ctx.WeChatInstances[0]
+		m.ctx.SwitchCurrent(current)
 		key, imgKey := m.ctx.DataKey, m.ctx.ImgKey
 		if len(key) == 0 || len(imgKey) == 0 || force {
-			key, imgKey, err = m.ctx.WeChatInstances[0].GetKey(context.Background())
+			key, imgKey, err = current.GetKey(context.Background())
 			if err != nil {
 				return "", err
 			}
@@ -518,7 +520,8 @@ func (m *Manager) CommandKey(configPath string, pid int, force bool, showXorKey 
 	}
 	for _, ins := range m.ctx.WeChatInstances {
 		if ins.PID == uint32(pid) {
-			key, imgKey := ins.Key, ins.ImgKey
+			m.ctx.SwitchCurrent(ins)
+			key, imgKey := m.ctx.DataKey, m.ctx.ImgKey
 			if len(key) == 0 || len(imgKey) == 0 || force {
 				key, imgKey, err = ins.GetKey(context.Background())
 				if err != nil {
@@ -539,10 +542,82 @@ func (m *Manager) CommandKey(configPath string, pid int, force bool, showXorKey 
 	return "", fmt.Errorf("wechat process not found")
 }
 
-func (m *Manager) CommandDecrypt(configPath string, cmdConf map[string]any) error {
+func (m *Manager) ensureServiceDataKey(configPath string) error {
+	if m.sc == nil || strings.TrimSpace(m.sc.GetDataKey()) != "" {
+		return nil
+	}
+
+	appCtx, err := ctx.New(configPath)
+	if err != nil {
+		return err
+	}
+	keyService := wechat.NewService(appCtx)
+	instances := keyService.GetWeChatInstances()
+	if len(instances) == 0 {
+		return fmt.Errorf("wechat process not found")
+	}
+
+	var selected *iwechat.Account
+	dataDir := util.NormalizeDataDirPath(m.sc.GetDataDir())
+	if dataDir != "" {
+		for _, instance := range instances {
+			if instance != nil && util.NormalizeDataDirPath(instance.DataDir) == dataDir {
+				selected = instance
+				break
+			}
+		}
+	}
+	if selected == nil {
+		for _, account := range []string{m.sc.CurrentAccount, m.sc.LastAccount} {
+			account = strings.TrimSpace(account)
+			if account == "" {
+				continue
+			}
+			for _, instance := range instances {
+				if instance != nil && instance.Name == account {
+					selected = instance
+					break
+				}
+			}
+			if selected != nil {
+				break
+			}
+		}
+	}
+	if selected == nil && len(instances) == 1 {
+		selected = instances[0]
+	}
+	if selected == nil {
+		return fmt.Errorf("wechat process not found for data dir: %s", dataDir)
+	}
+
+	appCtx.WeChatInstances = instances
+	appCtx.SwitchCurrent(selected)
+	dataKey, imgKey, err := keyService.GetKeysWithProgress(selected, nil)
+	if err != nil {
+		return err
+	}
+	appCtx.Refresh()
+	appCtx.UpdateConfig()
+
+	m.ctx = appCtx
+	m.sc.DataKey = dataKey
+	if imgKey != "" {
+		m.sc.ImgKey = imgKey
+	}
+	if m.sc.DataDir == "" {
+		m.sc.DataDir = appCtx.DataDir
+	}
+	if m.sc.WorkDir == "" {
+		m.sc.WorkDir = appCtx.WorkDir
+	}
+	return nil
+}
+
+func (m *Manager) CommandDecrypt(configPath string, overrides conf.ServerOverrides) error {
 
 	var err error
-	m.sc, m.scm, err = conf.LoadServiceConfig(configPath, cmdConf)
+	m.sc, m.scm, err = conf.LoadServiceConfig(configPath, overrides)
 	if err != nil {
 		return err
 	}
@@ -552,9 +627,8 @@ func (m *Manager) CommandDecrypt(configPath string, cmdConf map[string]any) erro
 		return fmt.Errorf("dataDir is required")
 	}
 
-	dataKey := m.sc.GetDataKey()
-	if len(dataKey) == 0 {
-		return fmt.Errorf("dataKey is required")
+	if err := m.ensureServiceDataKey(configPath); err != nil {
+		return err
 	}
 
 	m.wechat = wechat.NewService(m.sc)
@@ -566,10 +640,10 @@ func (m *Manager) CommandDecrypt(configPath string, cmdConf map[string]any) erro
 	return nil
 }
 
-func (m *Manager) CommandHTTPServer(configPath string, cmdConf map[string]any) error {
+func (m *Manager) CommandHTTPServer(configPath string, overrides conf.ServerOverrides) error {
 
 	var err error
-	m.sc, m.scm, err = conf.LoadServiceConfig(configPath, cmdConf)
+	m.sc, m.scm, err = conf.LoadServiceConfig(configPath, overrides)
 	if err != nil {
 		return err
 	}
@@ -587,10 +661,11 @@ func (m *Manager) CommandHTTPServer(configPath string, cmdConf map[string]any) e
 		return fmt.Errorf("dataDir or workDir is required")
 	}
 
-	dataKey := m.sc.GetDataKey()
-	if len(dataKey) == 0 {
-		return fmt.Errorf("dataKey is required")
+	if err := m.ensureServiceDataKey(configPath); err != nil {
+		return err
 	}
+	dataDir = m.sc.GetDataDir()
+	workDir = m.sc.GetWorkDir()
 
 	// 处理图片密钥
 	if len(dataDir) != 0 {

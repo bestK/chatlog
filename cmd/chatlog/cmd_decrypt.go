@@ -3,10 +3,11 @@ package chatlog
 import (
 	"fmt"
 
-	"github.com/sjzar/chatlog/internal/chatlog"
-
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+
+	"github.com/sjzar/chatlog/internal/chatlog"
+	"github.com/sjzar/chatlog/internal/chatlog/conf"
 )
 
 func init() {
@@ -30,11 +31,10 @@ var decryptCmd = &cobra.Command{
 	Use:   "decrypt",
 	Short: "decrypt",
 	Run: func(cmd *cobra.Command, args []string) {
-
-		cmdConf := getDecryptConfig()
+		overrides := getDecryptOverrides()
 
 		m := chatlog.New()
-		if err := m.CommandDecrypt("", cmdConf); err != nil {
+		if err := m.CommandDecrypt("", overrides); err != nil {
 			log.Err(err).Msg("failed to decrypt")
 			return
 		}
@@ -42,22 +42,19 @@ var decryptCmd = &cobra.Command{
 	},
 }
 
-func getDecryptConfig() map[string]any {
-	cmdConf := make(map[string]any)
+func getDecryptOverrides() conf.ServerOverrides {
+	overrides := conf.ServerOverrides{}
 	if len(decryptDataDir) != 0 {
-		cmdConf["data_dir"] = decryptDataDir
+		overrides.DataDir = conf.StringOverride(decryptDataDir)
 	}
 	if len(decryptDatakey) != 0 {
-		cmdConf["data_key"] = decryptDatakey
+		overrides.DataKey = conf.StringOverride(decryptDatakey)
 	}
 	if len(decryptWorkDir) != 0 {
-		cmdConf["work_dir"] = decryptWorkDir
+		overrides.WorkDir = conf.StringOverride(decryptWorkDir)
 	}
 	if len(decryptPlatform) != 0 {
-		cmdConf["platform"] = decryptPlatform
+		overrides.Platform = conf.StringOverride(decryptPlatform)
 	}
-	if decryptVer != 0 {
-		cmdConf["version"] = decryptVer
-	}
-	return cmdConf
+	return overrides
 }
