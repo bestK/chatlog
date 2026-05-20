@@ -609,7 +609,11 @@ func (s *Service) handleAISummaryStream(c *gin.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			fmt.Fprintf(c.Writer, "data: %s\n\n", chunk)
+			lines := strings.Split(chunk, "\n")
+			for _, line := range lines {
+				fmt.Fprintf(c.Writer, "data: %s\n", line)
+			}
+			fmt.Fprint(c.Writer, "\n")
 			c.Writer.Flush()
 		}
 	}
