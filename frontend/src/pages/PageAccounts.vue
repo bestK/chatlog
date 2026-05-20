@@ -13,70 +13,21 @@ const app = injected;
 
 const { instances, run, state } = app;
 
-const contactKeyword = ref('');
-const contactsLoading = ref(false);
-const contactsTotal = ref(0);
-const contacts = ref<Contact[]>([]);
-const contactLimit = ref(50);
-const contactOffset = ref(0);
-const contactLoadingSource = ref<'init' | 'refresh' | 'search' | 'prev' | 'next' | 'limit' | 'account' | null>(null);
+// --- Account switching ---
 
-const hasContacts = computed(() => contacts.value.length > 0);
-const hasKeyword = computed(() => contactKeyword.value.trim().length > 0);
+const switchingPid = ref<number | null>(null);
 
-let contactLoadTimer: number | undefined;
-
-function getPageScrollContainer() {
-    if (typeof document === 'undefined') return null;
-    const page = document.querySelector('.page');
-    return page instanceof HTMLElement ? page : null;
+function isCurrent(instance: Instance) {
+    return state.value?.pid === instance.pid;
 }
 
-function restorePageScroll(scrollTop: number | null) {
-    if (scrollTop === null) return;
-    const container = getPageScrollContainer();
-    if (!container) return;
-    window.requestAnimationFrame(() => {
-        container.scrollTop = scrollTop;
-    });
-}
-
-async function loadContacts(options?: {
-    preserveScroll?: boolean;
-    source?: 'init' | 'refresh' | 'search' | 'prev' | 'next' | 'limit' | 'account';
-}) {
-    if (!backend.isWails) {
-        contacts.value = [];
-        contactsTotal.value = 0;
-        return;
-    }
-    contactLoadingSource.value = options?.source ?? 'refresh';
-    const preservedScrollTop = options?.preserveScroll ? getPageScrollContainer()?.scrollTop ?? 0 : null;
-    contactsLoading.value = true;
+async function switchTo(pid: number) {
+    switchingPid.value = pid;
     try {
-        const resp = await backend.GetContacts(
-            contactKeyword.value.trim(),
-            -1,
-            contactLimit.value,
-            contactOffset.value
-        );
-        contactsTotal.value = resp.total || 0;
-        contacts.value = Array.isArray(resp.items) ? resp.items : [];
-    } catch (e) {
-        app.feedback.toast('加载联系人失败', String(e));
+        await run(() => backend.SwitchToPID(pid), '已切换账号');
     } finally {
-        contactsLoading.value = false;
-        contactLoadingSource.value = null;
-        await nextTick();
-        restorePageScroll(preservedScrollTop);
+        switchingPid.value = null;
     }
-}
-
-function scheduleLoadContacts(delayMs = 200) {
-    if (contactLoadTimer) window.clearTimeout(contactLoadTimer);
-    contactLoadTimer = window.setTimeout(() => {
-        void loadContacts({ preserveScroll: true, source: 'search' });
-    }, delayMs);
 }
 
 function getAccountName(instance: Instance) {
@@ -98,19 +49,45 @@ function getAvatarFallback(instance: Instance) {
     return name ? name.slice(0, 1).toUpperCase() : '?';
 }
 
-const switchingPid = ref<number | null>(null);
+// --- Contacts ---
 
-function isCurrent(instance: Instance) {
-    return state.value?.pid === instance.pid;
+const contactKeyword = ref('');
+const contactsLoading = ref(false);
+const contactsTotal = ref(0);
+const contacts = ref<Contact[]>([]);
+const contactLimit = ref(50);
+const contactOffset = ref(0);
+
+const hasContacts = computed(() => contacts.value.length > 0);
+
+let contactLoadTimer: number | undefined;
+
+async function loadContacts(source?: string) {
+    if (!backend.isWails) {
+        contacts.value = [];
+        contactsTotal.value = 0;
+        return;
+    }
+    contactsLoading.value = true;
+    try {
+        const resp = await backend.GetContacts(
+            contactKeyword.value.trim(),
+            -1,
+            contactLimit.value,
+            contactOffset.value
+        );
+        contactsTotal.value = resp.total || 0;
+        contacts.value = Array.isArray(resp.items) ? resp.items : [];
+    } catch (e) {
+        app.feedback.toast('加载联系人失败', String(e));
+    } finally {
+        contactsLoading.value = false;
+    }
 }
 
-async function switchTo(pid: number) {
-    switchingPid.value = pid;
-    try {
-        await run(() => backend.SwitchToPID(pid), '已切换账号');
-    } finally {
-        switchingPid.value = null;
-    }
+function scheduleSearch(delayMs = 200) {
+    if (contactLoadTimer) window.clearTimeout(contactLoadTimer);
+    contactLoadTimer = window.setTimeout(() => void loadContacts('search'), delayMs);
 }
 
 function getContactName(c: Contact) {
@@ -126,32 +103,28 @@ function getContactAvatarFallback(c: Contact) {
     return name ? name.slice(0, 1).toUpperCase() : '?';
 }
 
-onMounted(() => {
-    void loadContacts({ source: 'init' });
-});
+onMounted(() => void loadContacts('init'));
 
-watch(
-    () => state.value?.account,
-    () => {
-        contactOffset.value = 0;
-        if (contactLoadTimer) window.clearTimeout(contactLoadTimer);
-        void loadContacts({ preserveScroll: true, source: 'account' });
-    }
-);
+watch(() => state.value?.account, () => {
+    contactOffset.value = 0;
+    if (contactLoadTimer) window.clearTimeout(contactLoadTimer);
+    void loadContacts('account');
+});
 
 watch(contactKeyword, () => {
     contactOffset.value = 0;
-    scheduleLoadContacts();
+    scheduleSearch();
 });
 
 watch(contactLimit, () => {
     contactOffset.value = 0;
-    void loadContacts({ preserveScroll: true, source: 'limit' });
+    void loadContacts('limit');
 });
 </script>
 
 <template>
     <div class="space-y-12">
+        <!-- Instances -->
         <section class="space-y-3">
             <div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
                 <div
@@ -159,7 +132,7 @@ watch(contactLimit, () => {
                     class="col-span-full rounded-lg border border-dashed border-border/40 py-12 text-center"
                 >
                     <div class="text-sm text-foreground/80">未检测到活跃的微信进程</div>
-                    <div class="mt-1 text-xs text-muted-foreground">启动并登录微信后，点击顶部“刷新”。</div>
+                    <div class="mt-1 text-xs text-muted-foreground">启动并登录微信后，点击顶部"刷新"。</div>
                 </div>
 
                 <div
@@ -216,7 +189,6 @@ watch(contactLimit, () => {
                             {{ isCurrent(instance) ? '当前' : switchingPid === instance.pid ? '切换中…' : instance.status === 'offline' ? '离线' : '切换' }}
                         </Button>
                     </div>
-
                     <div
                         class="break-all font-mono text-xs leading-relaxed text-foreground/70"
                         :title="instance.dataDir"
@@ -227,21 +199,11 @@ watch(contactLimit, () => {
             </div>
         </section>
 
+        <!-- Contacts -->
         <section class="space-y-5">
-            <header class="flex flex-wrap items-end justify-between gap-3">
-                <div class="space-y-1">
-                    <h3 class="font-serif text-xl font-medium tracking-tight text-foreground">联系人</h3>
-                    <p class="text-sm text-muted-foreground">检索当前账号下的联系人、群聊与公众号。</p>
-                </div>
-                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span>{{ contactRangeText }}</span>
-                    <span class="opacity-50">·</span>
-                    <span>{{ contactPageText }}</span>
-                    <template v-if="hasKeyword">
-                        <span class="opacity-50">·</span>
-                        <span class="text-foreground">“{{ contactKeyword }}”</span>
-                    </template>
-                </div>
+            <header class="space-y-1">
+                <h3 class="font-serif text-xl font-medium tracking-tight text-foreground">联系人</h3>
+                <p class="text-sm text-muted-foreground">检索当前账号下的联系人、群聊与公众号。</p>
             </header>
 
             <div
@@ -253,53 +215,24 @@ watch(contactLimit, () => {
                         class="h-9 bg-background/40 pl-3 pr-9 text-sm"
                         placeholder="搜索昵称、微信号、备注或 ID"
                     />
-                    <div class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50">
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="15"
-                            height="15"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        >
-                            <circle cx="11" cy="11" r="8" />
-                            <path d="m21 21-4.3-4.3" />
-                        </svg>
-                    </div>
+                    <Search class="absolute right-3 top-1/2 -translate-y-1/2 size-[15px] text-muted-foreground/50" />
                 </div>
                 <Pagination
                     :total="contactsTotal"
                     :limit="contactLimit"
                     :offset="contactOffset"
                     :loading="contactsLoading"
-                    @update:offset="contactOffset = $event; loadContacts({ preserveScroll: true, source: 'next' })"
-                    @update:limit="contactLimit = $event; contactOffset = 0; loadContacts({ preserveScroll: true, source: 'limit' })"
+                    @update:offset="contactOffset = $event; loadContacts('page')"
+                    @update:limit="contactLimit = $event; contactOffset = 0; loadContacts('limit')"
                 />
                 <Button
                     variant="ghost"
                     size="icon"
                     :disabled="contactsLoading"
                     class="h-9 w-9 text-muted-foreground hover:text-foreground"
-                    @click="loadContacts({ source: 'refresh' })"
+                    @click="loadContacts('refresh')"
                 >
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="15"
-                        height="15"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        :class="contactsLoading ? 'animate-spin' : ''"
-                    >
-                        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-                        <path d="M21 3v5h-5" />
-                    </svg>
+                    <RefreshCw class="size-[15px]" :class="contactsLoading ? 'animate-spin' : ''" />
                 </Button>
             </div>
 

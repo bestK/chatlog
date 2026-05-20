@@ -494,7 +494,7 @@ func (m *Manager) CommandKey(configPath string, pid int, force bool, showXorKey 
 		m.ctx.SwitchCurrent(current)
 		key, imgKey := m.ctx.DataKey, m.ctx.ImgKey
 		if len(key) == 0 || len(imgKey) == 0 || force {
-			key, imgKey, err = current.GetKey(context.Background())
+			key, imgKey, err = current.GetKeyWithProgress(context.Background(), nil)
 			if err != nil {
 				return "", err
 			}
@@ -523,7 +523,7 @@ func (m *Manager) CommandKey(configPath string, pid int, force bool, showXorKey 
 			m.ctx.SwitchCurrent(ins)
 			key, imgKey := m.ctx.DataKey, m.ctx.ImgKey
 			if len(key) == 0 || len(imgKey) == 0 || force {
-				key, imgKey, err = ins.GetKey(context.Background())
+				key, imgKey, err = ins.GetKeyWithProgress(context.Background(), nil)
 				if err != nil {
 					return "", err
 				}

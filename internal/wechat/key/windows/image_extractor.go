@@ -4,6 +4,7 @@ package windows
 
 import (
 	"bytes"
+	"context"
 	"crypto/aes"
 	"fmt"
 	"io/fs"

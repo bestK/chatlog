@@ -479,42 +479,7 @@ function copyAISummary() {
                         </button>
                     </div>
 
-                    <div
-                        class="relative max-h-[480px] overflow-auto rounded-md bg-background/50 ring-1 ring-border/40 p-4"
-                    >
-                        <div
-                            v-if="loading"
-                            class="flex min-h-[120px] items-center justify-center text-sm text-muted-foreground"
-                        >
-                            <span
-                                class="size-3.5 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"
-                            />
-                            <span class="ml-2">请求中…</span>
-                        </div>
-                        <pre
-                            v-else-if="responseBody"
-                            class="whitespace-pre-wrap break-all font-mono text-xs leading-relaxed text-foreground/90"
-                            >{{ responseBody }}</pre
-                        >
-                        <div v-else class="text-sm text-muted-foreground">暂无响应数据。</div>
-                    </div>
-
-                    <div v-if="responseBody" class="flex justify-end gap-2">
-                        <button
-                            class="h-8 rounded-md px-2.5 text-xs font-normal text-muted-foreground hover:text-foreground"
-                            @click="copyText(responseBody, '已复制响应')"
-                        >
-                            复制响应
-                        </button>
-                        <button
-                            class="h-8 rounded-md bg-primary px-2.5 text-xs font-normal text-primary-foreground hover:opacity-90"
-                            @click="openAISummaryModal"
-                        >
-                            AI 总结
-                        </button>
-                    </div>
-
-                    <div v-if="totalPages > 1" class="flex flex-wrap items-center justify-center gap-1 pt-1">
+                    <div v-if="totalPages > 1" class="flex flex-wrap items-center justify-center gap-1">
                         <button
                             class="h-8 rounded-md px-2.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
                             :disabled="currentPage <= 1 || loading"
@@ -548,6 +513,41 @@ function copyAISummary() {
                             @click="goPage(currentPage + 1)"
                         >
                             下一页
+                        </button>
+                    </div>
+
+                    <div
+                        class="relative max-h-[480px] overflow-auto rounded-md bg-background/50 ring-1 ring-border/40 p-4"
+                    >
+                        <div
+                            v-if="loading"
+                            class="flex min-h-[120px] items-center justify-center text-sm text-muted-foreground"
+                        >
+                            <span
+                                class="size-3.5 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"
+                            />
+                            <span class="ml-2">请求中…</span>
+                        </div>
+                        <pre
+                            v-else-if="responseBody"
+                            class="whitespace-pre-wrap break-all font-mono text-xs leading-relaxed text-foreground/90"
+                            >{{ responseBody }}</pre
+                        >
+                        <div v-else class="text-sm text-muted-foreground">暂无响应数据。</div>
+                    </div>
+
+                    <div v-if="responseBody" class="flex justify-end gap-2">
+                        <button
+                            class="h-8 rounded-md px-2.5 text-xs font-normal text-muted-foreground hover:text-foreground"
+                            @click="copyText(responseBody, '已复制响应')"
+                        >
+                            复制响应
+                        </button>
+                        <button
+                            class="h-8 rounded-md bg-primary px-2.5 text-xs font-normal text-primary-foreground hover:opacity-90"
+                            @click="openAISummaryModal"
+                        >
+                            AI 总结
                         </button>
                     </div>
                 </div>
