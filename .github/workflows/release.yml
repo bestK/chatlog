@@ -8,9 +8,7 @@ on:
 jobs:
     build-windows:
         name: Build Windows
-        runs-on: ubuntu-latest
-        container:
-            image: goreleaser/goreleaser-cross:v1.25.8
+        runs-on: windows-latest
         permissions:
             contents: write
         steps:
@@ -19,23 +17,11 @@ jobs:
               with:
                   fetch-depth: 0
 
-            - name: Fix git permissions
-              run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-            - name: Install tools
-              run: apt-get update && apt-get install -y zip
-
-            - name: Install UPX
-              uses: crazy-max/ghaction-upx@v3
+            - name: Setup Go
+              uses: actions/setup-go@v5
               with:
-                  install-only: true
-
-            - name: Cache Go modules
-              uses: actions/cache@v4
-              with:
-                  path: /root/go/pkg/mod
-                  key: go-mod-${{ hashFiles('go.sum') }}
-                  restore-keys: go-mod-
+                  go-version-file: go.mod
+                  cache: true
 
             - name: Setup pnpm
               uses: pnpm/action-setup@v4
@@ -51,56 +37,20 @@ jobs:
                       web/pnpm-lock.yaml
                       frontend/pnpm-lock.yaml
 
-            - name: Build frontend
+            - name: Install Wails
+              run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+            - name: Build
               run: |
                   pnpm --dir web install --frozen-lockfile
                   pnpm --dir web run build
-                  pnpm --dir frontend install --frozen-lockfile
-                  pnpm --dir frontend run build
-
-            - name: Generate Windows resources
-              run: |
-                  go install github.com/tc-hib/go-winres@latest
-                  export PATH="$(go env GOPATH)/bin:$PATH"
-                  VERSION=${GITHUB_REF_NAME#v}
-                  mkdir -p winres
-                  # Fix manifest template variables
-                  sed "s/{{.Name}}/chatlog/g; s/{{.Info.ProductVersion}}/${VERSION}/g" build/windows/wails.exe.manifest > winres/wails.exe.manifest
-                  cp build/windows/icon.ico winres/icon.ico
-                  cat > winres/winres.json << EOFJ
-                  {
-                    "RT_GROUP_ICON": {
-                      "APP": {
-                        "0000": "icon.ico"
-                      }
-                    },
-                    "RT_MANIFEST": {
-                      "#1": {
-                        "0000": "wails.exe.manifest"
-                      }
-                    }
-                  }
-                  EOFJ
-                  go-winres make --product-version "$VERSION" --file-version "$VERSION" --arch amd64
-
-            - name: Build Windows amd64
-              env:
-                  CGO_ENABLED: '1'
-                  GOOS: windows
-                  GOARCH: amd64
-                  CC: x86_64-w64-mingw32-gcc
-                  CXX: x86_64-w64-mingw32-g++
-              run: |
-                  VERSION=${GITHUB_REF_NAME#v}
-                  go build -trimpath -tags "desktop production" -ldflags "-s -w -H windowsgui -extldflags '-static' -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog.exe .
-
-            - name: Compress with UPX
-              run: upx --best --lzma dist/chatlog.exe || true
+                  wails build -clean -ldflags "-H windowsgui"
 
             - name: Package
+              shell: bash
               run: |
                   VERSION=${GITHUB_REF_NAME#v}
-                  cd dist && zip -j ../chatlog_${VERSION}_windows_amd64.zip chatlog.exe
+                  7z a chatlog_${VERSION}_windows_amd64.zip ./build/bin/chatlog.exe
 
             - name: Upload artifacts
               uses: actions/upload-artifact@v4
@@ -139,27 +89,19 @@ jobs:
                       web/pnpm-lock.yaml
                       frontend/pnpm-lock.yaml
 
-            - name: Build frontend
+            - name: Install Wails
+              run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+            - name: Build
               run: |
                   pnpm --dir web install --frozen-lockfile
                   pnpm --dir web run build
-                  pnpm --dir frontend install --frozen-lockfile
-                  pnpm --dir frontend run build
-
-            - name: Build
-              env:
-                  CGO_ENABLED: '1'
-                  GOOS: darwin
-                  GOARCH: arm64
-                  CGO_LDFLAGS: '-framework UniformTypeIdentifiers'
-              run: |
-                  VERSION=${GITHUB_REF_NAME#v}
-                  go build -trimpath -tags "desktop production" -ldflags "-s -w -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog .
+                  wails build -clean
 
             - name: Package
               run: |
                   VERSION=${GITHUB_REF_NAME#v}
-                  cd dist && zip -j ../chatlog_${VERSION}_darwin_arm64.zip chatlog
+                  cd build/bin && zip -j ../../chatlog_${VERSION}_darwin_arm64.zip chatlog
 
             - name: Upload artifacts
               uses: actions/upload-artifact@v4
