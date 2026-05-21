@@ -256,13 +256,6 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 	// 解析sender参数，支持多个发送者（以英文逗号分隔）
 	senders := util.Str2List(sender, ",")
 
-	log.Debug().Msgf("talkers: %+v", talkers)
-	log.Debug().Msgf("senders: %+v", senders)
-	log.Debug().Msgf("keyword: %+v", keyword)
-	log.Debug().Msgf("limit: %+v", limit)
-	log.Debug().Msgf("offset: %+v", offset)
-	log.Debug().Msgf("selfID: %+v", selfID)
-
 	// 预编译正则表达式（如果有keyword）
 	var regex *regexp.Regexp
 	if keyword != "" {
@@ -273,73 +266,83 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 		}
 	}
 
-	// 从每个相关数据库中查询消息，并在读取时进行过滤
+	// 确定 SQL 排序方向
+	sqlOrder := "ASC"
+	if order == "desc" {
+		sqlOrder = "DESC"
+	}
+
+	// desc 时从最新的数据库文件开始查，asc 时从最旧的开始
+	if order == "desc" {
+		for i, j := 0, len(dbInfos)-1; i < j; i, j = i+1, j-1 {
+			dbInfos[i], dbInfos[j] = dbInfos[j], dbInfos[i]
+		}
+	}
+
+	// 需要收集的总数量
+	needed := 0
+	if limit > 0 {
+		needed = offset + limit
+	}
+
+	// 从每个相关数据库中查询消息
 	filteredMessages := []*model.Message{}
 
 	for _, dbInfo := range dbInfos {
-		// 检查上下文是否已取消
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 
+		// 如果已经收集够了，提前退出
+		if needed > 0 && len(filteredMessages) >= needed {
+			break
+		}
+
 		db, err := ds.dbm.OpenDB(dbInfo.FilePath)
 		if err != nil {
-			log.Error().Msgf("数据库 %s 未打开", dbInfo.FilePath)
 			continue
 		}
 
-		// 使用匿名函数确保每轮循环的数据库和行都能及时关闭
 		func() {
 			defer db.Close()
-			// 对每个talker进行查询
 			for _, talkerItem := range talkers {
-				// 构建表名
 				_talkerMd5Bytes := md5.Sum([]byte(talkerItem))
 				talkerMd5 := hex.EncodeToString(_talkerMd5Bytes[:])
 				tableName := "Msg_" + talkerMd5
 
-				log.Debug().Msgf("tableName: %+v", tableName)
-
-				// 检查表是否存在
 				var exists bool
 				err = db.QueryRowContext(ctx,
 					"SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
 					tableName).Scan(&exists)
-
 				if err != nil {
-					if err == sql.ErrNoRows {
-						// 表不存在，继续下一个talker
-						log.Debug().Msgf("table %s not found", tableName)
-						continue
-					}
-					log.Debug().Err(err).Msgf("Check table %s exists failed", tableName)
 					continue
 				}
 
-				// 构建查询条件
 				conditions := []string{"create_time >= ? AND create_time <= ?"}
 				args := []interface{}{startTime.Unix(), endTime.Unix()}
+
+				// 在 SQL 层面加 LIMIT 减少读取量
+				sqlLimit := ""
+				if needed > 0 {
+					remaining := needed - len(filteredMessages)
+					if remaining > 0 {
+						sqlLimit = fmt.Sprintf(" LIMIT %d", remaining)
+					}
+				}
 
 				query := fmt.Sprintf(`
 					SELECT m.sort_seq, m.server_id, m.local_type, IFNULL(n.user_name, ''), m.create_time, m.message_content, m.packed_info_data, m.status
 					FROM %s m
 					LEFT JOIN Name2Id n ON m.real_sender_id = n.rowid
-					WHERE %s 
-					ORDER BY m.sort_seq ASC
-				`, tableName, strings.Join(conditions, " AND "))
+					WHERE %s
+					ORDER BY m.sort_seq %s%s
+				`, tableName, strings.Join(conditions, " AND "), sqlOrder, sqlLimit)
 
-				// 执行查询
 				rows, err := db.QueryContext(ctx, query, args...)
 				if err != nil {
-					log.Err(err).Msgf("从数据库 %s 查询消息失败 %v", dbInfo.FilePath, err)
-					// 如果表不存在，SQLite 会返回错误
-					if strings.Contains(err.Error(), "no such table") {
-						continue
-					}
 					continue
 				}
 
-				// 处理查询结果，在读取时进行过滤
 				for rows.Next() {
 					var msg model.MessageV4
 					err := rows.Scan(
@@ -353,19 +356,14 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 						&msg.Status,
 					)
 					if err != nil {
-						log.Error().Err(err).Msg("Scan message failed")
 						rows.Close()
 						return
 					}
 
-					// 将消息转换为标准格式
 					msg.SelfID = selfID
 					msg.SenderName = ds.contactCache[msg.UserName]
 					message := msg.Wrap(talkerItem)
 
-					log.Debug().Msgf("message: %+v", message)
-
-					// 应用sender过滤
 					if len(senders) > 0 {
 						senderMatch := false
 						for _, s := range senders {
@@ -375,40 +373,40 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 							}
 						}
 						if !senderMatch {
-							log.Debug().Msgf("sender %s not match", message.Sender)
 							continue
 						}
 					}
 
-					// 应用keyword过滤
 					if regex != nil {
 						if !regex.MatchString(message.PlainTextContent()) {
-							log.Debug().Msgf("keyword not match: %s", message.PlainTextContent())
 							continue
 						}
 					}
 
-					// 通过所有过滤条件，保留此消息
 					filteredMessages = append(filteredMessages, message)
 
-					// 检查是否已经满足分页处理数量（注意：这里是在多库查询，提前限制可能导致结果不全，但为了性能暂时保持逻辑）
-					// 不过用户说慢点没关系，我们可以等所有查询结束后再排序分页。
-					// 为保持用户原有逻辑的一致性，这里仅做修正。
+					// 单库内如果已经够了就停止读取
+					if needed > 0 && len(filteredMessages) >= needed {
+						rows.Close()
+						return
+					}
 				}
 				rows.Close()
 			}
 		}()
 	}
 
-	// 对所有消息按时间排序
-	if order == "asc" {
-		sort.Slice(filteredMessages, func(i, j int) bool {
-			return filteredMessages[i].Seq < filteredMessages[j].Seq
-		})
-	} else {
-		sort.Slice(filteredMessages, func(i, j int) bool {
-			return filteredMessages[i].Seq > filteredMessages[j].Seq
-		})
+	// 跨多个数据库文件时需要重新排序
+	if len(dbInfos) > 1 {
+		if order == "asc" {
+			sort.Slice(filteredMessages, func(i, j int) bool {
+				return filteredMessages[i].Seq < filteredMessages[j].Seq
+			})
+		} else {
+			sort.Slice(filteredMessages, func(i, j int) bool {
+				return filteredMessages[i].Seq > filteredMessages[j].Seq
+			})
+		}
 	}
 
 	// 处理分页
