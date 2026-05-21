@@ -62,7 +62,25 @@ jobs:
               run: |
                   go install github.com/tc-hib/go-winres@latest
                   export PATH="$(go env GOPATH)/bin:$PATH"
-                  go-winres make --in build/windows/wails.exe.manifest --icon build/windows/icon.ico --product-version ${GITHUB_REF_NAME#v} --file-version ${GITHUB_REF_NAME#v}
+                  VERSION=${GITHUB_REF_NAME#v}
+                  mkdir -p winres
+                  cat > winres/winres.json << EOFJ
+                  {
+                    "RT_GROUP_ICON": {
+                      "APP": {
+                        "0000": "icon.ico"
+                      }
+                    },
+                    "RT_MANIFEST": {
+                      "#1": {
+                        "0000": "wails.exe.manifest"
+                      }
+                    }
+                  }
+                  EOFJ
+                  cp build/windows/icon.ico winres/icon.ico
+                  cp build/windows/wails.exe.manifest winres/wails.exe.manifest
+                  go-winres make --product-version "$VERSION" --file-version "$VERSION" --arch amd64
 
             - name: Build Windows amd64
               env:
