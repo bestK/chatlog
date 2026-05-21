@@ -12,7 +12,9 @@ type AppConfig struct {
 	SummaryPrompt      string          `mapstructure:"summary_prompt" json:"summary_prompt"`
 }
 
-var AppDefaults = map[string]any{}
+var AppDefaults = map[string]any{
+	"auto_decrypt": true,
+}
 
 type ProcessConfig struct {
 	Type     string `mapstructure:"type" json:"type"`

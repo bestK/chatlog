@@ -210,7 +210,7 @@ func (m *Manager) StartService() error {
 
 	// 更新 xorkey
 	dat2img.SetAesKey(m.ctx.ImgKey)
-	go dat2img.ScanAndSetXorKey(m.ctx.DataDir)
+	dat2img.ScanAndSetXorKey(m.ctx.DataDir)
 
 	// 更新状态
 	m.ctx.SetHTTPEnabled(true)
@@ -340,7 +340,7 @@ func (m *Manager) GetKeysWithProgress(onProgress func(string)) (string, string, 
 
 	if imgKey != "" {
 		dat2img.SetAesKey(imgKey)
-		go dat2img.ScanAndSetXorKey(m.ctx.DataDir)
+		dat2img.ScanAndSetXorKey(m.ctx.DataDir)
 	}
 
 	return dataKey, imgKey, nil
@@ -366,7 +366,7 @@ func (m *Manager) GetImgKey() (string, error) {
 	// 更新图片解密密钥
 	if imgKey != "" {
 		dat2img.SetAesKey(imgKey)
-		go dat2img.ScanAndSetXorKey(m.ctx.DataDir)
+		dat2img.ScanAndSetXorKey(m.ctx.DataDir)
 	}
 
 	return imgKey, nil
@@ -568,21 +568,22 @@ func (m *Manager) readMediaFile(absPath string) (*MediaDataResult, error) {
 	ext := strings.ToLower(filepath.Ext(absPath))
 	if ext == ".dat" {
 		out, imgExt, err := dat2img.Dat2Image(b)
-		if err == nil {
-			mime := "image/jpeg"
-			switch imgExt {
-			case "png":
-				mime = "image/png"
-			case "gif":
-				mime = "image/gif"
-			case "bmp":
-				mime = "image/bmp"
-			}
-			return &MediaDataResult{
-				Data:     "data:" + mime + ";base64," + encodeBase64(out),
-				MimeType: mime,
-			}, nil
+		if err != nil {
+			return nil, fmt.Errorf("图片解密失败: %v", err)
 		}
+		mime := "image/jpeg"
+		switch imgExt {
+		case "png":
+			mime = "image/png"
+		case "gif":
+			mime = "image/gif"
+		case "bmp":
+			mime = "image/bmp"
+		}
+		return &MediaDataResult{
+			Data:     "data:" + mime + ";base64," + encodeBase64(out),
+			MimeType: mime,
+		}, nil
 	}
 
 	mime := "application/octet-stream"
@@ -812,7 +813,7 @@ func (m *Manager) CommandHTTPServer(configPath string, overrides conf.ServerOver
 	// 处理图片密钥
 	if len(dataDir) != 0 {
 		dat2img.SetAesKey(m.sc.GetImgKey())
-		go dat2img.ScanAndSetXorKey(dataDir)
+		dat2img.ScanAndSetXorKey(dataDir)
 	}
 
 	log.Info().Msgf("server config: %+v", m.sc)

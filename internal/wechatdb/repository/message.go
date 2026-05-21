@@ -15,10 +15,6 @@ import (
 func (r *Repository) GetMessages(ctx context.Context, startTime, endTime time.Time, talker string, sender string, keyword string, limit, offset int, order string) (int, []*model.Message, error) {
 
 	talker, sender = r.parseTalkerAndSender(ctx, talker, sender)
-	total, err := r.ds.GetMessagesCount(ctx, startTime, endTime, r.SelfID, talker, sender, keyword)
-	if err != nil {
-		log.Debug().Msgf("GetMessagesCount failed: %v", err)
-	}
 
 	messages, err := r.ds.GetMessages(ctx, startTime, endTime, r.SelfID, talker, sender, keyword, limit, offset, order)
 	if err != nil {
@@ -30,7 +26,7 @@ func (r *Repository) GetMessages(ctx context.Context, startTime, endTime time.Ti
 		log.Debug().Msgf("EnrichMessages failed: %v", err)
 	}
 
-	return total, messages, nil
+	return len(messages), messages, nil
 }
 
 // EnrichMessages 补充消息的额外信息

@@ -74,6 +74,9 @@ type DataSource struct {
 
 	// 联系人缓存
 	contactCache map[string]string
+
+	// Name2Id 缓存：filePath -> (rowid -> username)
+	name2idCache map[string]map[int64]string
 }
 
 func New(path string) (*DataSource, error) {
@@ -83,6 +86,7 @@ func New(path string) (*DataSource, error) {
 		dbm:          dbm.NewDBManager(path),
 		messageInfos: make([]MessageDBInfo, 0),
 		contactCache: make(map[string]string),
+		name2idCache: make(map[string]map[int64]string),
 	}
 
 	for _, g := range Groups {
@@ -156,9 +160,6 @@ func (ds *DataSource) initMessageDbs() error {
 			log.Err(err).Msgf("获取数据库 %s 失败", filePath)
 			continue
 		}
-		// 不需要 defer，直接在循环末尾关闭，或者使用 func 闭包。
-		// 在这里直接使用 defer 可能会导致直到 initMessageDbs 结束才关闭。
-		// 更好的做法是显式调用 Close。
 
 		// 获取 Timestamp 表中的开始时间
 		var startTime time.Time
@@ -184,6 +185,21 @@ func (ds *DataSource) initMessageDbs() error {
 			tableRows.Close()
 		}
 
+		// 加载 Name2Id 映射
+		name2id := make(map[int64]string)
+		n2iRows, err := db.Query("SELECT rowid, user_name FROM Name2Id")
+		if err == nil {
+			for n2iRows.Next() {
+				var rowid int64
+				var userName string
+				if n2iRows.Scan(&rowid, &userName) == nil {
+					name2id[rowid] = userName
+				}
+			}
+			n2iRows.Close()
+		}
+		ds.name2idCache[filePath] = name2id
+
 		// 保存数据库信息
 		infos = append(infos, MessageDBInfo{
 			FilePath:  filePath,
@@ -191,7 +207,7 @@ func (ds *DataSource) initMessageDbs() error {
 			Tables:    tables,
 		})
 
-		
+		ds.dbm.ReleaseDB(db)
 	}
 
 	// 按照 StartTime 排序数据库文件
@@ -220,6 +236,7 @@ func (ds *DataSource) initContactCache() error {
 	if err != nil {
 		return err
 	}
+	defer ds.dbm.ReleaseDB(db)
 	
 
 	rows, err := db.Query("SELECT username, IFNULL(nick_name, IFNULL(remark, username)) FROM contact")
@@ -342,10 +359,13 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 			}
 		}
 
+		// openStart := time.Now()
 		db, err := ds.dbm.OpenDB(dbInfo.FilePath)
 		if err != nil {
+			log.Warn().Err(err).Str("db", dbInfo.FilePath).Msg("[SQL] OpenDB failed")
 			continue
 		}
+		// log.Info().Dur("elapsed", time.Since(openStart)).Str("db", dbInfo.FilePath).Msg("[SQL] OpenDB")
 
 		func() {
 			
@@ -378,26 +398,28 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 					whereClause = "WHERE " + strings.Join(conditions, " AND ")
 				}
 
-				query := fmt.Sprintf(`
-					SELECT m.sort_seq, m.server_id, m.local_type, IFNULL(n.user_name, ''), m.create_time, m.message_content, m.packed_info_data, m.status
-					FROM %s m
-					LEFT JOIN Name2Id n ON m.real_sender_id = n.rowid
-					%s
-					ORDER BY m.sort_seq %s%s
-				`, tableName, whereClause, sqlOrder, sqlLimit)
+				query := fmt.Sprintf(`SELECT sort_seq, server_id, local_type, real_sender_id, create_time, message_content, packed_info_data, status FROM %s %s ORDER BY sort_seq %s%s`, tableName, whereClause, sqlOrder, sqlLimit)
 
+				// log.Info().Str("db", dbInfo.FilePath).Msg("[SQL]")
+				// log.Info().Interface("args", args).Msg("[SQL]")
+				// log.Info().Str("sql", query).Msg("[SQL]")
+
+				// queryStart := time.Now()
 				rows, err := db.QueryContext(ctx, query, args...)
 				if err != nil {
+					log.Warn().Err(err).Str("db", dbInfo.FilePath).Str("table", tableName).Msg("[SQL] query failed")
 					continue
 				}
+				// log.Info().Dur("elapsed", time.Since(queryStart)).Str("table", tableName).Msg("[SQL] query done")
 
 				for rows.Next() {
 					var msg model.MessageV4
+					var realSenderID int64
 					err := rows.Scan(
 						&msg.SortSeq,
 						&msg.ServerID,
 						&msg.LocalType,
-						&msg.UserName,
+						&realSenderID,
 						&msg.CreateTime,
 						&msg.MessageContent,
 						&msg.PackedInfoData,
@@ -406,6 +428,11 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 					if err != nil {
 						rows.Close()
 						return
+					}
+
+					// 通过 real_sender_id 查找用户名（使用缓存的 Name2Id 映射）
+					if name, ok := ds.name2idCache[dbInfo.FilePath]; ok {
+						msg.UserName = name[realSenderID]
 					}
 
 					msg.SelfID = selfID
@@ -442,6 +469,7 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 				rows.Close()
 			}
 		}()
+		ds.dbm.ReleaseDB(db)
 	}
 
 	// 跨多个数据库文件时需要重新排序
@@ -510,6 +538,7 @@ func (ds *DataSource) GetContacts(ctx context.Context, key string, limit, offset
 	if err != nil {
 		return nil, err
 	}
+	defer ds.dbm.ReleaseDB(db)
 	
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -558,6 +587,7 @@ func (ds *DataSource) GetContactsCount(ctx context.Context, key string) (int, er
 	if err != nil {
 		return 0, err
 	}
+	defer ds.dbm.ReleaseDB(db)
 	
 
 	var count int
@@ -600,6 +630,7 @@ func (ds *DataSource) GetAddressBookContacts(ctx context.Context, key string, is
 	if err != nil {
 		return nil, err
 	}
+	defer ds.dbm.ReleaseDB(db)
 	
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -655,6 +686,7 @@ func (ds *DataSource) GetAddressBookContactsCount(ctx context.Context, key strin
 	if err != nil {
 		return 0, err
 	}
+	defer ds.dbm.ReleaseDB(db)
 	
 
 	var count int
@@ -674,6 +706,7 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 	if err != nil {
 		return nil, err
 	}
+	defer ds.dbm.ReleaseDB(db)
 	
 
 	if key != "" {
@@ -828,6 +861,7 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 	if err != nil {
 		return nil, err
 	}
+	defer ds.dbm.ReleaseDB(db)
 	
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -878,6 +912,7 @@ func (ds *DataSource) GetSessionsCount(ctx context.Context, key string) (int, er
 	if err != nil {
 		return 0, err
 	}
+	defer ds.dbm.ReleaseDB(db)
 	
 
 	var count int
@@ -941,6 +976,7 @@ func (ds *DataSource) GetMedia(ctx context.Context, _type string, key string) (*
 	if err != nil {
 		return nil, err
 	}
+	defer ds.dbm.ReleaseDB(db)
 	
 	rows, err := db.QueryContext(ctx, query, args...)
 
@@ -979,6 +1015,7 @@ func (ds *DataSource) IsExist(_db string, table string) bool {
 	if err != nil {
 		return false
 	}
+	defer ds.dbm.ReleaseDB(db)
 	
 	var tableName string
 	query := "SELECT name FROM sqlite_master WHERE type='table' AND name=?;"
@@ -1103,6 +1140,7 @@ func (ds *DataSource) GetSendersByLocalIDs(ctx context.Context, requests []model
 	if err != nil {
 		return nil, err
 	}
+	defer ds.dbm.ReleaseDB(db)
 	
 
 	for topicID, localIDs := range groups {
