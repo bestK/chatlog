@@ -57,37 +57,34 @@ jobs:
                   CXX: x86_64-w64-mingw32-g++
               run: |
                   VERSION=${GITHUB_REF_NAME#v}
-                  go build -trimpath -tags "desktop production" -ldflags "-s -w -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog_windows_amd64/chatlog.exe .
-
-            - name: Build Windows arm64
-              env:
-                  CGO_ENABLED: '1'
-                  GOOS: windows
-                  GOARCH: arm64
-                  CC: /llvm-mingw/bin/aarch64-w64-mingw32-gcc
-                  CXX: /llvm-mingw/bin/aarch64-w64-mingw32-g++
-              run: |
-                  VERSION=${GITHUB_REF_NAME#v}
-                  go build -trimpath -tags "desktop production" -ldflags "-s -w -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog_windows_arm64/chatlog.exe .
+                  go build -trimpath -tags "desktop production" -ldflags "-s -w -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog.exe .
 
             - name: Compress with UPX
-              run: |
-                  upx --best --lzma dist/chatlog_windows_amd64/chatlog.exe || true
+              run: upx --best --lzma dist/chatlog.exe || true
 
             - name: Package
               run: |
-                  cd dist/chatlog_windows_amd64 && zip -j ../../chatlog_${GITHUB_REF_NAME#v}_windows_amd64.zip chatlog.exe && cd ../..
-                  cd dist/chatlog_windows_arm64 && zip -j ../../chatlog_${GITHUB_REF_NAME#v}_windows_arm64.zip chatlog.exe && cd ../..
+                  VERSION=${GITHUB_REF_NAME#v}
+                  cd dist && zip -j ../chatlog_${VERSION}_windows_amd64.zip chatlog.exe
 
             - name: Upload artifacts
               uses: actions/upload-artifact@v4
               with:
-                  name: windows-builds
+                  name: windows-amd64
                   path: chatlog_*.zip
 
     build-macos:
-        name: Build macOS
-        runs-on: macos-latest
+        name: Build macOS (${{ matrix.arch }})
+        runs-on: ${{ matrix.runner }}
+        strategy:
+            matrix:
+                include:
+                    - arch: amd64
+                      runner: macos-13
+                      goarch: amd64
+                    - arch: arm64
+                      runner: macos-latest
+                      goarch: arm64
         permissions:
             contents: write
         steps:
@@ -122,34 +119,24 @@ jobs:
                   pnpm --dir frontend install --frozen-lockfile
                   pnpm --dir frontend run build
 
-            - name: Build macOS amd64
+            - name: Build
               env:
                   CGO_ENABLED: '1'
                   GOOS: darwin
-                  GOARCH: amd64
+                  GOARCH: ${{ matrix.goarch }}
               run: |
                   VERSION=${GITHUB_REF_NAME#v}
-                  go build -trimpath -tags "desktop production" -ldflags "-s -w -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog_darwin_amd64/chatlog .
-
-            - name: Build macOS arm64
-              env:
-                  CGO_ENABLED: '1'
-                  GOOS: darwin
-                  GOARCH: arm64
-              run: |
-                  VERSION=${GITHUB_REF_NAME#v}
-                  go build -trimpath -tags "desktop production" -ldflags "-s -w -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog_darwin_arm64/chatlog .
+                  go build -trimpath -tags "desktop production" -ldflags "-s -w -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog .
 
             - name: Package
               run: |
                   VERSION=${GITHUB_REF_NAME#v}
-                  cd dist/chatlog_darwin_amd64 && zip -j ../../chatlog_${VERSION}_darwin_amd64.zip chatlog && cd ../..
-                  cd dist/chatlog_darwin_arm64 && zip -j ../../chatlog_${VERSION}_darwin_arm64.zip chatlog && cd ../..
+                  cd dist && zip -j ../chatlog_${VERSION}_darwin_${{ matrix.arch }}.zip chatlog
 
             - name: Upload artifacts
               uses: actions/upload-artifact@v4
               with:
-                  name: macos-builds
+                  name: darwin-${{ matrix.arch }}
                   path: chatlog_*.zip
 
     release:
