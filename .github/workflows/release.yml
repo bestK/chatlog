@@ -105,8 +105,7 @@ jobs:
             - name: Package
               run: |
                   VERSION=${GITHUB_REF_NAME#v}
-                  ls -la build/bin/
-                  cd build/bin && zip -j ../../chatlog_${VERSION}_darwin_arm64.zip chatlog* || zip -j ../../chatlog_${VERSION}_darwin_arm64.zip Chatlog*
+                  cd build/bin && zip -r ../../chatlog_${VERSION}_darwin_arm64.zip chatlog.app
 
             - name: Upload artifacts
               uses: actions/upload-artifact@v4
