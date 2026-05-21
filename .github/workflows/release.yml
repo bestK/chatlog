@@ -64,6 +64,9 @@ jobs:
                   export PATH="$(go env GOPATH)/bin:$PATH"
                   VERSION=${GITHUB_REF_NAME#v}
                   mkdir -p winres
+                  # Fix manifest template variables
+                  sed "s/{{.Name}}/chatlog/g; s/{{.Info.ProductVersion}}/${VERSION}/g" build/windows/wails.exe.manifest > winres/wails.exe.manifest
+                  cp build/windows/icon.ico winres/icon.ico
                   cat > winres/winres.json << EOFJ
                   {
                     "RT_GROUP_ICON": {
@@ -78,8 +81,6 @@ jobs:
                     }
                   }
                   EOFJ
-                  cp build/windows/icon.ico winres/icon.ico
-                  cp build/windows/wails.exe.manifest winres/wails.exe.manifest
                   go-winres make --product-version "$VERSION" --file-version "$VERSION" --arch amd64
 
             - name: Build Windows amd64
