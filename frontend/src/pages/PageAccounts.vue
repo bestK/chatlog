@@ -130,7 +130,15 @@ watch(contactLimit, () => {
 // --- AI Summary ---
 
 type AIProvider = { id: string; name: string; type: string; baseUrl: string; model: string };
-type ChatMessage = { time: string; senderName: string; sender: string; content: string; isSelf: boolean };
+type ChatMessage = {
+    time: string;
+    senderName: string;
+    sender: string;
+    content: string;
+    type: number;
+    contents?: Record<string, any>;
+    isSelf: boolean;
+};
 
 const summaryOpen = ref(false);
 const summaryContact = ref<Contact | null>(null);
@@ -191,6 +199,31 @@ watch(summaryStream, () => {
     });
 });
 
+function mediaUrl(type: string, keys: string[]) {
+    const addr = state.value?.httpAddr || '127.0.0.1:5030';
+    return `http://${addr}/${type}/${keys.filter(Boolean).join(',')}`;
+}
+
+function msgDisplay(msg: ChatMessage): { kind: 'text' | 'image' | 'video' | 'voice' | 'emoji' | 'other'; text?: string; url?: string } {
+    const c = msg.contents || {};
+    switch (msg.type) {
+        case 1: return { kind: 'text', text: msg.content };
+        case 3: return { kind: 'image', url: mediaUrl('image', [c.md5, c.path, c.thumbpath]) };
+        case 34: return { kind: 'voice', url: mediaUrl('voice', [c.voice]) };
+        case 43: return { kind: 'video', url: mediaUrl('video', [c.md5, c.rawmd5, c.path]) };
+        case 47: return { kind: 'emoji', url: c.cdnurl || '' };
+        case 48: return { kind: 'text', text: `[位置] ${c.label || ''}` };
+        case 49: {
+            const title = c.title || '';
+            const url = c.url || '';
+            if (title) return { kind: 'text', text: `[${title}]${url ? ' ' + url : ''}` };
+            return { kind: 'text', text: msg.content || '[分享]' };
+        }
+        case 10000: return { kind: 'text', text: msg.content || '[系统消息]' };
+        default: return { kind: 'text', text: msg.content || `[类型:${msg.type}]` };
+    }
+}
+
 async function openContact(contact: Contact) {
     summaryContact.value = contact;
     summaryStream.value = '';
@@ -223,6 +256,8 @@ async function loadChatMessages(contact: Contact, _time: string, prepend: boolea
             senderName: m.senderName || m.sender || '',
             sender: m.sender || '',
             content: m.content || '',
+            type: m.type || 1,
+            contents: m.contents,
             isSelf: !!m.isSelf,
         })).reverse();
 
@@ -556,7 +591,21 @@ function selectTimeRange(val: string) {
                                 class="mt-0.5 inline-block max-w-[85%] rounded-lg px-2.5 py-1.5 text-left"
                                 :class="msg.isSelf ? 'bg-primary/10 text-foreground' : 'bg-muted/40 text-foreground/90'"
                             >
-                                {{ msg.content }}
+                                <template v-if="msgDisplay(msg).kind === 'image'">
+                                    <img :src="msgDisplay(msg).url" class="max-w-[200px] max-h-[150px] rounded object-cover" loading="lazy" />
+                                </template>
+                                <template v-else-if="msgDisplay(msg).kind === 'video'">
+                                    <video :src="msgDisplay(msg).url" class="max-w-[200px] max-h-[150px] rounded" controls preload="none" />
+                                </template>
+                                <template v-else-if="msgDisplay(msg).kind === 'voice'">
+                                    <audio :src="msgDisplay(msg).url" controls preload="none" class="h-8 max-w-[180px]" />
+                                </template>
+                                <template v-else-if="msgDisplay(msg).kind === 'emoji'">
+                                    <img :src="msgDisplay(msg).url" class="size-16 object-contain" loading="lazy" />
+                                </template>
+                                <template v-else>
+                                    {{ msgDisplay(msg).text }}
+                                </template>
                             </div>
                         </div>
                     </div>
