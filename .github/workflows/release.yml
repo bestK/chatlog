@@ -6,15 +6,13 @@ on:
             - 'v*'
 
 jobs:
-    release:
-        name: Release Binary
+    build-windows:
+        name: Build Windows
         runs-on: ubuntu-latest
         container:
             image: goreleaser/goreleaser-cross:v1.25.8
         permissions:
             contents: write
-            id-token: write
-
         steps:
             - name: Checkout
               uses: actions/checkout@v4
@@ -43,7 +41,137 @@ jobs:
                       web/pnpm-lock.yaml
                       frontend/pnpm-lock.yaml
 
-            - name: Run GoReleaser
-              run: goreleaser release --clean
+            - name: Build frontend
+              run: |
+                  pnpm --dir web install --frozen-lockfile
+                  pnpm --dir web run build
+                  pnpm --dir frontend install --frozen-lockfile
+                  pnpm --dir frontend run build
+
+            - name: Build Windows amd64
               env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  CGO_ENABLED: '1'
+                  GOOS: windows
+                  GOARCH: amd64
+                  CC: x86_64-w64-mingw32-gcc
+                  CXX: x86_64-w64-mingw32-g++
+              run: |
+                  VERSION=${GITHUB_REF_NAME#v}
+                  go build -trimpath -tags "desktop production" -ldflags "-s -w -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog_windows_amd64/chatlog.exe .
+
+            - name: Build Windows arm64
+              env:
+                  CGO_ENABLED: '1'
+                  GOOS: windows
+                  GOARCH: arm64
+                  CC: /llvm-mingw/bin/aarch64-w64-mingw32-gcc
+                  CXX: /llvm-mingw/bin/aarch64-w64-mingw32-g++
+              run: |
+                  VERSION=${GITHUB_REF_NAME#v}
+                  go build -trimpath -tags "desktop production" -ldflags "-s -w -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog_windows_arm64/chatlog.exe .
+
+            - name: Compress with UPX
+              run: |
+                  upx --best --lzma dist/chatlog_windows_amd64/chatlog.exe || true
+
+            - name: Package
+              run: |
+                  cd dist/chatlog_windows_amd64 && zip -j ../../chatlog_${GITHUB_REF_NAME#v}_windows_amd64.zip chatlog.exe && cd ../..
+                  cd dist/chatlog_windows_arm64 && zip -j ../../chatlog_${GITHUB_REF_NAME#v}_windows_arm64.zip chatlog.exe && cd ../..
+
+            - name: Upload artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: windows-builds
+                  path: chatlog_*.zip
+
+    build-macos:
+        name: Build macOS
+        runs-on: macos-latest
+        permissions:
+            contents: write
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version-file: go.mod
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
+              with:
+                  version: 9
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: pnpm
+                  cache-dependency-path: |
+                      web/pnpm-lock.yaml
+                      frontend/pnpm-lock.yaml
+
+            - name: Build frontend
+              run: |
+                  pnpm --dir web install --frozen-lockfile
+                  pnpm --dir web run build
+                  pnpm --dir frontend install --frozen-lockfile
+                  pnpm --dir frontend run build
+
+            - name: Build macOS amd64
+              env:
+                  CGO_ENABLED: '1'
+                  GOOS: darwin
+                  GOARCH: amd64
+              run: |
+                  VERSION=${GITHUB_REF_NAME#v}
+                  go build -trimpath -tags "desktop production" -ldflags "-s -w -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog_darwin_amd64/chatlog .
+
+            - name: Build macOS arm64
+              env:
+                  CGO_ENABLED: '1'
+                  GOOS: darwin
+                  GOARCH: arm64
+              run: |
+                  VERSION=${GITHUB_REF_NAME#v}
+                  go build -trimpath -tags "desktop production" -ldflags "-s -w -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog_darwin_arm64/chatlog .
+
+            - name: Package
+              run: |
+                  VERSION=${GITHUB_REF_NAME#v}
+                  cd dist/chatlog_darwin_amd64 && zip -j ../../chatlog_${VERSION}_darwin_amd64.zip chatlog && cd ../..
+                  cd dist/chatlog_darwin_arm64 && zip -j ../../chatlog_${VERSION}_darwin_arm64.zip chatlog && cd ../..
+
+            - name: Upload artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: macos-builds
+                  path: chatlog_*.zip
+
+    release:
+        name: Create Release
+        needs: [build-windows, build-macos]
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - name: Download all artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  merge-multiple: true
+
+            - name: Generate checksums
+              run: sha256sum chatlog_*.zip > checksums.txt
+
+            - name: Create Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  draft: true
+                  generate_release_notes: true
+                  files: |
+                      chatlog_*.zip
+                      checksums.txt
