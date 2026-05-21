@@ -18,6 +18,10 @@ export function EnableStateEvents(arg1) {
   return window['go']['main']['App']['EnableStateEvents'](arg1);
 }
 
+export function GenerateAISummary(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GenerateAISummary'](arg1, arg2, arg3);
+}
+
 export function GetContacts(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['GetContacts'](arg1, arg2, arg3, arg4);
 }
@@ -36,6 +40,10 @@ export function GetKeys() {
 
 export function GetLogPath() {
   return window['go']['main']['App']['GetLogPath']();
+}
+
+export function GetMessages(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['main']['App']['GetMessages'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
 export function GetState() {
@@ -92,6 +100,14 @@ export function SetHTTPAddr(arg1) {
 
 export function SetImgKey(arg1) {
   return window['go']['main']['App']['SetImgKey'](arg1);
+}
+
+export function SetSelectedAIProvider(arg1) {
+  return window['go']['main']['App']['SetSelectedAIProvider'](arg1);
+}
+
+export function SetSummaryPrompt(arg1) {
+  return window['go']['main']['App']['SetSummaryPrompt'](arg1);
 }
 
 export function SetWebhookConfig(arg1) {
