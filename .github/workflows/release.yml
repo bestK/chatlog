@@ -61,6 +61,7 @@ jobs:
             - name: Generate Windows resources
               run: |
                   go install github.com/tc-hib/go-winres@latest
+                  export PATH="$(go env GOPATH)/bin:$PATH"
                   go-winres make --in build/windows/wails.exe.manifest --icon build/windows/icon.ico --product-version ${GITHUB_REF_NAME#v} --file-version ${GITHUB_REF_NAME#v}
 
             - name: Build Windows amd64
