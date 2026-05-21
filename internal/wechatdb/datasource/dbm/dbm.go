@@ -199,17 +199,7 @@ func (d *DBManager) OpenDB(path string) (*sql.DB, error) {
 		if !locked {
 			break
 		}
-		// 如果被锁定，等待一下再试
 		time.Sleep(100 * time.Millisecond)
-	}
-
-	// 在 Windows 上不使用并发缓存，确保每次获取都是新连接，以便在 Close 后立即释放文件锁
-	if runtime.GOOS == "windows" {
-		db, err := d.openDB(path)
-		if err != nil {
-			return nil, err
-		}
-		return db, nil
 	}
 
 	d.mutex.RLock()

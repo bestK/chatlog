@@ -62,6 +62,7 @@ type MessageDBInfo struct {
 	FilePath  string
 	StartTime time.Time
 	EndTime   time.Time
+	Tables    map[string]bool // 缓存该数据库中存在的 Msg_ 表
 }
 
 type DataSource struct {
@@ -170,13 +171,27 @@ func (ds *DataSource) initMessageDbs() error {
 		}
 		startTime = time.Unix(timestamp, 0)
 
+		// 扫描该数据库中的 Msg_ 表
+		tables := make(map[string]bool)
+		tableRows, err := db.Query("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'Msg_%'")
+		if err == nil {
+			for tableRows.Next() {
+				var name string
+				if tableRows.Scan(&name) == nil {
+					tables[name] = true
+				}
+			}
+			tableRows.Close()
+		}
+
 		// 保存数据库信息
 		infos = append(infos, MessageDBInfo{
 			FilePath:  filePath,
 			StartTime: startTime,
+			Tables:    tables,
 		})
 
-		db.Close()
+		
 	}
 
 	// 按照 StartTime 排序数据库文件
@@ -205,7 +220,7 @@ func (ds *DataSource) initContactCache() error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	
 
 	rows, err := db.Query("SELECT username, IFNULL(nick_name, IFNULL(remark, username)) FROM contact")
 	if err != nil {
@@ -248,9 +263,16 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 	}
 
 	// 找到时间范围内的数据库文件
-	dbInfos := ds.getDBInfosForTimeRange(startTime, endTime)
+	var dbInfos []MessageDBInfo
+	isAllTime := startTime.Year() <= 1970 && endTime.Year() >= 9999
+	if isAllTime {
+		dbInfos = make([]MessageDBInfo, len(ds.messageInfos))
+		copy(dbInfos, ds.messageInfos)
+	} else {
+		dbInfos = ds.getDBInfosForTimeRange(startTime, endTime)
+	}
 	if len(dbInfos) == 0 {
-		return nil, errors.TimeRangeNotFound(startTime, endTime)
+		return []*model.Message{}, nil
 	}
 
 	// 解析sender参数，支持多个发送者（以英文逗号分隔）
@@ -285,6 +307,14 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 		needed = offset + limit
 	}
 
+	// 预计算目标表名
+	tableNames := make([]string, 0, len(talkers))
+	for _, talkerItem := range talkers {
+		_talkerMd5Bytes := md5.Sum([]byte(talkerItem))
+		talkerMd5 := hex.EncodeToString(_talkerMd5Bytes[:])
+		tableNames = append(tableNames, "Msg_"+talkerMd5)
+	}
+
 	// 从每个相关数据库中查询消息
 	filteredMessages := []*model.Message{}
 
@@ -298,28 +328,41 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 			break
 		}
 
+		// 用缓存的表列表跳过没有目标表的数据库文件
+		if dbInfo.Tables != nil {
+			hasTable := false
+			for _, tn := range tableNames {
+				if dbInfo.Tables[tn] {
+					hasTable = true
+					break
+				}
+			}
+			if !hasTable {
+				continue
+			}
+		}
+
 		db, err := ds.dbm.OpenDB(dbInfo.FilePath)
 		if err != nil {
 			continue
 		}
 
 		func() {
-			defer db.Close()
-			for _, talkerItem := range talkers {
-				_talkerMd5Bytes := md5.Sum([]byte(talkerItem))
-				talkerMd5 := hex.EncodeToString(_talkerMd5Bytes[:])
-				tableName := "Msg_" + talkerMd5
+			
+			for i, talkerItem := range talkers {
+				tableName := tableNames[i]
 
-				var exists bool
-				err = db.QueryRowContext(ctx,
-					"SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
-					tableName).Scan(&exists)
-				if err != nil {
+				// 如果有缓存的表列表，直接跳过不存在的表
+				if dbInfo.Tables != nil && !dbInfo.Tables[tableName] {
 					continue
 				}
 
-				conditions := []string{"create_time >= ? AND create_time <= ?"}
-				args := []interface{}{startTime.Unix(), endTime.Unix()}
+				var conditions []string
+				var args []interface{}
+				if !isAllTime {
+					conditions = append(conditions, "create_time >= ? AND create_time <= ?")
+					args = append(args, startTime.Unix(), endTime.Unix())
+				}
 
 				// 在 SQL 层面加 LIMIT 减少读取量
 				sqlLimit := ""
@@ -330,13 +373,18 @@ func (ds *DataSource) GetMessages(ctx context.Context, startTime, endTime time.T
 					}
 				}
 
+				whereClause := ""
+				if len(conditions) > 0 {
+					whereClause = "WHERE " + strings.Join(conditions, " AND ")
+				}
+
 				query := fmt.Sprintf(`
 					SELECT m.sort_seq, m.server_id, m.local_type, IFNULL(n.user_name, ''), m.create_time, m.message_content, m.packed_info_data, m.status
 					FROM %s m
 					LEFT JOIN Name2Id n ON m.real_sender_id = n.rowid
-					WHERE %s
+					%s
 					ORDER BY m.sort_seq %s%s
-				`, tableName, strings.Join(conditions, " AND "), sqlOrder, sqlLimit)
+				`, tableName, whereClause, sqlOrder, sqlLimit)
 
 				rows, err := db.QueryContext(ctx, query, args...)
 				if err != nil {
@@ -462,7 +510,7 @@ func (ds *DataSource) GetContacts(ctx context.Context, key string, limit, offset
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+	
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, errors.QueryFailed(query, err)
@@ -510,7 +558,7 @@ func (ds *DataSource) GetContactsCount(ctx context.Context, key string) (int, er
 	if err != nil {
 		return 0, err
 	}
-	defer db.Close()
+	
 
 	var count int
 	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
@@ -552,7 +600,7 @@ func (ds *DataSource) GetAddressBookContacts(ctx context.Context, key string, is
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+	
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -607,7 +655,7 @@ func (ds *DataSource) GetAddressBookContactsCount(ctx context.Context, key strin
 	if err != nil {
 		return 0, err
 	}
-	defer db.Close()
+	
 
 	var count int
 	if err := db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
@@ -626,7 +674,7 @@ func (ds *DataSource) GetChatRooms(ctx context.Context, key string, limit, offse
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+	
 
 	if key != "" {
 		// 按照关键字查询
@@ -780,7 +828,7 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+	
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, errors.QueryFailed(query, err)
@@ -830,7 +878,7 @@ func (ds *DataSource) GetSessionsCount(ctx context.Context, key string) (int, er
 	if err != nil {
 		return 0, err
 	}
-	defer db.Close()
+	
 
 	var count int
 	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
@@ -893,7 +941,7 @@ func (ds *DataSource) GetMedia(ctx context.Context, _type string, key string) (*
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+	
 	rows, err := db.QueryContext(ctx, query, args...)
 
 	var media *model.Media
@@ -931,7 +979,7 @@ func (ds *DataSource) IsExist(_db string, table string) bool {
 	if err != nil {
 		return false
 	}
-	defer db.Close()
+	
 	var tableName string
 	query := "SELECT name FROM sqlite_master WHERE type='table' AND name=?;"
 	if err = db.QueryRow(query, table).Scan(&tableName); err != nil {
@@ -959,11 +1007,6 @@ func (ds *DataSource) GetVoice(ctx context.Context, key string) (*model.Media, e
 	if err != nil {
 		return nil, errors.DBConnectFailed("", err)
 	}
-	defer func() {
-		for _, db := range dbs {
-			db.Close()
-		}
-	}()
 
 	for _, db := range dbs {
 		rows, err := db.QueryContext(ctx, query, args...)
@@ -1060,7 +1103,7 @@ func (ds *DataSource) GetSendersByLocalIDs(ctx context.Context, requests []model
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+	
 
 	for topicID, localIDs := range groups {
 		if len(localIDs) == 0 {
