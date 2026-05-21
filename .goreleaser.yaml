@@ -1,4 +1,6 @@
 # GoReleaser v2 配置
+# NOTE: This file is kept for local development reference only.
+# CI uses .github/workflows/release.yml with manual go build commands.
 version: 2
 
 before:
@@ -20,7 +22,6 @@ builds:
           - windows
       goarch:
           - amd64
-          - arm64
       overrides:
           - goos: windows
             goarch: amd64
@@ -28,40 +29,6 @@ builds:
                 - CGO_ENABLED=1
                 - CC=x86_64-w64-mingw32-gcc
                 - CXX=x86_64-w64-mingw32-g++
-          - goos: windows
-            goarch: arm64
-            env:
-                - CGO_ENABLED=1
-                - CC=/llvm-mingw/bin/aarch64-w64-mingw32-gcc
-                - CXX=/llvm-mingw/bin/aarch64-w64-mingw32-g++
-
-    - id: chatlog-darwin
-      binary: chatlog
-      ldflags:
-          - -s -w -X github.com/sjzar/chatlog/pkg/version.Version={{.Version}}
-      tags:
-          - desktop
-          - production
-      env:
-          - CGO_ENABLED=1
-      goos:
-          - darwin
-      goarch:
-          - amd64
-          - arm64
-      overrides:
-          - goos: darwin
-            goarch: amd64
-            env:
-                - CGO_ENABLED=1
-                - CC=o64-clang
-                - CXX=o64-clang++
-          - goos: darwin
-            goarch: arm64
-            env:
-                - CGO_ENABLED=1
-                - CC=oa64-clang
-                - CXX=oa64-clang++
 
 upx:
     - enabled: true
@@ -86,7 +53,6 @@ checksum:
     name_template: 'checksums.txt'
     algorithm: sha256
 
-# 配置 GitHub Release
 release:
     draft: true
     prerelease: auto
