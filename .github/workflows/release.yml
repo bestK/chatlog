@@ -10,7 +10,7 @@ jobs:
         name: Release Binary
         runs-on: ubuntu-latest
         container:
-            image: goreleaser/goreleaser-cross:v1.24
+            image: goreleaser/goreleaser-cross:v1.25.8
         permissions:
             contents: write
             id-token: write
