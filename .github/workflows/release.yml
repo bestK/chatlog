@@ -58,6 +58,11 @@ jobs:
                   pnpm --dir frontend install --frozen-lockfile
                   pnpm --dir frontend run build
 
+            - name: Generate Windows resources
+              run: |
+                  go install github.com/tc-hib/go-winres@latest
+                  go-winres make --in build/windows/wails.exe.manifest --icon build/windows/icon.ico --product-version ${GITHUB_REF_NAME#v} --file-version ${GITHUB_REF_NAME#v}
+
             - name: Build Windows amd64
               env:
                   CGO_ENABLED: '1'
@@ -67,7 +72,7 @@ jobs:
                   CXX: x86_64-w64-mingw32-g++
               run: |
                   VERSION=${GITHUB_REF_NAME#v}
-                  go build -trimpath -tags "desktop production" -ldflags "-s -w -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog.exe .
+                  go build -trimpath -tags "desktop production" -ldflags "-s -w -H windowsgui -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog.exe .
 
             - name: Compress with UPX
               run: upx --best --lzma dist/chatlog.exe || true
@@ -75,14 +80,12 @@ jobs:
             - name: Package
               run: |
                   VERSION=${GITHUB_REF_NAME#v}
-                  mkdir -p chatlog_${VERSION}_windows_amd64
-                  cp dist/chatlog.exe chatlog_${VERSION}_windows_amd64/
-                  zip -r chatlog_${VERSION}_windows_amd64.zip chatlog_${VERSION}_windows_amd64/
+                  cd dist && zip -j ../chatlog_${VERSION}_windows_amd64.zip chatlog.exe
 
             - name: Upload artifacts
               uses: actions/upload-artifact@v4
               with:
-                  name: windows-amd64
+                  name: chatlog-windows-amd64
                   path: chatlog_*.zip
 
     build-macos:
@@ -145,9 +148,7 @@ jobs:
             - name: Package
               run: |
                   VERSION=${GITHUB_REF_NAME#v}
-                  mkdir -p chatlog_${VERSION}_darwin_${{ matrix.arch }}
-                  cp dist/chatlog chatlog_${VERSION}_darwin_${{ matrix.arch }}/
-                  zip -r chatlog_${VERSION}_darwin_${{ matrix.arch }}.zip chatlog_${VERSION}_darwin_${{ matrix.arch }}/
+                  cd dist && zip -j ../chatlog_${VERSION}_darwin_${{ matrix.arch }}.zip chatlog
 
             - name: Upload artifacts
               uses: actions/upload-artifact@v4
