@@ -183,14 +183,6 @@ const effectiveTimeRange = computed(() => {
     return summaryTimeRange.value;
 });
 
-watch([customStartDate, customEndDate], () => {
-    if (summaryTimeRange.value === 'custom' && customStartDate.value && customEndDate.value && summaryContact.value) {
-        chatOffset.value = 0;
-        chatHasMore.value = true;
-        void loadChatMessages(summaryContact.value, effectiveTimeRange.value, false);
-    }
-});
-
 watch(summaryStream, () => {
     nextTick(() => {
         if (summaryScrollRef.value) {
@@ -215,7 +207,7 @@ async function openContact(contact: Contact) {
     void fetchProviders();
 }
 
-async function loadChatMessages(contact: Contact, time: string, prepend: boolean) {
+async function loadChatMessages(contact: Contact, _time: string, prepend: boolean) {
     if (prepend) {
         chatLoadingMore.value = true;
     } else {
@@ -224,7 +216,7 @@ async function loadChatMessages(contact: Contact, time: string, prepend: boolean
         chatHasMore.value = true;
     }
     try {
-        const resp = await backend.GetMessages(time, contact.userName, '', '', chatPageSize, chatOffset.value, 'desc');
+        const resp = await backend.GetMessages('all', contact.userName, '', '', chatPageSize, chatOffset.value, 'desc');
         const items = resp.items || [];
         const mapped: ChatMessage[] = items.map((m: any) => ({
             time: m.time || '',
@@ -268,7 +260,7 @@ function onChatScroll() {
     const el = chatScrollRef.value;
     if (!el || chatLoadingMore.value || !chatHasMore.value || !summaryContact.value) return;
     if (el.scrollTop < 60) {
-        void loadChatMessages(summaryContact.value, effectiveTimeRange.value, true);
+        void loadChatMessages(summaryContact.value, 'all', true);
     }
 }
 
@@ -341,11 +333,6 @@ async function fetchProviders() {
 
 function selectTimeRange(val: string) {
     summaryTimeRange.value = val;
-    if (val !== 'custom' && summaryContact.value) {
-        chatOffset.value = 0;
-        chatHasMore.value = true;
-        void loadChatMessages(summaryContact.value, val, false);
-    }
 }
 </script>
 
