@@ -61,14 +61,24 @@ func (m *MessageV4) Wrap(talker string) *Message {
 	}
 
 	// 判断是否是自己发送的消息
+	// 参考 Python: is_received = (sender_uname == chat_username)
+	// 即: 发送者是聊天对象 → 收到的消息; 发送者是自己或为空 → 自己发的
 	if !_m.IsChatRoom {
-		// 单聊：status==2 表示自己发送
-		_m.IsSelf = m.Status == 2
+		// 单聊：优先通过 UserName 与 SelfID/talker 比较
+		if m.SelfID != "" && m.UserName != "" {
+			_m.IsSelf = m.UserName == m.SelfID
+		} else if m.UserName != "" {
+			// 没有 SelfID 时：sender 等于 talker 说明是对方发的
+			_m.IsSelf = m.UserName != talker
+		} else {
+			// sender 为空通常是自己（Python: sender_uname 为空时显示"我"）
+			_m.IsSelf = true
+		}
 	} else if m.SelfID != "" && m.UserName != "" {
 		// 群聊：通过 SelfID 精确匹配
 		_m.IsSelf = m.UserName == m.SelfID
 	} else {
-		_m.IsSelf = m.Status == 2
+		_m.IsSelf = m.UserName == "" // sender 为空视为自己
 	}
 
 	// 自己发送的消息，sender 设为自己

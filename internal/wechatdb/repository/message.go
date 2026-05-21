@@ -41,7 +41,7 @@ func (r *Repository) EnrichMessages(ctx context.Context, messages []*model.Messa
 func (r *Repository) enrichMessage(msg *model.Message) {
 	// 通过 SelfID 二次核对 IsSelf 标识
 	if r.SelfID != "" && msg.Sender != "" {
-		if strings.Contains(r.SelfID, msg.Sender) {
+		if msg.Sender == r.SelfID {
 			msg.IsSelf = true
 		}
 	}
