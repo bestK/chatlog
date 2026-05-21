@@ -297,8 +297,19 @@ async function loadChatMessages(contact: Contact, _time: string, prepend: boolea
         chatHasMore.value = true;
     }
     try {
-        const resp = await backend.GetMessages('all', contact.userName, '', '', chatPageSize, chatOffset.value, 'desc');
-        const items = resp.items || [];
+        // 渐进式加载：先查最近7天，没有结果再扩大到30天，最后全部
+        const timeRanges = prepend ? ['last-30d', 'all'] : ['last-7d', 'last-30d', 'all'];
+        let items: any[] = [];
+
+        for (const t of timeRanges) {
+            try {
+                const resp = await backend.GetMessages(t, contact.userName, '', '', chatPageSize, chatOffset.value, 'desc');
+                items = resp.items || [];
+                if (items.length > 0) break;
+            } catch {
+                continue;
+            }
+        }
         const mapped: ChatMessage[] = items
             .map((m: any) => ({
                 time: m.time || '',

@@ -1,0 +1,9 @@
+0s
+Run VERSION=${GITHUB_REF_NAME#v}
+  VERSION=${GITHUB_REF_NAME#v}
+  cd dist && zip -j ../chatlog_${VERSION}_windows_amd64.zip chatlog.exe
+  shell: sh -e {0}
+  env:
+    PNPM_HOME: /github/home/setup-pnpm/node_modules/.bin
+/__w/_temp/1cf5f908-b628-4e3b-9e56-72e0337764f6.sh: 2: zip: not found
+Error: Process completed with exit code 127.
