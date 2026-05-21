@@ -20,6 +20,7 @@ builds:
           - windows
       goarch:
           - amd64
+          - arm64
       overrides:
           - goos: windows
             goarch: amd64
@@ -27,6 +28,12 @@ builds:
                 - CGO_ENABLED=1
                 - CC=x86_64-w64-mingw32-gcc
                 - CXX=x86_64-w64-mingw32-g++
+          - goos: windows
+            goarch: arm64
+            env:
+                - CGO_ENABLED=1
+                - CC=/llvm-mingw/bin/aarch64-w64-mingw32-gcc
+                - CXX=/llvm-mingw/bin/aarch64-w64-mingw32-g++
 
     - id: chatlog-darwin
       binary: chatlog
