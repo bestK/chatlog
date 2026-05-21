@@ -1,3 +1,22 @@
+export namespace chatlog {
+	
+	export class MediaDataResult {
+	    data: string;
+	    mimeType: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MediaDataResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.data = source["data"];
+	        this.mimeType = source["mimeType"];
+	    }
+	}
+
+}
+
 export namespace main {
 	
 	export class AIProvider {

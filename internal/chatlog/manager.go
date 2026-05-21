@@ -2,6 +2,7 @@ package chatlog
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -515,6 +516,96 @@ func (m *Manager) SetSummaryPrompt(prompt string) {
 		return
 	}
 	m.ctx.SetSummaryPrompt(prompt)
+}
+
+type MediaDataResult struct {
+	Data     string `json:"data"`
+	MimeType string `json:"mimeType"`
+}
+
+func (m *Manager) GetMediaData(mediaType string, key string) (*MediaDataResult, error) {
+	if m == nil || m.db == nil {
+		return nil, fmt.Errorf("未初始化")
+	}
+	if m.db.GetDB() == nil {
+		if err := m.db.Start(); err != nil {
+			return nil, err
+		}
+	}
+
+	keys := util.Str2List(key, ",")
+	if len(keys) == 0 {
+		return nil, fmt.Errorf("key 为空")
+	}
+
+	for _, k := range keys {
+		if strings.Contains(k, "/") {
+			absPath := filepath.Join(m.ctx.GetDataDir(), k)
+			return m.readMediaFile(absPath)
+		}
+		media, err := m.db.GetMedia(mediaType, k)
+		if err != nil {
+			continue
+		}
+		if media.Data != nil && len(media.Data) > 0 {
+			return &MediaDataResult{
+				Data:     "data:audio/mp3;base64," + encodeBase64(media.Data),
+				MimeType: "audio/mp3",
+			}, nil
+		}
+		absPath := filepath.Join(m.ctx.GetDataDir(), media.Path)
+		return m.readMediaFile(absPath)
+	}
+	return nil, fmt.Errorf("媒体文件未找到")
+}
+
+func (m *Manager) readMediaFile(absPath string) (*MediaDataResult, error) {
+	b, err := os.ReadFile(absPath)
+	if err != nil {
+		return nil, err
+	}
+
+	ext := strings.ToLower(filepath.Ext(absPath))
+	if ext == ".dat" {
+		out, imgExt, err := dat2img.Dat2Image(b)
+		if err == nil {
+			mime := "image/jpeg"
+			switch imgExt {
+			case "png":
+				mime = "image/png"
+			case "gif":
+				mime = "image/gif"
+			case "bmp":
+				mime = "image/bmp"
+			}
+			return &MediaDataResult{
+				Data:     "data:" + mime + ";base64," + encodeBase64(out),
+				MimeType: mime,
+			}, nil
+		}
+	}
+
+	mime := "application/octet-stream"
+	switch ext {
+	case ".jpg", ".jpeg":
+		mime = "image/jpeg"
+	case ".png":
+		mime = "image/png"
+	case ".gif":
+		mime = "image/gif"
+	case ".mp4":
+		mime = "video/mp4"
+	case ".mp3":
+		mime = "audio/mp3"
+	}
+	return &MediaDataResult{
+		Data:     "data:" + mime + ";base64," + encodeBase64(b),
+		MimeType: mime,
+	}, nil
+}
+
+func encodeBase64(data []byte) string {
+	return base64.StdEncoding.EncodeToString(data)
 }
 
 func (m *Manager) syncCurrentProfile() {

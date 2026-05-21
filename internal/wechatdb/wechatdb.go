@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 
 	"github.com/sjzar/chatlog/internal/model"
 	"github.com/sjzar/chatlog/internal/wechatdb/datasource"

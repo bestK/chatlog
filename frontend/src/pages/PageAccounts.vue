@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Copy, RefreshCw, Search, Sparkles } from 'lucide-vue-next';
 import MarkdownRender from 'markstream-vue';
 import 'markstream-vue/index.css';
-import { computed, inject, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, inject, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { appContextKey } from '../app/context';
 import { backend, type Contact, type Instance } from '../wailsbridge';
 
@@ -160,8 +160,10 @@ const summaryLoading = ref(false);
 const summaryError = ref('');
 const summaryScrollRef = ref<HTMLElement | null>(null);
 const summaryHeight = ref(200);
+const summaryResizing = ref(false);
 
 function onResizeStart(e: PointerEvent) {
+    summaryResizing.value = true;
     const startY = e.clientY;
     const startH = summaryHeight.value;
     const onMove = (ev: PointerEvent) => {
@@ -169,6 +171,7 @@ function onResizeStart(e: PointerEvent) {
         summaryHeight.value = Math.max(80, Math.min(window.innerHeight * 0.7, startH + delta));
     };
     const onUp = () => {
+        summaryResizing.value = false;
         document.removeEventListener('pointermove', onMove);
         document.removeEventListener('pointerup', onUp);
     };
@@ -217,26 +220,41 @@ watch(summaryStream, () => {
     });
 });
 
-function mediaUrl(type: string, keys: string[]) {
-    const addr = state.value?.httpAddr || '127.0.0.1:5030';
-    return `http://${addr}/${type}/${keys.filter(Boolean).join(',')}`;
+const mediaCache = reactive<Record<string, string | null>>({});
+
+function mediaKey(type: string, keys: string[]) {
+    return `${type}:${keys.filter(Boolean).join(',')}`;
+}
+
+function getMediaSrc(type: string, keys: string[]): string | null {
+    const k = mediaKey(type, keys);
+    if (k in mediaCache) return mediaCache[k];
+    mediaCache[k] = null;
+    backend.GetMediaData(type, keys.filter(Boolean).join(',')).then(r => {
+        mediaCache[k] = r.data || '';
+    }).catch(() => {
+        mediaCache[k] = '';
+    });
+    return null;
 }
 
 function msgDisplay(msg: ChatMessage): {
     kind: 'text' | 'image' | 'video' | 'voice' | 'emoji' | 'other';
     text?: string;
     url?: string;
+    mediaType?: string;
+    mediaKeys?: string[];
 } {
     const c = msg.contents || {};
     switch (msg.type) {
         case 1:
             return { kind: 'text', text: msg.content };
         case 3:
-            return { kind: 'image', url: mediaUrl('image', [c.md5, c.path, c.thumbpath]) };
+            return { kind: 'image', mediaType: 'image', mediaKeys: [c.md5, c.path, c.thumbpath] };
         case 34:
-            return { kind: 'voice', url: mediaUrl('voice', [c.voice]) };
+            return { kind: 'voice', mediaType: 'voice', mediaKeys: [c.voice] };
         case 43:
-            return { kind: 'video', url: mediaUrl('video', [c.md5, c.rawmd5, c.path]) };
+            return { kind: 'video', mediaType: 'video', mediaKeys: [c.md5, c.rawmd5, c.path] };
         case 47:
             return { kind: 'emoji', url: c.cdnurl || '' };
         case 48:
@@ -353,6 +371,7 @@ async function generateSummary() {
         const items = resp.items || [];
         if (items.length === 0) {
             summaryError.value = '该时间范围内没有聊天记录';
+            summaryLoading.value = false;
             return;
         }
 
@@ -376,6 +395,7 @@ async function generateSummary() {
             offDone?.();
         });
 
+        summaryHeight.value = Math.round(window.innerHeight * 0.7);
         await backend.GenerateAISummary(summaryProvider.value, messages, '');
     } catch (e) {
         summaryError.value = String((e as Error).message || e);
@@ -663,34 +683,52 @@ function selectTimeRange(val: string) {
                                 :class="msg.isSelf ? 'bg-primary/10 text-foreground' : 'bg-muted/40 text-foreground/90'"
                             >
                                 <template v-if="msgDisplay(msg).kind === 'image'">
-                                    <img
-                                        :src="msgDisplay(msg).url"
-                                        class="max-w-[200px] max-h-[150px] rounded object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                                        loading="lazy"
-                                        @click.stop="
-                                            previewImage = msgDisplay(msg).url || '';
-                                            previewOpen = true;
-                                        "
-                                    />
+                                    <template v-if="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!) === null">
+                                        <span class="text-muted-foreground/50">[图片加载中…]</span>
+                                    </template>
+                                    <template v-else-if="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!)">
+                                        <img
+                                            :src="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!)!"
+                                            class="max-w-[200px] max-h-[150px] rounded object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                            @click.stop="
+                                                previewImage = getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!) || '';
+                                                previewOpen = true;
+                                            "
+                                        />
+                                    </template>
+                                    <span v-else class="text-muted-foreground/50">[图片]</span>
                                 </template>
                                 <template v-else-if="msgDisplay(msg).kind === 'video'">
-                                    <video
-                                        :src="msgDisplay(msg).url"
-                                        class="max-w-[200px] max-h-[150px] rounded"
-                                        controls
-                                        preload="none"
-                                    />
+                                    <template v-if="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!) === null">
+                                        <span class="text-muted-foreground/50">[视频加载中…]</span>
+                                    </template>
+                                    <template v-else-if="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!)">
+                                        <video
+                                            :src="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!)!"
+                                            class="max-w-[200px] max-h-[150px] rounded"
+                                            controls
+                                            preload="none"
+                                        />
+                                    </template>
+                                    <span v-else class="text-muted-foreground/50">[视频]</span>
                                 </template>
                                 <template v-else-if="msgDisplay(msg).kind === 'voice'">
-                                    <audio
-                                        :src="msgDisplay(msg).url"
-                                        controls
-                                        preload="none"
-                                        class="h-8 max-w-[180px]"
-                                    />
+                                    <template v-if="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!) === null">
+                                        <span class="text-muted-foreground/50">[语音加载中…]</span>
+                                    </template>
+                                    <template v-else-if="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!)">
+                                        <audio
+                                            :src="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!)!"
+                                            controls
+                                            preload="none"
+                                            class="h-8 max-w-[180px]"
+                                        />
+                                    </template>
+                                    <span v-else class="text-muted-foreground/50">[语音]</span>
                                 </template>
                                 <template v-else-if="msgDisplay(msg).kind === 'emoji'">
-                                    <img :src="msgDisplay(msg).url" class="size-16 object-contain" loading="lazy" />
+                                    <img v-if="msgDisplay(msg).url" :src="msgDisplay(msg).url" class="size-16 object-contain" loading="lazy" />
+                                    <span v-else class="text-muted-foreground">[表情]</span>
                                 </template>
                                 <template v-else>
                                     {{ msgDisplay(msg).text }}
@@ -765,6 +803,7 @@ function selectTimeRange(val: string) {
                         <div
                             v-if="summaryContent"
                             class="relative pt-2 flex flex-col"
+                            :class="!summaryResizing && 'transition-[height] duration-300 ease-out'"
                             :style="{ height: summaryHeight + 'px' }"
                         >
                             <div

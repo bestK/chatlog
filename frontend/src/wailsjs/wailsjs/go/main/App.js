@@ -42,6 +42,10 @@ export function GetLogPath() {
   return window['go']['main']['App']['GetLogPath']();
 }
 
+export function GetMediaData(arg1, arg2) {
+  return window['go']['main']['App']['GetMediaData'](arg1, arg2);
+}
+
 export function GetMessages(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
   return window['go']['main']['App']['GetMessages'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
