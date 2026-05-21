@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
+import { CustomSelect } from '@/components/ui/custom-select';
 import { ImagePreview } from '@/components/ui/image-preview';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { RefreshCw, Search } from 'lucide-vue-next';
-import { computed, inject, nextTick, onMounted, ref, watch } from 'vue';
+import { Copy, RefreshCw, Search, Sparkles } from 'lucide-vue-next';
+import MarkdownRender from 'markstream-vue';
+import 'markstream-vue/index.css';
+import { computed, inject, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { appContextKey } from '../app/context';
 import { backend, type Contact, type Instance } from '../wailsbridge';
-import ChatBubble, { type ChatMessage } from '@/components/chat/ChatBubble.vue';
-import ContactCard from '@/components/chat/ContactCard.vue';
-import AISummaryPanel from '@/components/chat/AISummaryPanel.vue';
 
 const injected = inject(appContextKey);
 if (!injected) throw new Error('chatlog not provided');
@@ -99,6 +99,15 @@ function getContactName(c: Contact) {
     return c.remark || c.nickName || c.alias || c.userName || '未知联系人';
 }
 
+function getContactAvatar(c: Contact) {
+    return c.smallHeadImgUrl || '';
+}
+
+function getContactAvatarFallback(c: Contact) {
+    const name = getContactName(c).trim();
+    return name ? name.slice(0, 1).toUpperCase() : '?';
+}
+
 onMounted(() => void loadContacts('init'));
 
 watch(
@@ -120,11 +129,55 @@ watch(contactLimit, () => {
     void loadContacts('limit');
 });
 
-// --- Chat Detail Sheet ---
+// --- AI Summary ---
+
+type AIProvider = { id: string; name: string; type: string; baseUrl: string; model: string };
+type ChatMessage = {
+    time: string;
+    senderName: string;
+    sender: string;
+    content: string;
+    type: number;
+    contents?: Record<string, any>;
+    isSelf: boolean;
+};
 
 const summaryOpen = ref(false);
 const summaryContact = ref<Contact | null>(null);
-const summaryPanelRef = ref<InstanceType<typeof AISummaryPanel> | null>(null);
+const summaryProviders = ref<AIProvider[]>([]);
+const summaryProvider = ref(state.value?.selectedAIProvider || '');
+const summaryTimeRange = ref('today');
+
+watch(summaryProvider, v => {
+    if (v) backend.SetSelectedAIProvider(v);
+});
+
+const providerOptions = computed(() => summaryProviders.value.map(p => ({ value: p.id, label: p.name })));
+const summaryStream = ref('');
+const summaryResult = ref('');
+const summaryFinal = ref(false);
+const summaryLoading = ref(false);
+const summaryError = ref('');
+const summaryScrollRef = ref<HTMLElement | null>(null);
+const summaryHeight = ref(200);
+const summaryResizing = ref(false);
+
+function onResizeStart(e: PointerEvent) {
+    summaryResizing.value = true;
+    const startY = e.clientY;
+    const startH = summaryHeight.value;
+    const onMove = (ev: PointerEvent) => {
+        const delta = startY - ev.clientY;
+        summaryHeight.value = Math.max(80, Math.min(window.innerHeight * 0.7, startH + delta));
+    };
+    const onUp = () => {
+        summaryResizing.value = false;
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+}
 
 const chatMessages = ref<ChatMessage[]>([]);
 const chatLoading = ref(false);
@@ -136,19 +189,112 @@ const chatScrollRef = ref<HTMLElement | null>(null);
 const previewImage = ref('');
 const previewOpen = ref(false);
 
+const summaryContent = computed(() => summaryStream.value || summaryResult.value);
+
+const timeRangeOptions = [
+    { value: 'today', label: '今天' },
+    { value: 'yesterday', label: '昨天' },
+    { value: 'last-3d', label: '最近 3 天' },
+    { value: 'last-7d', label: '最近 7 天' },
+    { value: 'last-30d', label: '最近 30 天' },
+    { value: 'custom', label: '自定义' }
+];
+
+const customStartDate = ref('');
+const customEndDate = ref('');
+
+const effectiveTimeRange = computed(() => {
+    if (summaryTimeRange.value === 'custom' && customStartDate.value && customEndDate.value) {
+        const start = customStartDate.value.replace('T', '/');
+        const end = customEndDate.value.replace('T', '/');
+        return `${start}~${end}`;
+    }
+    return summaryTimeRange.value;
+});
+
+watch(summaryStream, () => {
+    nextTick(() => {
+        if (summaryScrollRef.value) {
+            summaryScrollRef.value.scrollTop = summaryScrollRef.value.scrollHeight;
+        }
+    });
+});
+
+const mediaCache = reactive<Record<string, string | null>>({});
+const mediaErrors = reactive<Record<string, string>>({});
+
+function mediaKey(type: string, keys: string[]) {
+    return `${type}:${keys.filter(Boolean).join(',')}`;
+}
+
+function getMediaSrc(type: string, keys: string[]): string | null {
+    const k = mediaKey(type, keys);
+    if (k in mediaCache) return mediaCache[k];
+    mediaCache[k] = null;
+    backend.GetMediaData(type, keys.filter(Boolean).join(',')).then(r => {
+        mediaCache[k] = r.data || '';
+    }).catch((e) => {
+        mediaCache[k] = '';
+        mediaErrors[k] = String(e);
+    });
+    return null;
+}
+
+function getMediaError(type: string, keys: string[]): string {
+    return mediaErrors[mediaKey(type, keys)] || '';
+}
+
+function msgDisplay(msg: ChatMessage): {
+    kind: 'text' | 'image' | 'video' | 'voice' | 'emoji' | 'other';
+    text?: string;
+    url?: string;
+    mediaType?: string;
+    mediaKeys?: string[];
+} {
+    const c = msg.contents || {};
+    switch (msg.type) {
+        case 1:
+            return { kind: 'text', text: msg.content };
+        case 3:
+            return { kind: 'image', mediaType: 'image', mediaKeys: [c.md5, c.path, c.thumbpath] };
+        case 34:
+            return { kind: 'voice', mediaType: 'voice', mediaKeys: [c.voice] };
+        case 43:
+            return { kind: 'video', mediaType: 'video', mediaKeys: [c.md5, c.rawmd5, c.path] };
+        case 47:
+            return { kind: 'emoji', url: c.cdnurl || '' };
+        case 48:
+            return { kind: 'text', text: `[位置] ${c.label || ''}` };
+        case 49: {
+            const title = c.title || '';
+            const url = c.url || '';
+            if (title) return { kind: 'text', text: `[${title}]${url ? ' ' + url : ''}` };
+            return { kind: 'text', text: msg.content || '[分享]' };
+        }
+        case 10000:
+            return { kind: 'text', text: msg.content || '[系统消息]' };
+        default:
+            return { kind: 'text', text: msg.content || `[类型:${msg.type}]` };
+    }
+}
+
 async function openContact(contact: Contact) {
     summaryContact.value = contact;
+    summaryStream.value = '';
+    summaryResult.value = '';
+    summaryFinal.value = false;
+    summaryError.value = '';
+    summaryTimeRange.value = 'today';
     summaryOpen.value = true;
     chatMessages.value = [];
     chatOffset.value = 0;
     chatHasMore.value = true;
-    summaryPanelRef.value?.reset();
 
-    await loadChatMessages(contact, false);
-    summaryPanelRef.value?.fetchProviders();
+    await loadChatMessages(contact, 'today', false);
+    void fetchProviders();
 }
 
-async function loadChatMessages(contact: Contact, prepend: boolean) {
+async function loadChatMessages(contact: Contact, _time: string, prepend: boolean) {
     if (prepend) {
         chatLoadingMore.value = true;
     } else {
@@ -156,9 +302,11 @@ async function loadChatMessages(contact: Contact, prepend: boolean) {
         chatOffset.value = 0;
         chatHasMore.value = true;
     }
+    console.log('[chat] load', { prepend, offset: chatOffset.value, hasMore: chatHasMore.value, talker: contact.userName });
     try {
         const resp = await backend.GetMessages('all', contact.userName, '', '', chatPageSize, chatOffset.value, 'desc');
         const items = resp.items || [];
+        console.log('[chat] got', items.length, 'items, offset was', chatOffset.value);
 
         const mapped: ChatMessage[] = items
             .map((m: any) => ({
@@ -172,24 +320,33 @@ async function loadChatMessages(contact: Contact, prepend: boolean) {
             }))
             .reverse();
 
-        if (items.length < chatPageSize) chatHasMore.value = false;
+        if (items.length < chatPageSize) {
+            chatHasMore.value = false;
+            console.log('[chat] no more messages');
+        }
         chatOffset.value += items.length;
+        console.log('[chat] new offset', chatOffset.value, 'hasMore', chatHasMore.value);
 
         if (prepend) {
             const el = chatScrollRef.value;
             const prevHeight = el?.scrollHeight || 0;
             chatMessages.value = [...mapped, ...chatMessages.value];
             nextTick(() => {
-                if (el) el.scrollTop = el.scrollHeight - prevHeight;
+                if (el) {
+                    el.scrollTop = el.scrollHeight - prevHeight;
+                }
             });
         } else {
             chatMessages.value = mapped;
             nextTick(() => {
-                if (chatScrollRef.value) chatScrollRef.value.scrollTop = chatScrollRef.value.scrollHeight;
+                if (chatScrollRef.value) {
+                    chatScrollRef.value.scrollTop = chatScrollRef.value.scrollHeight;
+                }
                 checkNeedMore();
             });
         }
     } catch (e) {
+        console.error('[chat] load failed', e);
         app.feedback.toast('加载聊天记录失败', String(e));
     } finally {
         chatLoading.value = false;
@@ -201,7 +358,7 @@ function onChatScroll() {
     const el = chatScrollRef.value;
     if (!el || chatLoadingMore.value || !chatHasMore.value || !summaryContact.value) return;
     if (el.scrollTop < 60) {
-        void loadChatMessages(summaryContact.value, true);
+        void loadChatMessages(summaryContact.value, '', true);
     }
 }
 
@@ -209,10 +366,98 @@ function checkNeedMore() {
     nextTick(() => {
         const el = chatScrollRef.value;
         if (!el || !chatHasMore.value || chatLoadingMore.value || !summaryContact.value) return;
+        // 如果内容没有填满容器（没有滚动条），自动加载更多
         if (el.scrollHeight <= el.clientHeight && chatMessages.value.length > 0) {
-            void loadChatMessages(summaryContact.value, true);
+            void loadChatMessages(summaryContact.value, '', true);
         }
     });
+}
+
+async function generateSummary() {
+    if (!summaryContact.value || !summaryProvider.value) return;
+
+    summaryLoading.value = true;
+    summaryError.value = '';
+    summaryStream.value = '';
+    summaryResult.value = '';
+    summaryFinal.value = false;
+
+    try {
+        const resp = await backend.GetMessages(
+            effectiveTimeRange.value,
+            summaryContact.value.userName,
+            '',
+            '',
+            500,
+            0,
+            'asc'
+        );
+        const items = resp.items || [];
+        if (items.length === 0) {
+            summaryError.value = '该时间范围内没有聊天记录';
+            summaryLoading.value = false;
+            return;
+        }
+
+        const messages: string[] = items.map((m: any) => {
+            const name = m.senderName || m.sender || '';
+            const content = m.content || '';
+            const time = m.time || '';
+            return `${time} ${name}: ${content}`;
+        });
+
+        const offChunk = backend.EventsOn('ai:summary:chunk', (chunk: unknown) => {
+            if (typeof chunk === 'string') {
+                summaryStream.value += chunk;
+            }
+        });
+        const offDone = backend.EventsOn('ai:summary:done', () => {
+            summaryResult.value = summaryStream.value;
+            summaryFinal.value = true;
+            summaryLoading.value = false;
+            offChunk?.();
+            offDone?.();
+        });
+
+        summaryHeight.value = Math.round(window.innerHeight * 0.7);
+        await backend.GenerateAISummary(summaryProvider.value, messages, '');
+    } catch (e) {
+        summaryError.value = String((e as Error).message || e);
+        summaryLoading.value = false;
+    }
+}
+
+function copySummary() {
+    const text = summaryStream.value || summaryResult.value;
+    if (text) {
+        navigator.clipboard.writeText(text);
+        app.feedback.toast('已复制', '总结内容已复制到剪贴板');
+    }
+}
+
+async function fetchProviders() {
+    try {
+        const list = await backend.ListAIProviders();
+        summaryProviders.value = (list || []).map(p => ({
+            id: p.id,
+            name: p.name,
+            type: p.type,
+            baseUrl: p.baseUrl,
+            model: p.model
+        }));
+        if (summaryProviders.value.length > 0) {
+            const exists = summaryProviders.value.some(p => p.id === summaryProvider.value);
+            if (!exists) {
+                summaryProvider.value = summaryProviders.value[0].id;
+            }
+        }
+    } catch {
+        /* ignore */
+    }
+}
+
+function selectTimeRange(val: string) {
+    summaryTimeRange.value = val;
 }
 </script>
 
@@ -370,12 +615,41 @@ function checkNeedMore() {
                     class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))]"
                     :class="contactsLoading ? 'opacity-50 transition-opacity' : ''"
                 >
-                    <ContactCard
+                    <div
                         v-for="contact in contacts"
                         :key="contact.userName"
-                        :contact="contact"
+                        class="group cursor-pointer rounded-lg border border-border/30 bg-card/20 p-4 transition-colors hover:bg-card/40"
                         @click="openContact(contact)"
-                    />
+                    >
+                        <div class="flex items-center gap-3">
+                            <img
+                                v-if="getContactAvatar(contact)"
+                                :src="getContactAvatar(contact)"
+                                class="size-10 rounded-full object-cover"
+                            />
+                            <div
+                                v-else
+                                class="flex size-10 items-center justify-center rounded-full bg-muted/40 text-sm font-medium text-muted-foreground"
+                            >
+                                {{ getContactAvatarFallback(contact) }}
+                            </div>
+
+                            <div class="min-w-0 flex-1 space-y-0.5">
+                                <div class="truncate text-sm font-medium tracking-tight">
+                                    {{ getContactName(contact) }}
+                                </div>
+                                <div class="truncate font-mono text-xs text-muted-foreground">
+                                    {{ contact.alias || contact.userName }}
+                                </div>
+                            </div>
+                            <span
+                                v-if="contact.isInChatRoom"
+                                class="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary"
+                            >
+                                群聊
+                            </span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -398,32 +672,190 @@ function checkNeedMore() {
                         @scroll="onChatScroll"
                     >
                         <div v-if="chatLoadingMore" class="flex items-center justify-center py-2">
-                            <span class="size-3 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"></span>
+                            <span
+                                class="size-3 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"
+                            ></span>
                             <span class="ml-1.5 text-xs text-muted-foreground">加载更多…</span>
                         </div>
                         <div v-else-if="!chatHasMore && chatMessages.length > 0" class="text-center py-1">
                             <span class="text-xs text-muted-foreground/60">已加载全部</span>
                         </div>
                         <div v-if="chatLoading" class="flex items-center justify-center py-8">
-                            <span class="size-4 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"></span>
+                            <span
+                                class="size-4 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"
+                            ></span>
                             <span class="ml-2 text-xs text-muted-foreground">加载中…</span>
                         </div>
-                        <div v-else-if="chatMessages.length === 0" class="py-8 text-center text-xs text-muted-foreground">
+                        <div
+                            v-else-if="chatMessages.length === 0"
+                            class="py-8 text-center text-xs text-muted-foreground"
+                        >
                             今天暂无聊天记录
                         </div>
-                        <ChatBubble
+                        <div
                             v-for="(msg, i) in chatMessages"
                             :key="i"
-                            :msg="msg"
-                            @preview="previewImage = $event; previewOpen = true;"
-                        />
+                            class="space-y-0.5"
+                            :class="msg.isSelf ? 'text-right' : ''"
+                        >
+                            <div class="text-[10px] text-muted-foreground/60">
+                                <span>{{ msg.senderName }}</span>
+                                <span class="ml-1.5">{{ msg.time }}</span>
+                            </div>
+                            <div
+                                class="inline-block max-w-[85%] whitespace-pre-wrap break-words rounded-lg px-2.5 py-1.5 text-left text-xs"
+                                :class="msg.isSelf ? 'bg-primary/10 text-foreground' : 'bg-muted/40 text-foreground/90'"
+                            >
+                                <template v-if="msgDisplay(msg).kind === 'image'">
+                                    <template v-if="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!) === null">
+                                        <span class="text-muted-foreground/50">[图片加载中…]</span>
+                                    </template>
+                                    <template v-else-if="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!)">
+                                        <img
+                                            :src="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!)!"
+                                            class="max-w-[200px] max-h-[150px] rounded object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                            @click.stop="
+                                                previewImage = getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!) || '';
+                                                previewOpen = true;
+                                            "
+                                        />
+                                    </template>
+                                    <span v-else class="text-muted-foreground/50 text-[10px]" :title="getMediaError(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!)">[图片] {{ getMediaError(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!) }}</span>
+                                </template>
+                                <template v-else-if="msgDisplay(msg).kind === 'video'">
+                                    <template v-if="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!) === null">
+                                        <span class="text-muted-foreground/50">[视频加载中…]</span>
+                                    </template>
+                                    <template v-else-if="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!)">
+                                        <video
+                                            :src="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!)!"
+                                            class="max-w-[200px] max-h-[150px] rounded"
+                                            controls
+                                            preload="none"
+                                        />
+                                    </template>
+                                    <span v-else class="text-muted-foreground/50">[视频]</span>
+                                </template>
+                                <template v-else-if="msgDisplay(msg).kind === 'voice'">
+                                    <template v-if="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!) === null">
+                                        <span class="text-muted-foreground/50">[语音加载中…]</span>
+                                    </template>
+                                    <template v-else-if="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!)">
+                                        <audio
+                                            :src="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!)!"
+                                            controls
+                                            preload="none"
+                                            class="h-8 max-w-[180px]"
+                                        />
+                                    </template>
+                                    <span v-else class="text-muted-foreground/50">[语音]</span>
+                                </template>
+                                <template v-else-if="msgDisplay(msg).kind === 'emoji'">
+                                    <img v-if="msgDisplay(msg).url" :src="msgDisplay(msg).url" class="size-16 object-contain" loading="lazy" />
+                                    <span v-else class="text-muted-foreground">[表情]</span>
+                                </template>
+                                <template v-else>
+                                    {{ msgDisplay(msg).text }}
+                                </template>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- AI Summary -->
-                    <AISummaryPanel
-                        ref="summaryPanelRef"
-                        :contact-user-name="summaryContact?.userName || ''"
-                    />
+                    <!-- Summary section -->
+                    <div class="shrink-0 space-y-3 border-t border-border/40 pt-3 pb-2 px-3">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <CustomSelect
+                                :model-value="summaryTimeRange"
+                                :options="timeRangeOptions"
+                                direction="up"
+                                @update:model-value="selectTimeRange"
+                            />
+
+                            <!-- Custom date range -->
+                            <template v-if="summaryTimeRange === 'custom'">
+                                <input
+                                    v-model="customStartDate"
+                                    type="datetime-local"
+                                    class="h-8 flex-1 min-w-[130px] rounded-md border border-input bg-background/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring [color-scheme:dark]"
+                                />
+                                <span class="text-xs text-muted-foreground">~</span>
+                                <input
+                                    v-model="customEndDate"
+                                    type="datetime-local"
+                                    class="h-8 flex-1 min-w-[130px] rounded-md border border-input bg-background/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring [color-scheme:dark]"
+                                />
+                            </template>
+
+                            <div class="flex-1 min-w-[120px]">
+                                <CustomSelect
+                                    :model-value="summaryProvider"
+                                    :options="providerOptions"
+                                    placeholder="选择提供商"
+                                    direction="up"
+                                    @update:model-value="(v: string) => { summaryProvider = v; }"
+                                />
+                            </div>
+
+                            <Button
+                                size="sm"
+                                class="h-8 gap-1 px-3 text-xs"
+                                :disabled="summaryLoading || !summaryProvider"
+                                @click="generateSummary"
+                            >
+                                <Sparkles class="size-3" />
+                                {{ summaryLoading ? '生成中…' : '总结' }}
+                            </Button>
+                        </div>
+
+                        <!-- Custom date range (separate row) -->
+                        <div v-if="summaryTimeRange === 'custom'" class="flex items-center gap-2">
+                            <input
+                                v-model="customStartDate"
+                                type="datetime-local"
+                                class="h-8 flex-1 rounded-md border border-input bg-background/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring [color-scheme:dark]"
+                            />
+                            <span class="text-xs text-muted-foreground">~</span>
+                            <input
+                                v-model="customEndDate"
+                                type="datetime-local"
+                                class="h-8 flex-1 rounded-md border border-input bg-background/40 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring [color-scheme:dark]"
+                            />
+                        </div>
+
+                        <div v-if="summaryError" class="text-xs text-destructive">{{ summaryError }}</div>
+
+                        <div
+                            v-if="summaryContent"
+                            class="relative pt-2 flex flex-col"
+                            :class="!summaryResizing && 'transition-[height] duration-300 ease-out'"
+                            :style="{ height: summaryHeight + 'px' }"
+                        >
+                            <div
+                                class="flex items-center justify-between mb-2 shrink-0 cursor-row-resize select-none"
+                                @pointerdown="onResizeStart"
+                            >
+                                <span class="text-xs font-medium text-foreground/80">AI 总结</span>
+                                <div class="flex flex-col gap-[3px]">
+                                    <div class="h-[1.5px] w-5 rounded-full bg-muted-foreground/30"></div>
+                                    <div class="h-[1.5px] w-5 rounded-full bg-muted-foreground/30"></div>
+                                    <div class="h-[1.5px] w-5 rounded-full bg-muted-foreground/30"></div>
+                                </div>
+                                <button
+                                    class="text-xs text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted/40 transition-colors"
+                                    @click.stop="copySummary"
+                                    @pointerdown.stop
+                                >
+                                    <Copy class="size-3 inline mr-0.5" />复制
+                                </button>
+                            </div>
+                            <div
+                                ref="summaryScrollRef"
+                                class="flex-1 min-h-0 overflow-auto rounded-md bg-muted/30 ring-1 ring-border/40 p-3"
+                            >
+                                <MarkdownRender :content="summaryContent" :final="summaryFinal" :max-live-nodes="0" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </SheetContent>
         </Sheet>

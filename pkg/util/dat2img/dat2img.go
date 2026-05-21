@@ -46,9 +46,6 @@ var (
 	// WeChat v4 related constants
 	V4XorKey byte = 0x88               // Default XOR key for WeChat v4 dat files (matches Python reference)
 	JpgTail       = []byte{0xFF, 0xD9} // JPG file tail marker
-
-	// placeholder key indicates user hasn't extracted the real key yet
-	v4KeyPlaceholder = "0000000000000000"
 )
 
 // Dat2Image converts WeChat dat file data to image data
@@ -186,17 +183,25 @@ func SetAesKey(key string) {
 	}
 
 	var aesKey []byte
-	// 优先判断：如果长度是 16，通常是原始 ASCII 密钥，直接使用
 	if len(key) == 16 {
+		// 16 字符 ASCII 密钥，直接使用
 		aesKey = []byte(key)
-	} else {
-		// 否则尝试十六进制解码（适用于 32 字符的十六进制密钥）
+	} else if len(key) == 32 {
+		// 尝试十六进制解码（32 字符 hex → 16 字节）
 		decoded, err := hex.DecodeString(key)
 		if err != nil {
-			log.Error().Err(err).Msg("invalid aes key")
-			return
+			// hex 解码失败，取前 16 字符作为 ASCII 密钥（匹配 Python: aes_key[:16]）
+			aesKey = []byte(key[:16])
+		} else {
+			aesKey = decoded
 		}
-		aesKey = decoded
+	} else if len(key) > 16 {
+		// 其他长度：截取前 16 字符
+		aesKey = []byte(key[:16])
+	} else {
+		// 短于 16 字符，无法作为 AES-128 key
+		log.Error().Int("len", len(key)).Msg("aes key too short")
+		return
 	}
 
 	// 只更新 V2 的密钥，V1 使用固定密钥不应被覆盖
@@ -214,11 +219,6 @@ func SetXorKey(key byte) {
 func Dat2ImageV4(data []byte, aesKey []byte) ([]byte, string, error) {
 	if len(data) < 15 {
 		return nil, "", fmt.Errorf("data length is too short for WeChat v4 format")
-	}
-
-	// Check if key is the placeholder (user hasn't extracted the real key)
-	if bytes.Equal(aesKey, []byte(v4KeyPlaceholder)) {
-		return nil, "", fmt.Errorf("图片密钥未设置，请先获取图片密钥")
 	}
 
 	// 1. Parse Headers (Little Endian)
