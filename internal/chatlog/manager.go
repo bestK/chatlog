@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -38,6 +39,12 @@ type Manager struct {
 	http   *http.Service
 	wechat *wechat.Service
 	ai     *ai.Service
+
+	imgKeyOnce sync.Once
+}
+
+func (m *Manager) resetImgKeyOnce() {
+	m.imgKeyOnce = sync.Once{}
 }
 
 func New() *Manager {
@@ -341,6 +348,7 @@ func (m *Manager) GetKeysWithProgress(onProgress func(string)) (string, string, 
 	if imgKey != "" {
 		dat2img.SetAesKey(imgKey)
 		dat2img.ScanAndSetXorKey(m.ctx.DataDir)
+		m.resetImgKeyOnce()
 	}
 
 	return dataKey, imgKey, nil
@@ -367,6 +375,7 @@ func (m *Manager) GetImgKey() (string, error) {
 	if imgKey != "" {
 		dat2img.SetAesKey(imgKey)
 		dat2img.ScanAndSetXorKey(m.ctx.DataDir)
+		m.resetImgKeyOnce()
 	}
 
 	return imgKey, nil
@@ -567,6 +576,14 @@ func (m *Manager) readMediaFile(absPath string) (*MediaDataResult, error) {
 
 	ext := strings.ToLower(filepath.Ext(absPath))
 	if ext == ".dat" {
+		m.imgKeyOnce.Do(func() {
+			if m.ctx.ImgKey != "" {
+				dat2img.SetAesKey(m.ctx.ImgKey)
+			}
+			if m.ctx.DataDir != "" {
+				dat2img.ScanAndSetXorKey(m.ctx.DataDir)
+			}
+		})
 		out, imgExt, err := dat2img.Dat2Image(b)
 		if err != nil {
 			return nil, fmt.Errorf("图片解密失败: %v", err)
