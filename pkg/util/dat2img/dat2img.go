@@ -31,9 +31,10 @@ var (
 	PNG     = Format{Header: []byte{0x89, 0x50, 0x4E, 0x47}, Ext: "png"}
 	GIF     = Format{Header: []byte{0x47, 0x49, 0x46, 0x38}, Ext: "gif"}
 	TIFF    = Format{Header: []byte{0x49, 0x49, 0x2A, 0x00}, Ext: "tiff"}
+	WEBP    = Format{Header: []byte{0x52, 0x49, 0x46, 0x46}, Ext: "webp"} // RIFF header
 	BMP     = Format{Header: []byte{0x42, 0x4D}, Ext: "bmp"}
 	WXGF    = Format{Header: []byte{0x77, 0x78, 0x67, 0x66}, Ext: "wxgf"}
-	Formats = []Format{JPG, PNG, GIF, TIFF, BMP, WXGF}
+	Formats = []Format{JPG, PNG, GIF, TIFF, WEBP, BMP, WXGF}
 
 	// Updated V4 definitions to match Dart implementation (6 bytes signature)
 	// V4 Type 1: 0x07 0x08 0x56 0x31 0x08 0x07
@@ -43,8 +44,11 @@ var (
 	V4Formats = []*Format{&V4Format1, &V4Format2}
 
 	// WeChat v4 related constants
-	V4XorKey byte = 0x37               // Default XOR key for WeChat v4 dat files
+	V4XorKey byte = 0x88               // Default XOR key for WeChat v4 dat files (matches Python reference)
 	JpgTail       = []byte{0xFF, 0xD9} // JPG file tail marker
+
+	// placeholder key indicates user hasn't extracted the real key yet
+	v4KeyPlaceholder = "0000000000000000"
 )
 
 // Dat2Image converts WeChat dat file data to image data
@@ -156,7 +160,7 @@ func ScanAndSetXorKey(dirPath string) (byte, error) {
 		xorEncryptLen := binary.LittleEndian.Uint32(data[10:14])
 		fileData := data[15:]
 
-		if xorEncryptLen == 0 || uint32(len(fileData)) <= uint32(len(fileData))-xorEncryptLen {
+		if xorEncryptLen == 0 || xorEncryptLen > uint32(len(fileData)) || len(fileData) < 2 {
 			return nil
 		}
 
@@ -195,11 +199,14 @@ func SetAesKey(key string) {
 		aesKey = decoded
 	}
 
-	// 统一更新所有加密格式的密钥。由于微信一个账号 session 通常只用一个密钥，
-	// 且我们目前只提取一个，因此同时更新 Format1 和 Format2 是最稳妥的。
-	V4Format1.AesKey = aesKey
+	// 只更新 V2 的密钥，V1 使用固定密钥不应被覆盖
 	V4Format2.AesKey = aesKey
-	log.Debug().Str("key", key).Int("len", len(aesKey)).Msg("AES key updated for V4")
+	log.Debug().Str("key", key).Int("len", len(aesKey)).Msg("AES key updated for V4 Format2")
+}
+
+func SetXorKey(key byte) {
+	V4XorKey = key
+	log.Debug().Hex("key", []byte{key}).Msg("XOR key updated")
 }
 
 // Dat2ImageV4 processes WeChat v4 dat image files
@@ -207,6 +214,11 @@ func SetAesKey(key string) {
 func Dat2ImageV4(data []byte, aesKey []byte) ([]byte, string, error) {
 	if len(data) < 15 {
 		return nil, "", fmt.Errorf("data length is too short for WeChat v4 format")
+	}
+
+	// Check if key is the placeholder (user hasn't extracted the real key)
+	if bytes.Equal(aesKey, []byte(v4KeyPlaceholder)) {
+		return nil, "", fmt.Errorf("图片密钥未设置，请先获取图片密钥")
 	}
 
 	// 1. Parse Headers (Little Endian)
@@ -240,8 +252,8 @@ func Dat2ImageV4(data []byte, aesKey []byte) ([]byte, string, error) {
 	if len(aesPart) > 0 {
 		unpaddedAesData, err = decryptAESECBStrict(aesPart, aesKey)
 		if err != nil {
-			log.Warn().Err(err).Hex("header", data[:15]).Msg("V4 AES decryption failed")
-			return nil, "", fmt.Errorf("AES decryption failed: %v", err)
+			log.Debug().Err(err).Hex("header", data[:15]).Msg("V4 AES decryption failed")
+			return nil, "", fmt.Errorf("图片密钥可能不正确，请重新获取图片密钥 (AES: %v)", err)
 		}
 	}
 
@@ -273,13 +285,15 @@ func Dat2ImageV4(data []byte, aesKey []byte) ([]byte, string, error) {
 	// Identify image type
 	imgType := ""
 	for _, format := range Formats {
-		// Only check headers for image types
-		if format.Ext == "wxgf" || format.Ext == "jpg" || format.Ext == "png" || format.Ext == "gif" || format.Ext == "tiff" || format.Ext == "bmp" {
-			if len(result) >= len(format.Header) && bytes.Equal(result[:len(format.Header)], format.Header) {
-				imgType = format.Ext
-				break
-			}
+		if len(result) >= len(format.Header) && bytes.Equal(result[:len(format.Header)], format.Header) {
+			imgType = format.Ext
+			break
 		}
+	}
+
+	// WEBP needs additional check: RIFF header + "WEBP" at offset 8
+	if imgType == "webp" && (len(result) < 12 || !bytes.Equal(result[8:12], []byte("WEBP"))) {
+		imgType = ""
 	}
 
 	if imgType == "wxgf" {
@@ -288,10 +302,22 @@ func Dat2ImageV4(data []byte, aesKey []byte) ([]byte, string, error) {
 
 	if imgType == "" {
 		if len(result) > 2 {
-			log.Warn().Hex("header", result[:16]).Msg("V4 decrypted failed to match image header")
-			return nil, "", fmt.Errorf("unknown image type after decryption: %x %x", result[0], result[1])
+			log.Debug().Hex("header", result[:16]).Msg("V4 decrypted failed to match image header")
+			return nil, "", fmt.Errorf("解密后无法识别图片格式，密钥可能不正确 (header: %x %x)", result[0], result[1])
 		}
-		return nil, "", errors.New("unknown image type")
+		return nil, "", errors.New("解密后无法识别图片格式")
+	}
+
+	// Tail validation: verify XOR key correctness (matches Python reference)
+	if xorSize > 0 && len(result) >= 2 {
+		if imgType == "jpg" && !bytes.Equal(result[len(result)-2:], JpgTail) {
+			log.Debug().Hex("tail", result[len(result)-2:]).Msg("V4 JPG tail mismatch, XOR key may be wrong")
+			return nil, "", fmt.Errorf("JPG tail validation failed (xor_key=0x%02x)", V4XorKey)
+		}
+		if imgType == "png" && len(result) >= 12 && !bytes.Contains(result[len(result)-12:], []byte("IEND")) {
+			log.Debug().Msg("V4 PNG tail missing IEND chunk")
+			return nil, "", fmt.Errorf("PNG tail validation failed (xor_key=0x%02x)", V4XorKey)
+		}
 	}
 
 	return result, imgType, nil

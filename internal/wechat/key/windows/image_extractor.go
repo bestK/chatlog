@@ -292,6 +292,7 @@ func GetCiphertextFromTemplate(templateFiles []string) ([]byte, error) {
 }
 
 // VerifyKey 验证 AES 密钥是否正确
+// 参考 Python try_key: 支持 JPEG/PNG/WEBP/WXGF/GIF 格式检测
 func VerifyKey(encrypted, aesKey []byte) bool {
 	if len(aesKey) < 16 {
 		return false
@@ -310,11 +311,43 @@ func VerifyKey(encrypted, aesKey []byte) bool {
 		block.Decrypt(decrypted[i:i+16], encrypted[i:i+16])
 	}
 
-	// 检查 JPEG 文件头 0xFF 0xD8 0xFF
+	// JPEG: FF D8 FF
 	if len(decrypted) >= 3 &&
 		decrypted[0] == 0xFF &&
 		decrypted[1] == 0xD8 &&
 		decrypted[2] == 0xFF {
+		return true
+	}
+	// PNG: 89 50 4E 47
+	if len(decrypted) >= 4 &&
+		decrypted[0] == 0x89 &&
+		decrypted[1] == 0x50 &&
+		decrypted[2] == 0x4E &&
+		decrypted[3] == 0x47 {
+		return true
+	}
+	// WEBP: RIFF
+	if len(decrypted) >= 4 &&
+		decrypted[0] == 0x52 &&
+		decrypted[1] == 0x49 &&
+		decrypted[2] == 0x46 &&
+		decrypted[3] == 0x46 {
+		return true
+	}
+	// WXGF: wxgf
+	if len(decrypted) >= 4 &&
+		decrypted[0] == 0x77 &&
+		decrypted[1] == 0x78 &&
+		decrypted[2] == 0x67 &&
+		decrypted[3] == 0x66 {
+		return true
+	}
+	// GIF: GIF8
+	if len(decrypted) >= 4 &&
+		decrypted[0] == 0x47 &&
+		decrypted[1] == 0x49 &&
+		decrypted[2] == 0x46 &&
+		decrypted[3] == 0x38 {
 		return true
 	}
 
@@ -421,6 +454,15 @@ func GetAesKeyFromMemory(pid uint32, ciphertext []byte, onProgress func(string))
 				return key, nil
 			}
 
+			// 搜索独立的 16 字节 ASCII 密钥 (参考 Python RE_KEY16)
+			key = search16CharKey(dataToScan, ciphertext)
+			if key != "" {
+				if onProgress != nil {
+					onProgress("已找到 AES 密钥 (16-char)！")
+				}
+				return key, nil
+			}
+
 			// 保存末尾用于跨块检测
 			if len(dataToScan) > overlap {
 				trailing = dataToScan[len(dataToScan)-overlap:]
@@ -482,6 +524,42 @@ func searchUtf16Key(data, ciphertext []byte) string {
 			keyBytes[j] = data[i+(j*2)]
 		}
 
+		if VerifyKey(ciphertext, keyBytes) {
+			return string(keyBytes)
+		}
+	}
+
+	return ""
+}
+
+// search16CharKey 搜索独立的 16 字节 ASCII 密钥
+// 参考 Python RE_KEY16: 精确 16 字符 alphanum，前后是非 alphanum 或边界
+func search16CharKey(data, ciphertext []byte) string {
+	for i := 0; i < len(data)-17; i++ {
+		// 前导字符不是字母或数字
+		if isAlphaNumAscii(data[i]) {
+			continue
+		}
+
+		// 检查接下来的 16 个字节是否都是 alphanum
+		valid := true
+		for j := 1; j <= 16; j++ {
+			if i+j >= len(data) || !isAlphaNumAscii(data[i+j]) {
+				valid = false
+				break
+			}
+		}
+
+		if !valid {
+			continue
+		}
+
+		// 尾部字符不是字母或数字（排除更长的 key 子串）
+		if i+17 < len(data) && isAlphaNumAscii(data[i+17]) {
+			continue
+		}
+
+		keyBytes := data[i+1 : i+17]
 		if VerifyKey(ciphertext, keyBytes) {
 			return string(keyBytes)
 		}
