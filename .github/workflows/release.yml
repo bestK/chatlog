@@ -22,10 +22,20 @@ jobs:
             - name: Fix git permissions
               run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+            - name: Install tools
+              run: apt-get update && apt-get install -y zip
+
             - name: Install UPX
               uses: crazy-max/ghaction-upx@v3
               with:
                   install-only: true
+
+            - name: Cache Go modules
+              uses: actions/cache@v4
+              with:
+                  path: /root/go/pkg/mod
+                  key: go-mod-${{ hashFiles('go.sum') }}
+                  restore-keys: go-mod-
 
             - name: Setup pnpm
               uses: pnpm/action-setup@v4
@@ -97,6 +107,7 @@ jobs:
               uses: actions/setup-go@v5
               with:
                   go-version-file: go.mod
+                  cache: true
 
             - name: Setup pnpm
               uses: pnpm/action-setup@v4
