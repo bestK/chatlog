@@ -6,6 +6,7 @@ import {
     Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription
 } from '@/components/ui/sheet';
 import { CustomSelect } from '@/components/ui/custom-select';
+import { ImagePreview } from '@/components/ui/image-preview';
 import { RefreshCw, Search, Sparkles, Copy } from 'lucide-vue-next';
 import MarkdownRender from 'markstream-vue';
 import 'markstream-vue/index.css';
@@ -168,6 +169,7 @@ const chatOffset = ref(0);
 const chatPageSize = 50;
 const chatScrollRef = ref<HTMLElement | null>(null);
 const previewImage = ref('');
+const previewOpen = ref(false);
 
 const summaryContent = computed(() => summaryStream.value || summaryResult.value);
 
@@ -594,7 +596,7 @@ function selectTimeRange(val: string) {
                                 :class="msg.isSelf ? 'bg-primary/10 text-foreground' : 'bg-muted/40 text-foreground/90'"
                             >
                                 <template v-if="msgDisplay(msg).kind === 'image'">
-                                    <img :src="msgDisplay(msg).url" class="max-w-[200px] max-h-[150px] rounded object-cover cursor-pointer hover:opacity-80 transition-opacity" loading="lazy" @click.stop="previewImage = msgDisplay(msg).url || ''" />
+                                    <img :src="msgDisplay(msg).url" class="max-w-[200px] max-h-[150px] rounded object-cover cursor-pointer hover:opacity-80 transition-opacity" loading="lazy" @click.stop="previewImage = msgDisplay(msg).url || ''; previewOpen = true" />
                                 </template>
                                 <template v-else-if="msgDisplay(msg).kind === 'video'">
                                     <video :src="msgDisplay(msg).url" class="max-w-[200px] max-h-[150px] rounded" controls preload="none" />
@@ -701,24 +703,6 @@ function selectTimeRange(val: string) {
             </SheetContent>
         </Sheet>
 
-        <!-- Image preview overlay -->
-        <Teleport to="body">
-            <Transition
-                enter-from-class="opacity-0"
-                enter-active-class="transition duration-200"
-                leave-active-class="transition duration-150"
-                leave-to-class="opacity-0"
-            >
-                <div
-                    v-if="previewImage"
-                    class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm cursor-pointer"
-                    @click.stop="previewImage = ''"
-                    @pointerdown.stop
-                    @mousedown.stop
-                >
-                    <img :src="previewImage" class="max-w-[90vw] max-h-[90vh] rounded-lg object-contain shadow-2xl" />
-                </div>
-            </Transition>
-        </Teleport>
+        <ImagePreview v-model:open="previewOpen" :src="previewImage" />
     </div>
 </template>
