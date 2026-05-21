@@ -2,6 +2,7 @@ export type State = {
     account: string;
     platform: string;
     fullVersion: string;
+    appVersion: string;
     dataDir: string;
     dataKey: string;
     imgKey: string;
