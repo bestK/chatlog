@@ -91,7 +91,7 @@ jobs:
                   CXX: x86_64-w64-mingw32-g++
               run: |
                   VERSION=${GITHUB_REF_NAME#v}
-                  go build -trimpath -tags "desktop production" -ldflags "-s -w -H windowsgui -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog.exe .
+                  go build -trimpath -tags "desktop production" -ldflags "-s -w -H windowsgui -extldflags '-static' -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog.exe .
 
             - name: Compress with UPX
               run: upx --best --lzma dist/chatlog.exe || true
