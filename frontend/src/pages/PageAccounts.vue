@@ -712,7 +712,9 @@ function selectTimeRange(val: string) {
                 <div
                     v-if="previewImage"
                     class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm cursor-pointer"
-                    @click="previewImage = ''"
+                    @click.stop="previewImage = ''"
+                    @pointerdown.stop
+                    @mousedown.stop
                 >
                     <img :src="previewImage" class="max-w-[90vw] max-h-[90vh] rounded-lg object-contain shadow-2xl" />
                 </div>
