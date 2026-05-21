@@ -15,7 +15,7 @@ _微信聊天记录管理工具_
 
 - 微信聊天记录本地解密与浏览
 - 支持 Windows / macOS，兼容微信 4.x
-- 桌面 GUI（Wails）+ 命令行 + Docker 部署
+- 桌面 GUI（Wails）+ 命令行工具
 - 联系人聊天记录浏览，图片/视频/语音/表情渲染
 - 图片点击放大预览，聊天记录无限滚动加载
 - AI 聊天记录总结（流式输出，支持 OpenAI / Anthropic / Google）
@@ -112,19 +112,6 @@ SSE Endpoint:    http://127.0.0.1:5030/sse
 ```
 
 兼容 ChatWise、Cherry Studio 等支持 MCP 的 AI 客户端。
-
-## Docker 部署
-
-```bash
-docker run -d \
-  --name chatlog \
-  -p 5030:5030 \
-  -v /path/to/wechat/data:/app/data \
-  -e CHATLOG_DATA_KEY=your_key \
-  sjzar/chatlog:latest
-```
-
-详见 [Docker 部署指南](docs/docker.md)。
 
 ## 从源码构建
 
