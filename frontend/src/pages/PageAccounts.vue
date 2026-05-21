@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Pagination } from '@/components/ui/pagination';
-import {
-    Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription
-} from '@/components/ui/sheet';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { ImagePreview } from '@/components/ui/image-preview';
-import { RefreshCw, Search, Sparkles, Copy } from 'lucide-vue-next';
+import { Input } from '@/components/ui/input';
+import { Pagination } from '@/components/ui/pagination';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Copy, RefreshCw, Search, Sparkles } from 'lucide-vue-next';
 import MarkdownRender from 'markstream-vue';
 import 'markstream-vue/index.css';
 import { computed, inject, nextTick, onMounted, ref, watch } from 'vue';
@@ -112,11 +110,14 @@ function getContactAvatarFallback(c: Contact) {
 
 onMounted(() => void loadContacts('init'));
 
-watch(() => state.value?.account, () => {
-    contactOffset.value = 0;
-    if (contactLoadTimer) window.clearTimeout(contactLoadTimer);
-    void loadContacts('account');
-});
+watch(
+    () => state.value?.account,
+    () => {
+        contactOffset.value = 0;
+        if (contactLoadTimer) window.clearTimeout(contactLoadTimer);
+        void loadContacts('account');
+    }
+);
 
 watch(contactKeyword, () => {
     contactOffset.value = 0;
@@ -147,19 +148,33 @@ const summaryProviders = ref<AIProvider[]>([]);
 const summaryProvider = ref(state.value?.selectedAIProvider || '');
 const summaryTimeRange = ref('today');
 
-watch(summaryProvider, (v) => {
+watch(summaryProvider, v => {
     if (v) backend.SetSelectedAIProvider(v);
 });
 
-const providerOptions = computed(() =>
-    summaryProviders.value.map(p => ({ value: p.id, label: p.name }))
-);
+const providerOptions = computed(() => summaryProviders.value.map(p => ({ value: p.id, label: p.name })));
 const summaryStream = ref('');
 const summaryResult = ref('');
 const summaryFinal = ref(false);
 const summaryLoading = ref(false);
 const summaryError = ref('');
 const summaryScrollRef = ref<HTMLElement | null>(null);
+const summaryHeight = ref(200);
+
+function onResizeStart(e: PointerEvent) {
+    const startY = e.clientY;
+    const startH = summaryHeight.value;
+    const onMove = (ev: PointerEvent) => {
+        const delta = startY - ev.clientY;
+        summaryHeight.value = Math.max(80, Math.min(window.innerHeight * 0.7, startH + delta));
+    };
+    const onUp = () => {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+}
 
 const chatMessages = ref<ChatMessage[]>([]);
 const chatLoading = ref(false);
@@ -179,7 +194,7 @@ const timeRangeOptions = [
     { value: 'last-3d', label: '最近 3 天' },
     { value: 'last-7d', label: '最近 7 天' },
     { value: 'last-30d', label: '最近 30 天' },
-    { value: 'custom', label: '自定义' },
+    { value: 'custom', label: '自定义' }
 ];
 
 const customStartDate = ref('');
@@ -207,23 +222,35 @@ function mediaUrl(type: string, keys: string[]) {
     return `http://${addr}/${type}/${keys.filter(Boolean).join(',')}`;
 }
 
-function msgDisplay(msg: ChatMessage): { kind: 'text' | 'image' | 'video' | 'voice' | 'emoji' | 'other'; text?: string; url?: string } {
+function msgDisplay(msg: ChatMessage): {
+    kind: 'text' | 'image' | 'video' | 'voice' | 'emoji' | 'other';
+    text?: string;
+    url?: string;
+} {
     const c = msg.contents || {};
     switch (msg.type) {
-        case 1: return { kind: 'text', text: msg.content };
-        case 3: return { kind: 'image', url: mediaUrl('image', [c.md5, c.path, c.thumbpath]) };
-        case 34: return { kind: 'voice', url: mediaUrl('voice', [c.voice]) };
-        case 43: return { kind: 'video', url: mediaUrl('video', [c.md5, c.rawmd5, c.path]) };
-        case 47: return { kind: 'emoji', url: c.cdnurl || '' };
-        case 48: return { kind: 'text', text: `[位置] ${c.label || ''}` };
+        case 1:
+            return { kind: 'text', text: msg.content };
+        case 3:
+            return { kind: 'image', url: mediaUrl('image', [c.md5, c.path, c.thumbpath]) };
+        case 34:
+            return { kind: 'voice', url: mediaUrl('voice', [c.voice]) };
+        case 43:
+            return { kind: 'video', url: mediaUrl('video', [c.md5, c.rawmd5, c.path]) };
+        case 47:
+            return { kind: 'emoji', url: c.cdnurl || '' };
+        case 48:
+            return { kind: 'text', text: `[位置] ${c.label || ''}` };
         case 49: {
             const title = c.title || '';
             const url = c.url || '';
             if (title) return { kind: 'text', text: `[${title}]${url ? ' ' + url : ''}` };
             return { kind: 'text', text: msg.content || '[分享]' };
         }
-        case 10000: return { kind: 'text', text: msg.content || '[系统消息]' };
-        default: return { kind: 'text', text: msg.content || `[类型:${msg.type}]` };
+        case 10000:
+            return { kind: 'text', text: msg.content || '[系统消息]' };
+        default:
+            return { kind: 'text', text: msg.content || `[类型:${msg.type}]` };
     }
 }
 
@@ -254,15 +281,17 @@ async function loadChatMessages(contact: Contact, _time: string, prepend: boolea
     try {
         const resp = await backend.GetMessages('all', contact.userName, '', '', chatPageSize, chatOffset.value, 'desc');
         const items = resp.items || [];
-        const mapped: ChatMessage[] = items.map((m: any) => ({
-            time: m.time || '',
-            senderName: m.senderName || m.sender || '',
-            sender: m.sender || '',
-            content: m.content || '',
-            type: m.type || 1,
-            contents: m.contents,
-            isSelf: !!m.isSelf,
-        })).reverse();
+        const mapped: ChatMessage[] = items
+            .map((m: any) => ({
+                time: m.time || '',
+                senderName: m.senderName || m.sender || '',
+                sender: m.sender || '',
+                content: m.content || '',
+                type: m.type || 1,
+                contents: m.contents,
+                isSelf: !!m.isSelf
+            }))
+            .reverse();
 
         if (items.length < chatPageSize) {
             chatHasMore.value = false;
@@ -312,7 +341,15 @@ async function generateSummary() {
     summaryFinal.value = false;
 
     try {
-        const resp = await backend.GetMessages(effectiveTimeRange.value, summaryContact.value.userName, '', '', 500, 0, 'asc');
+        const resp = await backend.GetMessages(
+            effectiveTimeRange.value,
+            summaryContact.value.userName,
+            '',
+            '',
+            500,
+            0,
+            'asc'
+        );
         const items = resp.items || [];
         if (items.length === 0) {
             summaryError.value = '该时间范围内没有聊天记录';
@@ -358,7 +395,11 @@ async function fetchProviders() {
     try {
         const list = await backend.ListAIProviders();
         summaryProviders.value = (list || []).map(p => ({
-            id: p.id, name: p.name, type: p.type, baseUrl: p.baseUrl, model: p.model
+            id: p.id,
+            name: p.name,
+            type: p.type,
+            baseUrl: p.baseUrl,
+            model: p.model
         }));
         if (summaryProviders.value.length > 0) {
             const exists = summaryProviders.value.some(p => p.id === summaryProvider.value);
@@ -366,7 +407,9 @@ async function fetchProviders() {
                 summaryProvider.value = summaryProviders.value[0].id;
             }
         }
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
 }
 
 function selectTimeRange(val: string) {
@@ -391,9 +434,7 @@ function selectTimeRange(val: string) {
                     v-for="instance in instances"
                     :key="instance.pid"
                     class="rounded-xl p-4 space-y-3"
-                    :class="isCurrent(instance)
-                        ? 'bg-primary/5 ring-2 ring-primary/30'
-                        : 'bg-muted/30 ring-1 ring-border/40'"
+                    :class="isCurrent(instance) ? 'bg-primary/5 ring-primary/30' : 'bg-muted/30 ring-1 ring-border/40'"
                 >
                     <div class="flex items-center justify-between gap-3">
                         <div class="flex items-center gap-3 min-w-0">
@@ -432,13 +473,25 @@ function selectTimeRange(val: string) {
                             variant="ghost"
                             size="sm"
                             class="h-8 px-2.5 text-xs font-normal"
-                            :class="isCurrent(instance)
-                                ? 'text-primary cursor-default'
-                                : 'text-muted-foreground hover:text-foreground'"
-                            :disabled="isCurrent(instance) || instance.status === 'offline' || switchingPid === instance.pid"
+                            :class="
+                                isCurrent(instance)
+                                    ? 'text-primary cursor-default'
+                                    : 'text-muted-foreground hover:text-foreground'
+                            "
+                            :disabled="
+                                isCurrent(instance) || instance.status === 'offline' || switchingPid === instance.pid
+                            "
                             @click="switchTo(instance.pid)"
                         >
-                            {{ isCurrent(instance) ? '当前' : switchingPid === instance.pid ? '切换中…' : instance.status === 'offline' ? '离线' : '切换' }}
+                            {{
+                                isCurrent(instance)
+                                    ? '当前'
+                                    : switchingPid === instance.pid
+                                    ? '切换中…'
+                                    : instance.status === 'offline'
+                                    ? '离线'
+                                    : '切换'
+                            }}
                         </Button>
                     </div>
                     <div
@@ -474,8 +527,15 @@ function selectTimeRange(val: string) {
                     :limit="contactLimit"
                     :offset="contactOffset"
                     :loading="contactsLoading"
-                    @update:offset="contactOffset = $event; loadContacts('page')"
-                    @update:limit="contactLimit = $event; contactOffset = 0; loadContacts('limit')"
+                    @update:offset="
+                        contactOffset = $event;
+                        loadContacts('page');
+                    "
+                    @update:limit="
+                        contactLimit = $event;
+                        contactOffset = 0;
+                        loadContacts('limit');
+                    "
                 />
                 <Button
                     variant="ghost"
@@ -568,17 +628,24 @@ function selectTimeRange(val: string) {
                         @scroll="onChatScroll"
                     >
                         <div v-if="chatLoadingMore" class="flex items-center justify-center py-2">
-                            <span class="size-3 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"></span>
+                            <span
+                                class="size-3 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"
+                            ></span>
                             <span class="ml-1.5 text-xs text-muted-foreground">加载更多…</span>
                         </div>
                         <div v-else-if="!chatHasMore && chatMessages.length > 0" class="text-center py-1">
                             <span class="text-xs text-muted-foreground/60">已加载全部</span>
                         </div>
                         <div v-if="chatLoading" class="flex items-center justify-center py-8">
-                            <span class="size-4 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"></span>
+                            <span
+                                class="size-4 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"
+                            ></span>
                             <span class="ml-2 text-xs text-muted-foreground">加载中…</span>
                         </div>
-                        <div v-else-if="chatMessages.length === 0" class="py-8 text-center text-xs text-muted-foreground">
+                        <div
+                            v-else-if="chatMessages.length === 0"
+                            class="py-8 text-center text-xs text-muted-foreground"
+                        >
                             今天暂无聊天记录
                         </div>
                         <div
@@ -596,13 +663,31 @@ function selectTimeRange(val: string) {
                                 :class="msg.isSelf ? 'bg-primary/10 text-foreground' : 'bg-muted/40 text-foreground/90'"
                             >
                                 <template v-if="msgDisplay(msg).kind === 'image'">
-                                    <img :src="msgDisplay(msg).url" class="max-w-[200px] max-h-[150px] rounded object-cover cursor-pointer hover:opacity-80 transition-opacity" loading="lazy" @click.stop="previewImage = msgDisplay(msg).url || ''; previewOpen = true" />
+                                    <img
+                                        :src="msgDisplay(msg).url"
+                                        class="max-w-[200px] max-h-[150px] rounded object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                        loading="lazy"
+                                        @click.stop="
+                                            previewImage = msgDisplay(msg).url || '';
+                                            previewOpen = true;
+                                        "
+                                    />
                                 </template>
                                 <template v-else-if="msgDisplay(msg).kind === 'video'">
-                                    <video :src="msgDisplay(msg).url" class="max-w-[200px] max-h-[150px] rounded" controls preload="none" />
+                                    <video
+                                        :src="msgDisplay(msg).url"
+                                        class="max-w-[200px] max-h-[150px] rounded"
+                                        controls
+                                        preload="none"
+                                    />
                                 </template>
                                 <template v-else-if="msgDisplay(msg).kind === 'voice'">
-                                    <audio :src="msgDisplay(msg).url" controls preload="none" class="h-8 max-w-[180px]" />
+                                    <audio
+                                        :src="msgDisplay(msg).url"
+                                        controls
+                                        preload="none"
+                                        class="h-8 max-w-[180px]"
+                                    />
                                 </template>
                                 <template v-else-if="msgDisplay(msg).kind === 'emoji'">
                                     <img :src="msgDisplay(msg).url" class="size-16 object-contain" loading="lazy" />
@@ -615,7 +700,7 @@ function selectTimeRange(val: string) {
                     </div>
 
                     <!-- Summary section -->
-                    <div class="shrink-0 space-y-3 border-t border-border/40 pt-3 pb-2 px-1">
+                    <div class="shrink-0 space-y-3 border-t border-border/40 pt-3 pb-2 px-3">
                         <div class="flex flex-wrap items-center gap-2">
                             <CustomSelect
                                 :model-value="summaryTimeRange"
@@ -677,25 +762,34 @@ function selectTimeRange(val: string) {
 
                         <div v-if="summaryError" class="text-xs text-destructive">{{ summaryError }}</div>
 
-                        <div v-if="summaryContent" class="relative pt-2">
-                            <div class="flex items-center justify-between mb-2">
+                        <div
+                            v-if="summaryContent"
+                            class="relative pt-2 flex flex-col"
+                            :style="{ height: summaryHeight + 'px' }"
+                        >
+                            <div
+                                class="flex items-center justify-between mb-2 shrink-0 cursor-row-resize select-none"
+                                @pointerdown="onResizeStart"
+                            >
                                 <span class="text-xs font-medium text-foreground/80">AI 总结</span>
+                                <div class="flex flex-col gap-[3px]">
+                                    <div class="h-[1.5px] w-5 rounded-full bg-muted-foreground/30"></div>
+                                    <div class="h-[1.5px] w-5 rounded-full bg-muted-foreground/30"></div>
+                                    <div class="h-[1.5px] w-5 rounded-full bg-muted-foreground/30"></div>
+                                </div>
                                 <button
                                     class="text-xs text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted/40 transition-colors"
-                                    @click="copySummary"
+                                    @click.stop="copySummary"
+                                    @pointerdown.stop
                                 >
                                     <Copy class="size-3 inline mr-0.5" />复制
                                 </button>
                             </div>
                             <div
                                 ref="summaryScrollRef"
-                                class="max-h-[40vh] overflow-auto rounded-md bg-muted/30 ring-1 ring-border/40 p-3"
+                                class="flex-1 min-h-0 overflow-auto rounded-md bg-muted/30 ring-1 ring-border/40 p-3"
                             >
-                                <MarkdownRender
-                                    :content="summaryContent"
-                                    :final="summaryFinal"
-                                    :max-live-nodes="0"
-                                />
+                                <MarkdownRender :content="summaryContent" :final="summaryFinal" :max-live-nodes="0" />
                             </div>
                         </div>
                     </div>

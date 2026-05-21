@@ -10,6 +10,8 @@ const injected = inject(appContextKey);
 if (!injected) throw new Error('chatlog not provided');
 const app = injected;
 
+const { state } = app;
+
 type ProviderFormState = AIProvider & {
     showKey?: boolean;
 };
@@ -317,6 +319,10 @@ async function testFormProvider() {
                             }}</span>
                             <span class="text-xs text-muted-foreground">{{ typeLabel(p.type) }}</span>
                             <span v-if="p.disabled" class="text-xs text-muted-foreground/70">· 已禁用</span>
+                            <span
+                                v-if="state?.selectedAIProvider === p.id"
+                                class="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"
+                            >默认</span>
                         </div>
                         <div class="flex items-center gap-1">
                             <Button

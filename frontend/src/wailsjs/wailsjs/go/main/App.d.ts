@@ -11,6 +11,8 @@ export function EnableLogEvents(arg1:boolean):Promise<void>;
 
 export function EnableStateEvents(arg1:boolean):Promise<void>;
 
+export function GenerateAISummary(arg1:string,arg2:Array<string>,arg3:string):Promise<void>;
+
 export function GetContacts(arg1:string,arg2:number,arg3:number,arg4:number):Promise<wechatdb.GetContactsResp>;
 
 export function GetDataKey():Promise<string>;
@@ -20,6 +22,8 @@ export function GetImgKey():Promise<string>;
 export function GetKeys():Promise<Record<string, string>>;
 
 export function GetLogPath():Promise<string>;
+
+export function GetMessages(arg1:string,arg2:string,arg3:string,arg4:string,arg5:number,arg6:number,arg7:string):Promise<wechatdb.GetMessagesResp>;
 
 export function GetState():Promise<main.State>;
 
@@ -48,6 +52,10 @@ export function SetDataKey(arg1:string):Promise<main.State>;
 export function SetHTTPAddr(arg1:string):Promise<main.State>;
 
 export function SetImgKey(arg1:string):Promise<main.State>;
+
+export function SetSelectedAIProvider(arg1:string):Promise<void>;
+
+export function SetSummaryPrompt(arg1:string):Promise<void>;
 
 export function SetWebhookConfig(arg1:main.WebhookConfig):Promise<void>;
 
