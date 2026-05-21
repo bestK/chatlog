@@ -677,11 +677,11 @@ function selectTimeRange(val: string) {
 
                         <div v-if="summaryError" class="text-xs text-destructive">{{ summaryError }}</div>
 
-                        <div v-if="summaryContent" class="relative">
-                            <div class="flex items-center justify-between mb-1">
+                        <div v-if="summaryContent" class="relative pt-2">
+                            <div class="flex items-center justify-between mb-2">
                                 <span class="text-xs font-medium text-foreground/80">AI 总结</span>
                                 <button
-                                    class="text-xs text-muted-foreground hover:text-foreground"
+                                    class="text-xs text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted/40 transition-colors"
                                     @click="copySummary"
                                 >
                                     <Copy class="size-3 inline mr-0.5" />复制
