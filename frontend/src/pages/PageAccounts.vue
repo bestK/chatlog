@@ -592,7 +592,7 @@ function selectTimeRange(val: string) {
                                 <span class="ml-1.5">{{ msg.time }}</span>
                             </div>
                             <div
-                                class="inline-block max-w-[85%] rounded-lg px-2.5 py-1.5 text-left text-xs"
+                                class="inline-block max-w-[85%] whitespace-pre-wrap break-words rounded-lg px-2.5 py-1.5 text-left text-xs"
                                 :class="msg.isSelf ? 'bg-primary/10 text-foreground' : 'bg-muted/40 text-foreground/90'"
                             >
                                 <template v-if="msgDisplay(msg).kind === 'image'">
