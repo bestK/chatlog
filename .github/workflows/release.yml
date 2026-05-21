@@ -135,6 +135,7 @@ jobs:
                   CGO_ENABLED: '1'
                   GOOS: darwin
                   GOARCH: ${{ matrix.goarch }}
+                  CGO_LDFLAGS: '-framework UniformTypeIdentifiers'
               run: |
                   VERSION=${GITHUB_REF_NAME#v}
                   go build -trimpath -tags "desktop production" -ldflags "-s -w -X github.com/sjzar/chatlog/pkg/version.Version=${VERSION}" -o dist/chatlog .
