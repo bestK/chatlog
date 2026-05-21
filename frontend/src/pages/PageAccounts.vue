@@ -561,7 +561,7 @@ function selectTimeRange(val: string) {
                     <!-- Chat messages -->
                     <div
                         ref="chatScrollRef"
-                        class="flex-1 min-h-0 overflow-auto rounded-md bg-muted/20 ring-1 ring-border/30 p-3 space-y-2"
+                        class="flex-1 min-h-0 overflow-auto rounded-md bg-muted/20 ring-1 ring-border/30 p-3 space-y-1.5"
                         @scroll="onChatScroll"
                     >
                         <div v-if="chatLoadingMore" class="flex items-center justify-center py-2">
@@ -581,14 +581,15 @@ function selectTimeRange(val: string) {
                         <div
                             v-for="(msg, i) in chatMessages"
                             :key="i"
-                            class="text-xs leading-relaxed"
+                            class="space-y-0.5"
                             :class="msg.isSelf ? 'text-right' : ''"
                         >
-                            <span class="text-muted-foreground">{{ msg.senderName }}</span>
-                            <span class="mx-1 text-muted-foreground/50">·</span>
-                            <span class="text-muted-foreground/70">{{ msg.time }}</span>
+                            <div class="text-[10px] text-muted-foreground/60">
+                                <span>{{ msg.senderName }}</span>
+                                <span class="ml-1.5">{{ msg.time }}</span>
+                            </div>
                             <div
-                                class="mt-0.5 inline-block max-w-[85%] rounded-lg px-2.5 py-1.5 text-left"
+                                class="inline-block max-w-[85%] rounded-lg px-2.5 py-1.5 text-left text-xs"
                                 :class="msg.isSelf ? 'bg-primary/10 text-foreground' : 'bg-muted/40 text-foreground/90'"
                             >
                                 <template v-if="msgDisplay(msg).kind === 'image'">
