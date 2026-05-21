@@ -6,6 +6,10 @@ _微信聊天记录管理工具_
 
 [![GitHub release](https://img.shields.io/github/release/bestK/chatlog.svg)](https://github.com/bestK/chatlog/releases)
 [![GitHub license](https://img.shields.io/github/license/bestK/chatlog.svg)](https://github.com/bestK/chatlog/blob/main/LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev)
+[![Vue](https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs&logoColor=white)](https://vuejs.org)
+[![Wails](https://img.shields.io/badge/Wails-2-EB5E28?logo=wails&logoColor=white)](https://wails.io)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-blue)]()
 
 > Fork 自 [sjzar/chatlog](https://github.com/sjzar/chatlog)，在原项目基础上增加了 AI 总结、聊天记录浏览、纯 Go SQLite 等功能。
 
