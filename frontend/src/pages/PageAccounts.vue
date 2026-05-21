@@ -296,20 +296,12 @@ async function loadChatMessages(contact: Contact, _time: string, prepend: boolea
         chatOffset.value = 0;
         chatHasMore.value = true;
     }
+    console.log('[chat] load', { prepend, offset: chatOffset.value, hasMore: chatHasMore.value, talker: contact.userName });
     try {
-        // 渐进式加载：先查最近7天，没有结果再扩大到30天，最后全部
-        const timeRanges = prepend ? ['last-30d', 'all'] : ['last-7d', 'last-30d', 'all'];
-        let items: any[] = [];
+        const resp = await backend.GetMessages('all', contact.userName, '', '', chatPageSize, chatOffset.value, 'desc');
+        const items = resp.items || [];
+        console.log('[chat] got', items.length, 'items, offset was', chatOffset.value);
 
-        for (const t of timeRanges) {
-            try {
-                const resp = await backend.GetMessages(t, contact.userName, '', '', chatPageSize, chatOffset.value, 'desc');
-                items = resp.items || [];
-                if (items.length > 0) break;
-            } catch {
-                continue;
-            }
-        }
         const mapped: ChatMessage[] = items
             .map((m: any) => ({
                 time: m.time || '',
@@ -324,8 +316,10 @@ async function loadChatMessages(contact: Contact, _time: string, prepend: boolea
 
         if (items.length < chatPageSize) {
             chatHasMore.value = false;
+            console.log('[chat] no more messages');
         }
         chatOffset.value += items.length;
+        console.log('[chat] new offset', chatOffset.value, 'hasMore', chatHasMore.value);
 
         if (prepend) {
             const el = chatScrollRef.value;
@@ -342,9 +336,11 @@ async function loadChatMessages(contact: Contact, _time: string, prepend: boolea
                 if (chatScrollRef.value) {
                     chatScrollRef.value.scrollTop = chatScrollRef.value.scrollHeight;
                 }
+                checkNeedMore();
             });
         }
     } catch (e) {
+        console.error('[chat] load failed', e);
         app.feedback.toast('加载聊天记录失败', String(e));
     } finally {
         chatLoading.value = false;
@@ -356,8 +352,19 @@ function onChatScroll() {
     const el = chatScrollRef.value;
     if (!el || chatLoadingMore.value || !chatHasMore.value || !summaryContact.value) return;
     if (el.scrollTop < 60) {
-        void loadChatMessages(summaryContact.value, 'all', true);
+        void loadChatMessages(summaryContact.value, '', true);
     }
+}
+
+function checkNeedMore() {
+    nextTick(() => {
+        const el = chatScrollRef.value;
+        if (!el || !chatHasMore.value || chatLoadingMore.value || !summaryContact.value) return;
+        // 如果内容没有填满容器（没有滚动条），自动加载更多
+        if (el.scrollHeight <= el.clientHeight && chatMessages.value.length > 0) {
+            void loadChatMessages(summaryContact.value, '', true);
+        }
+    });
 }
 
 async function generateSummary() {
