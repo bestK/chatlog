@@ -67,6 +67,11 @@ export type MessagesResp = {
     items: Message[];
 };
 
+export type MediaDataResult = {
+    data: string;
+    mimeType: string;
+};
+
 export type WebhookItem = {
     description: string;
     type: string;
@@ -116,6 +121,7 @@ type Backend = {
     SwitchToHistory(account: string): Promise<State>;
     GetContacts(keyword: string, isInChatRoom: number, limit: number, offset: number): Promise<ContactsResp>;
     GetMessages(timeStr: string, talker: string, sender: string, keyword: string, limit: number, offset: number, order: string): Promise<MessagesResp>;
+    GetMediaData(mediaType: string, key: string): Promise<MediaDataResult>;
     GetDataKey(): Promise<string>;
     GetImgKey(): Promise<string>;
     GetKeys(): Promise<Record<string, string>>;
@@ -187,6 +193,8 @@ export const backend = {
     SetSummaryPrompt: (prompt: string) => window.go.main.App.SetSummaryPrompt(prompt),
     GetMessages: (timeStr: string, talker: string, sender: string, keyword: string, limit: number, offset: number, order: string) =>
         window.go.main.App.GetMessages(timeStr, talker, sender, keyword, limit, offset, order),
+    GetMediaData: (mediaType: string, key: string) =>
+        window.go.main.App.GetMediaData(mediaType, key),
     GenerateAISummary: (providerID: string, messages: string[], prompt: string) =>
         window.go.main.App.GenerateAISummary(providerID, messages, prompt),
     GetLogPath: () => window.go.main.App.GetLogPath(),

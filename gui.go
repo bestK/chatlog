@@ -807,6 +807,13 @@ func (a *App) GetMessages(timeStr, talker, sender, keyword string, limit, offset
 	return a.mgr.GetMessages(timeStr, talker, sender, keyword, limit, offset, order)
 }
 
+func (a *App) GetMediaData(mediaType string, key string) (*chatlog.MediaDataResult, error) {
+	if a.mgr == nil {
+		return nil, errors.New("未初始化")
+	}
+	return a.mgr.GetMediaData(mediaType, key)
+}
+
 func (a *App) SetSelectedAIProvider(providerID string) {
 	if a.mgr == nil {
 		return
