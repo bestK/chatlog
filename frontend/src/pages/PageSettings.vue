@@ -354,7 +354,11 @@ async function decryptNow() {
             <header class="space-y-1">
                 <h3 class="font-serif text-xl font-medium tracking-tight text-foreground">关于</h3>
             </header>
-            <div class="rounded-xl bg-muted/30 ring-1 ring-border/40 px-5 py-4 text-sm text-muted-foreground">
+            <div class="rounded-xl bg-muted/30 ring-1 ring-border/40 px-5 py-4 text-sm text-muted-foreground space-y-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-foreground/80">版本</span>
+                    <span class="font-mono text-xs text-foreground/90">{{ state?.appVersion || '(dev)' }}</span>
+                </div>
                 <a
                     href="https://github.com/bestK/chatlog"
                     target="_blank"

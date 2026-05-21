@@ -21,6 +21,7 @@ import (
 	"github.com/sjzar/chatlog/internal/chatlog/conf"
 	"github.com/sjzar/chatlog/internal/wechatdb"
 	"github.com/sjzar/chatlog/pkg/util"
+	"github.com/sjzar/chatlog/pkg/version"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -59,6 +60,7 @@ type State struct {
 	Account            string `json:"account"`
 	Platform           string `json:"platform"`
 	FullVersion        string `json:"fullVersion"`
+	AppVersion         string `json:"appVersion"`
 	DataDir            string `json:"dataDir"`
 	DataKey            string `json:"dataKey"`
 	ImgKey             string `json:"imgKey"`
@@ -559,6 +561,7 @@ func (a *App) GetState() (State, error) {
 		Account:            snap.Account,
 		Platform:           snap.Platform,
 		FullVersion:        snap.FullVersion,
+		AppVersion:         version.Version,
 		DataDir:            snap.DataDir,
 		DataKey:            snap.DataKey,
 		ImgKey:             snap.ImgKey,
