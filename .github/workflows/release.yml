@@ -186,29 +186,6 @@ jobs:
               with:
                   draft: false
                   generate_release_notes: true
-                  body: |
-                      ## 功能亮点
-
-                      - 🖥️ Wails 桌面 GUI，支持 Windows / macOS (Apple Silicon)
-                      - 💬 联系人聊天记录浏览，图片/视频/语音/表情渲染
-                      - 🖼️ 图片点击放大预览，无限滚动加载历史消息
-                      - 🤖 AI 聊天记录总结（流式输出，支持 OpenAI / Anthropic / Google）
-                      - ⚙️ 自定义总结提示词，AI 提供商配置持久化
-                      - 🔌 HTTP API + MCP 协议，可与 AI 助手集成
-                      - 🔔 Webhook 新消息回调
-                      - 🔄 自动解密，多账号切换
-                      - 📦 纯 Go SQLite（modernc.org/sqlite），减少 CGO 依赖
-
-                      ## 下载
-
-                      | 文件 | 平台 |
-                      |------|------|
-                      | `chatlog_*_windows_amd64.zip` | Windows x64 |
-                      | `chatlog_*_darwin_arm64.zip` | macOS Apple Silicon |
-
-                      ## 使用方式
-
-                      解压后直接运行 `chatlog`（Windows 为 `chatlog.exe`），启动桌面 GUI。
                   files: |
                       chatlog_*.zip
                       checksums.txt
