@@ -44,7 +44,9 @@ jobs:
               run: |
                   pnpm --dir web install --frozen-lockfile
                   pnpm --dir web run build
-                  wails build -clean -ldflags "-H windowsgui"
+                  pnpm --dir frontend install --frozen-lockfile
+                  pnpm --dir frontend run build
+                  wails build -clean -s
 
             - name: Package
               shell: bash
@@ -96,7 +98,9 @@ jobs:
               run: |
                   pnpm --dir web install --frozen-lockfile
                   pnpm --dir web run build
-                  wails build -clean
+                  pnpm --dir frontend install --frozen-lockfile
+                  pnpm --dir frontend run build
+                  wails build -clean -s
 
             - name: Package
               run: |
