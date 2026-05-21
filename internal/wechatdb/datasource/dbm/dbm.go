@@ -202,6 +202,11 @@ func (d *DBManager) OpenDB(path string) (*sql.DB, error) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
+	// 在 Windows 上不缓存连接，确保文件可被替换（自动解密需要 rename）
+	if runtime.GOOS == "windows" {
+		return d.openDB(path)
+	}
+
 	d.mutex.RLock()
 	db, ok := d.dbs[path]
 	d.mutex.RUnlock()
@@ -219,6 +224,14 @@ func (d *DBManager) OpenDB(path string) (*sql.DB, error) {
 	d.mutex.Unlock()
 
 	return db, nil
+}
+
+// ReleaseDB 释放通过 OpenDB/GetDB 获取的连接。
+// Windows 上关闭连接释放文件锁；其他平台连接由缓存管理，此方法为 no-op。
+func (d *DBManager) ReleaseDB(db *sql.DB) {
+	if runtime.GOOS == "windows" && db != nil {
+		db.Close()
+	}
 }
 
 func (d *DBManager) openDB(path string) (*sql.DB, error) {

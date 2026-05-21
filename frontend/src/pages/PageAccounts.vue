@@ -221,6 +221,7 @@ watch(summaryStream, () => {
 });
 
 const mediaCache = reactive<Record<string, string | null>>({});
+const mediaErrors = reactive<Record<string, string>>({});
 
 function mediaKey(type: string, keys: string[]) {
     return `${type}:${keys.filter(Boolean).join(',')}`;
@@ -232,10 +233,15 @@ function getMediaSrc(type: string, keys: string[]): string | null {
     mediaCache[k] = null;
     backend.GetMediaData(type, keys.filter(Boolean).join(',')).then(r => {
         mediaCache[k] = r.data || '';
-    }).catch(() => {
+    }).catch((e) => {
         mediaCache[k] = '';
+        mediaErrors[k] = String(e);
     });
     return null;
+}
+
+function getMediaError(type: string, keys: string[]): string {
+    return mediaErrors[mediaKey(type, keys)] || '';
 }
 
 function msgDisplay(msg: ChatMessage): {
@@ -714,7 +720,7 @@ function selectTimeRange(val: string) {
                                             "
                                         />
                                     </template>
-                                    <span v-else class="text-muted-foreground/50">[图片]</span>
+                                    <span v-else class="text-muted-foreground/50 text-[10px]" :title="getMediaError(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!)">[图片] {{ getMediaError(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!) }}</span>
                                 </template>
                                 <template v-else-if="msgDisplay(msg).kind === 'video'">
                                     <template v-if="getMediaSrc(msgDisplay(msg).mediaType!, msgDisplay(msg).mediaKeys!) === null">

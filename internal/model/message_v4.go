@@ -60,12 +60,20 @@ func (m *MessageV4) Wrap(talker string) *Message {
 		Version:    WeChatV4,
 	}
 
-	// 优先通过 SelfID 判断是否是自己发送的消息
-	if m.SelfID != "" && m.UserName != "" {
-		_m.IsSelf = strings.Contains(m.SelfID, m.UserName)
+	// 判断是否是自己发送的消息
+	if !_m.IsChatRoom {
+		// 单聊：status==2 表示自己发送
+		_m.IsSelf = m.Status == 2
+	} else if m.SelfID != "" && m.UserName != "" {
+		// 群聊：通过 SelfID 精确匹配
+		_m.IsSelf = m.UserName == m.SelfID
 	} else {
-		// FIXME 后续通过 UserName 判断是否是自己发送的消息，目前可能不准确
-		_m.IsSelf = m.Status == 2 || (!_m.IsChatRoom && talker != m.UserName)
+		_m.IsSelf = m.Status == 2
+	}
+
+	// 自己发送的消息，sender 设为自己
+	if _m.IsSelf && m.SelfID != "" {
+		_m.Sender = m.SelfID
 	}
 
 	content := ""
