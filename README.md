@@ -61,6 +61,11 @@ chatlog server    # 启动 HTTP 服务
 
 ## 桌面 GUI
 
+<div align="center">
+<img src="docs/preview/main.png" width="45%" /> <img src="docs/preview/contcart.png" width="45%" />
+<img src="docs/preview/summary.png" width="45%" /> <img src="docs/preview/ai_provider.png" width="45%" />
+</div>
+
 - **账号页**：切换微信账号，点击联系人查看聊天记录
 - **服务页**：启动/停止 HTTP API 和 MCP 服务
 - **AI 页**：配置 AI 提供商（OpenAI、Anthropic、Google 等）
