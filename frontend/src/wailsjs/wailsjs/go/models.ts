@@ -95,6 +95,7 @@ export namespace main {
 	    account: string;
 	    platform: string;
 	    fullVersion: string;
+	    appVersion: string;
 	    dataDir: string;
 	    dataKey: string;
 	    imgKey: string;
@@ -120,6 +121,7 @@ export namespace main {
 	        this.account = source["account"];
 	        this.platform = source["platform"];
 	        this.fullVersion = source["fullVersion"];
+	        this.appVersion = source["appVersion"];
 	        this.dataDir = source["dataDir"];
 	        this.dataKey = source["dataKey"];
 	        this.imgKey = source["imgKey"];
