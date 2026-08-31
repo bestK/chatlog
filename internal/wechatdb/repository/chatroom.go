@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog/log"
 
@@ -114,8 +115,9 @@ func (r *Repository) GetChatRooms(ctx context.Context, key string, limit, offset
 			if offset >= len(ret) {
 				return total, []*model.ChatRoom{}, nil
 			}
-			return total, ret[offset:end], nil
+			ret = ret[offset:end]
 		}
+		r.enrichChatRoomJoinTimes(ctx, ret)
 		return total, ret, nil
 	} else {
 		list := r.chatRoomList
@@ -133,6 +135,7 @@ func (r *Repository) GetChatRooms(ctx context.Context, key string, limit, offset
 		for _, name := range list {
 			ret = append(ret, r.chatRoomCache[name])
 		}
+		r.enrichChatRoomJoinTimes(ctx, ret)
 		return total, ret, nil
 	}
 }
@@ -168,6 +171,117 @@ func (r *Repository) enrichChatRoom(chatRoom *model.ChatRoom) {
 			}
 		}
 	}
+}
+
+func (r *Repository) enrichChatRoomJoinTimes(ctx context.Context, chatRooms []*model.ChatRoom) {
+	for _, chatRoom := range chatRooms {
+		if chatRoom == nil || chatRoom.JoinTimesLoaded {
+			continue
+		}
+		r.enrichChatRoomJoinTime(ctx, chatRoom)
+	}
+}
+
+func (r *Repository) enrichChatRoomJoinTime(ctx context.Context, chatRoom *model.ChatRoom) {
+	chatRoom.JoinTimesLoaded = true
+	if len(chatRoom.Users) == 0 {
+		return
+	}
+
+	startTime := time.Unix(0, 0)
+	endTime := time.Date(9999, time.December, 31, 23, 59, 59, 0, time.Local)
+	messages, err := r.ds.GetMessages(ctx, startTime, endTime, r.SelfID, chatRoom.Name, "", "", 0, 0, "asc")
+	if err != nil {
+		log.Debug().Err(err).Str("chatroom", chatRoom.Name).Msg("Failed to load chat room join times")
+		return
+	}
+
+	userNameToIndexes := make(map[string][]int)
+	for i, user := range chatRoom.Users {
+		addChatRoomUserName(userNameToIndexes, user.UserName, i)
+		addChatRoomUserName(userNameToIndexes, user.DisplayName, i)
+		if contact, ok := r.contactCache[user.UserName]; ok {
+			addChatRoomUserName(userNameToIndexes, contact.NickName, i)
+			addChatRoomUserName(userNameToIndexes, contact.Remark, i)
+			addChatRoomUserName(userNameToIndexes, contact.Alias, i)
+		}
+	}
+
+	for _, message := range messages {
+		if message.Type != model.MessageTypeSystem || !strings.Contains(message.Content, "加入") || !strings.Contains(message.Content, "群聊") {
+			continue
+		}
+
+		quotedNames := quotedChatRoomNames(message.Content)
+		if strings.Contains(message.Content, "邀请你") {
+			setChatRoomUserJoinTime(chatRoom, userNameToIndexes, r.SelfID, message.Time)
+		}
+
+		var memberNames []string
+		switch {
+		case strings.Contains(message.Content, "你邀请"):
+			memberNames = quotedNames
+		case strings.Contains(message.Content, "邀请"):
+			if len(quotedNames) > 1 {
+				memberNames = quotedNames[1:]
+			}
+		case strings.Contains(message.Content, "通过扫描"):
+			if len(quotedNames) > 0 {
+				memberNames = quotedNames[:1]
+			}
+		default:
+			if len(quotedNames) > 0 {
+				memberNames = quotedNames[:1]
+			}
+		}
+
+		for _, name := range memberNames {
+			setChatRoomUserJoinTime(chatRoom, userNameToIndexes, name, message.Time)
+		}
+	}
+}
+
+func addChatRoomUserName(userNameToIndexes map[string][]int, name string, index int) {
+	if name == "" {
+		return
+	}
+	for _, existingIndex := range userNameToIndexes[name] {
+		if existingIndex == index {
+			return
+		}
+	}
+	userNameToIndexes[name] = append(userNameToIndexes[name], index)
+}
+
+func setChatRoomUserJoinTime(chatRoom *model.ChatRoom, userNameToIndexes map[string][]int, name string, joinTime model.JSONTime) {
+	indexes := userNameToIndexes[name]
+	if len(indexes) != 1 {
+		return
+	}
+
+	user := &chatRoom.Users[indexes[0]]
+	if user.JoinTime == nil || joinTime.Before(*user.JoinTime) {
+		joinTimeCopy := joinTime
+		user.JoinTime = &joinTimeCopy
+	}
+}
+
+func quotedChatRoomNames(content string) []string {
+	names := make([]string, 0)
+	for {
+		start := strings.IndexByte(content, '"')
+		if start < 0 {
+			break
+		}
+		content = content[start+1:]
+		end := strings.IndexByte(content, '"')
+		if end < 0 {
+			break
+		}
+		names = append(names, content[:end])
+		content = content[end+1:]
+	}
+	return names
 }
 
 func contactAvatarURL(contact *model.Contact) string {

@@ -16,15 +16,17 @@ type ChatRoom struct {
 	NickName string `json:"nickName"`
 
 	User2DisplayName map[string]string `json:"-"`
+	JoinTimesLoaded  bool              `json:"-"`
 }
 
 type ChatRoomUser struct {
-	UserName           string `json:"userName"`
-	DisplayName        string `json:"displayName"`
-	AvatarURL          string `json:"avatarUrl"`
-	Inviter            string `json:"inviter"`
-	InviterDisplayName string `json:"inviterDisplayName"`
-	InviterAvatarURL   string `json:"inviterAvatarUrl"`
+	UserName           string    `json:"userName"`
+	DisplayName        string    `json:"displayName"`
+	AvatarURL          string    `json:"avatarUrl"`
+	Inviter            string    `json:"inviter"`
+	InviterDisplayName string    `json:"inviterDisplayName"`
+	InviterAvatarURL   string    `json:"inviterAvatarUrl"`
+	JoinTime           *JSONTime `json:"joinTime"`
 }
 
 // CREATE TABLE ChatRoom(
