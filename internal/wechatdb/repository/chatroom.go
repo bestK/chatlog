@@ -151,6 +151,30 @@ func (r *Repository) enrichChatRoom(chatRoom *model.ChatRoom) {
 		chatRoom.Remark = contact.Remark
 		chatRoom.NickName = contact.NickName
 	}
+
+	for i := range chatRoom.Users {
+		user := &chatRoom.Users[i]
+		if contact, ok := r.contactCache[user.UserName]; ok {
+			if user.DisplayName == "" {
+				user.DisplayName = contact.DisplayName()
+			}
+			user.AvatarURL = contactAvatarURL(contact)
+		}
+
+		if user.Inviter != "" {
+			if inviter, ok := r.contactCache[user.Inviter]; ok {
+				user.InviterDisplayName = inviter.DisplayName()
+				user.InviterAvatarURL = contactAvatarURL(inviter)
+			}
+		}
+	}
+}
+
+func contactAvatarURL(contact *model.Contact) string {
+	if contact.BigHeadImgUrl != "" {
+		return contact.BigHeadImgUrl
+	}
+	return contact.SmallHeadImgUrl
 }
 
 func (r *Repository) findChatRoom(key string) *model.ChatRoom {
